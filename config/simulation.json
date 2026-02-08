@@ -1,0 +1,34 @@
+{
+    "simulation": {
+        "dt": 0.01,
+        "duration": 2.0
+    },
+    "components": [
+        {
+            "type": "Wgs84Earth",
+            "name": "earth",
+            "config": {}
+        },
+        {
+            "type": "SimpleDynamics",
+            "name": "dynamics",
+            "config": {
+                "initial_position": [0, 0, 100]
+            }
+        },
+        {
+            "type": "IdealImu",
+            "name": "imu_main",
+            "config": {
+                "frequency": 100
+            }
+        },
+        {
+            "type": "SimpleNavigation",
+            "name": "navigation",
+            "config": {
+                "frequency": 50
+            }
+        }
+    ]
+}

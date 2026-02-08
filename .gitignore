@@ -1,0 +1,44 @@
+# Build directories
+build/
+deps
+
+# Visual Studio Code
+# .vscode/
+# !.vscode/settings.json
+# !.vscode/tasks.json
+# !.vscode/launch.json
+# !.vscode/extensions.json
+# *.code-workspace
+
+# Temporary files
+temp/
+*.tmp
+*.temp
+
+# Log files
+*.log
+*temp_*
+consoleOutTemp*.log
+logs
+simulation_output.csv
+
+# Backup files
+old/
+*.bak
+*.backup
+*.orig
+
+# Documentation
+planning_docs/
+docs/html/
+docs/latex/
+doxygen_warnings.txt
+
+# Custom project specific
+# Add your project specific ignores here
+.env
+CLAUDE.md
+.kiro
+docs/
+examples/
+
