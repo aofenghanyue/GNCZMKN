@@ -6,6 +6,7 @@
 
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
+#include "gnc/core/scoped_registry.hpp"
 #include "gnc/interfaces/gnc/i_navigation.hpp"
 #include "gnc/interfaces/sensors/i_imu_sensor.hpp"
 
@@ -39,8 +40,8 @@ public:
     
     // --- ComponentBase 生命周期 ---
     
-    void injectDependencies(core::ComponentRegistry& registry) override {
-        imu_ = registry.getFirst<interfaces::IImuSensor>();
+    void injectDependencies(core::ScopedRegistry& registry) override {
+        imu_ = registry.getByName<interfaces::IImuSensor>("imu");
     }
     
     void initialize() override {

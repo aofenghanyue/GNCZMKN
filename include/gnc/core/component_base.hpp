@@ -8,7 +8,7 @@
 
 namespace gnc::core {
 
-class ComponentRegistry;
+class ScopedRegistry;
 class ServiceContext;
 
 /**
@@ -44,7 +44,7 @@ public:
     // --- 依赖注入 ---
     
     /// 注入组件依赖（由Simulator在initialize前调用）
-    virtual void injectDependencies(ComponentRegistry& registry) { (void)registry; }
+    virtual void injectDependencies(ScopedRegistry& registry) { (void)registry; }
     
     /// 注入服务依赖（由Simulator在injectDependencies后调用）
     virtual void injectServices(ServiceContext& services) { (void)services; }

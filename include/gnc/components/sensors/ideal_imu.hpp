@@ -6,6 +6,7 @@
 
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
+#include "gnc/core/scoped_registry.hpp"
 #include "gnc/interfaces/sensors/i_imu_sensor.hpp"
 #include "gnc/interfaces/dynamics/i_dynamics.hpp"
 
@@ -35,8 +36,8 @@ public:
     
     // --- ComponentBase 生命周期 ---
     
-    void injectDependencies(core::ComponentRegistry& registry) override {
-        dynamics_ = registry.getFirst<interfaces::IDynamics>();
+    void injectDependencies(core::ScopedRegistry& registry) override {
+        dynamics_ = registry.getByName<interfaces::IDynamics>("dynamics");
     }
     
     void update(double dt) override {

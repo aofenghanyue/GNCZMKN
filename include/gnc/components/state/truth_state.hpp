@@ -9,6 +9,7 @@
 
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
+#include "gnc/core/scoped_registry.hpp"
 #include "gnc/interfaces/state/i_vehicle_state.hpp"
 #include "gnc/interfaces/dynamics/i_dynamics.hpp"
 #include "gnc/libraries/coord/coord.hpp"
@@ -31,8 +32,8 @@ public:
     
     // ==================== 生命周期 ====================
     
-    void injectDependencies(core::ComponentRegistry& registry) override {
-        dynamics_ = registry.getFirst<interfaces::IDynamics>();
+    void injectDependencies(core::ScopedRegistry& registry) override {
+        dynamics_ = registry.getByName<interfaces::IDynamics>("dynamics");
     }
     
     void update(double dt) override {

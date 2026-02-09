@@ -5,6 +5,7 @@
 #pragma once
 
 #include "component_registry.hpp"
+#include "scoped_registry.hpp"
 #include "gnc/common/logger.hpp"
 #include <memory>
 #include <vector>
@@ -54,9 +55,11 @@ public:
         // 计算组件执行间隔
         computeStepIntervals();
         
-        // 注入依赖
+        // 注入依赖，根据组件名前缀创建对应的 ScopedRegistry
         for (auto* component : registry_.getAllComponents()) {
-            component->injectDependencies(registry_);
+            std::string scope = extractScope(component->getName());
+            ScopedRegistry scoped(scope, registry_);
+            component->injectDependencies(scoped);
         }
         
         // 初始化所有组件
@@ -124,6 +127,15 @@ private:
             
             component->setStepInterval(interval);
         }
+    }
+    
+    /// 从组件全名提取作用域前缀（如 "chaser.imu" → "chaser."）
+    static std::string extractScope(const std::string& fullName) {
+        auto pos = fullName.find('.');
+        if (pos == std::string::npos) {
+            return "";  // 无前缀，返回空作用域
+        }
+        return fullName.substr(0, pos + 1);  // 包含 '.'
     }
     
     ComponentRegistry registry_;

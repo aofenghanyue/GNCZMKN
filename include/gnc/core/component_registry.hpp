@@ -73,20 +73,7 @@ public:
         return dynamic_cast<T*>(it->second.get());
     }
     
-    /**
-     * @brief 获取实现特定接口的第一个组件
-     * @tparam Interface 接口类型
-     * @return Interface* 接口指针，找不到返回nullptr
-     */
-    template<typename Interface>
-    Interface* getFirst() const {
-        auto type_idx = std::type_index(typeid(Interface));
-        auto it = interface_map_.find(type_idx);
-        if (it == interface_map_.end() || it->second.empty()) {
-            return nullptr;
-        }
-        return static_cast<Interface*>(it->second.front().ptr);
-    }
+    
     
     /**
      * @brief 获取实现特定接口的所有组件
