@@ -180,6 +180,9 @@ private:
             auto component = factory.create(type_name);
             auto* comp_ptr = component.get();
             
+            // 透传组件配置
+            comp_ptr->configure(comp_config["config"]);
+            
             // 注入服务（全局 + 环境专有）
             comp_ptr->injectServices(globalServices_);
             comp_ptr->injectServices(environment_.services);
@@ -221,6 +224,9 @@ private:
             // 创建组件
             auto component = factory.create(type_name);
             auto* comp_ptr = component.get();
+            
+            // 透传组件配置
+            comp_ptr->configure(comp_config["config"]);
             
             // 注入服务
             comp_ptr->injectServices(globalServices_);
@@ -272,6 +278,9 @@ private:
                 
                 auto component = factory.create(type_name);
                 auto* comp_ptr = component.get();
+                
+                // 透传组件配置
+                comp_ptr->configure(comp_config["config"]);
                 
                 // 注入服务（全局 → 环境 → 飞行器专有）
                 comp_ptr->injectServices(globalServices_);

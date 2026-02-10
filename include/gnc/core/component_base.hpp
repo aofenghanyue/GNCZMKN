@@ -10,6 +10,7 @@ namespace gnc::core {
 
 class ScopedRegistry;
 class ServiceContext;
+class ConfigNode;
 
 /**
  * @brief 组件基类
@@ -18,6 +19,7 @@ class ServiceContext;
  * - 生命周期管理 (initialize, update, finalize)
  * - 执行频率控制
  * - 依赖注入接口（组件 + 服务）
+ * - 配置透传接口
  */
 class ComponentBase {
 public:
@@ -40,6 +42,11 @@ public:
     
     /// 终结（仿真结束时调用）
     virtual void finalize() {}
+    
+    // --- 配置 ---
+    
+    /// 从JSON配置节点加载组件参数（由SimulationBuilder在注册后调用）
+    virtual void configure(const ConfigNode& config) { (void)config; }
     
     // --- 依赖注入 ---
     

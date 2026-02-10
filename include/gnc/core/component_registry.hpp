@@ -87,7 +87,10 @@ public:
         auto it = interface_map_.find(type_idx);
         if (it != interface_map_.end()) {
             for (const auto& entry : it->second) {
-                result.push_back(static_cast<Interface*>(entry.ptr));
+                auto* casted = dynamic_cast<Interface*>(entry.ptr);
+                if (casted) {
+                    result.push_back(casted);
+                }
             }
         }
         return result;
@@ -142,7 +145,7 @@ public:
 private:
     struct InterfaceEntry {
         std::string name;
-        void* ptr;
+        ComponentBase* ptr;  // stored as base ptr; getAll() uses dynamic_cast
     };
     
     // 递归注册接口
@@ -154,7 +157,8 @@ private:
     template<typename T, typename First, typename... Rest>
     void registerInterfaces(const std::string& name, T* ptr) {
         auto type_idx = std::type_index(typeid(First));
-        interface_map_[type_idx].push_back({name, static_cast<First*>(ptr)});
+        // Store as ComponentBase*; getAll() will dynamic_cast to the correct interface
+        interface_map_[type_idx].push_back({name, static_cast<ComponentBase*>(ptr)});
         registerInterfaces<T, Rest...>(name, ptr);
     }
     

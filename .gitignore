@@ -9,7 +9,7 @@ deps
 # !.vscode/launch.json
 # !.vscode/extensions.json
 # *.code-workspace
-
+.agent/
 # Temporary files
 temp/
 *.tmp

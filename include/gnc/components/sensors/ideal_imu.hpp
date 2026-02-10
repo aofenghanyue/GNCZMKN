@@ -7,6 +7,7 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/scoped_registry.hpp"
+#include "gnc/core/config_manager.hpp"
 #include "gnc/interfaces/sensors/i_imu_sensor.hpp"
 #include "gnc/interfaces/dynamics/i_dynamics.hpp"
 
@@ -16,12 +17,24 @@ namespace gnc::components {
  * @brief 理想IMU传感器
  * 
  * 直接获取动力学真值，无噪声
+ * 
+ * 配置项：
+ * - frequency_hz: 采样频率 (Hz)，默认 100.0
  */
 class IdealImu : public core::ComponentBase, 
                  public interfaces::IImuSensor {
 public:
     IdealImu() : ComponentBase("IdealImu") {
-        setExecutionFrequency(100.0);  // 100 Hz
+        setExecutionFrequency(100.0);  // 默认 100 Hz
+    }
+    
+    // --- 配置 ---
+    
+    void configure(const core::ConfigNode& config) override {
+        if (!config.isNull()) {
+            double freq = config["frequency_hz"].asDouble(100.0);
+            setExecutionFrequency(freq);
+        }
     }
     
     // --- IImuSensor 接口实现 ---

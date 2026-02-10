@@ -125,10 +125,11 @@ public:
      * @brief 注册简单数值话题
      */
     void registerScalar(const std::string& name, std::function<double()> getter) {
-        auto wrapper = [getter]() -> const double& {
-            static double val;
-            val = getter();
-            return val;
+        // Each scalar topic gets its own storage via shared_ptr
+        auto storage = std::make_shared<double>(0.0);
+        auto wrapper = [getter, storage]() -> const double& {
+            *storage = getter();
+            return *storage;
         };
         registerTopic<double>(name, wrapper, {name}, 
             [](const double& v) { 
@@ -180,6 +181,10 @@ public:
             file_ << "," << topic->getData();
         }
         file_ << "\n";
+        
+        if (flush_every_step_) {
+            file_.flush();
+        }
     }
     
     bool isRecording() const override {
