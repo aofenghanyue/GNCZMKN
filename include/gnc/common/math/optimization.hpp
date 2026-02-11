@@ -231,26 +231,28 @@ inline OptResult nelder_mead(const VectorToScalarFunc& f,
         result.f_evals++;
     }
     
+    // 预分配内存避免循环内重复申请
+    std::vector<int> order(n + 1);
+    std::vector<VectorX> new_simplex(n + 1);
+    std::vector<double> new_fvals(n + 1);
+
     // 主循环
     for (int iter = 0; iter < max_iter; ++iter) {
         result.iterations = iter + 1;
         
         // 排序顶点
-        std::vector<int> order(n + 1);
         for (int i = 0; i <= n; ++i) order[i] = i;
         std::sort(order.begin(), order.end(), [&](int a, int b) {
             return fvals[a] < fvals[b];
         });
         
         // 重排
-        std::vector<VectorX> new_simplex(n + 1);
-        std::vector<double> new_fvals(n + 1);
         for (int i = 0; i <= n; ++i) {
             new_simplex[i] = simplex[order[i]];
             new_fvals[i] = fvals[order[i]];
         }
-        simplex = new_simplex;
-        fvals = new_fvals;
+        simplex.swap(new_simplex);
+        fvals.swap(new_fvals);
         
         // 收敛检查
         double range = fvals[n] - fvals[0];
