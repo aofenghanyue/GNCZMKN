@@ -12,7 +12,18 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # 查找 Eigen3
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(Eigen3 3.3 QUIET NO_MODULE)
+
+if(NOT Eigen3_FOUND)
+    message(STATUS "Eigen3 not found, fetching from git...")
+    include(FetchContent)
+    FetchContent_Declare(
+        Eigen3
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+        GIT_TAG 3.4.0
+    )
+    FetchContent_MakeAvailable(Eigen3)
+endif()
 
 # 包含目录
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -58,3 +69,12 @@ else()
     target_compile_options(test_math_headers PRIVATE -Wall -Wextra -pedantic)
 endif()
 
+
+# Data Logger Test
+add_executable(test_data_logger tests/test_data_logger.cpp)
+target_link_libraries(test_data_logger PRIVATE Eigen3::Eigen)
+if(MSVC)
+    target_compile_options(test_data_logger PRIVATE /W4 /utf-8)
+else()
+    target_compile_options(test_data_logger PRIVATE -Wall -Wextra -pedantic)
+endif()
