@@ -131,7 +131,7 @@ public:
     static ConfigNode parseFile(const std::string& filename) {
         std::ifstream file(filename);
         if (!file.is_open()) {
-            LOG_ERROR("Failed to open config file: {}", filename);
+            log_error("Failed to open config file: {}", filename);
             return ConfigNode();
         }
         std::stringstream buffer;
@@ -256,10 +256,10 @@ public:
     bool loadFromFile(const std::string& filename) {
         config_ = JsonParser::parseFile(filename);
         if (config_.isNull()) {
-            LOG_ERROR("Failed to parse config file: {}", filename);
+            log_error("Failed to parse config file: {}", filename);
             return false;
         }
-        LOG_INFO("Configuration loaded from: {}", filename);
+        log_info("Configuration loaded from: {}", filename);
         return true;
     }
     

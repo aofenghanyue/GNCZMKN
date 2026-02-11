@@ -81,14 +81,14 @@ public:
         
         // 输出结果
         for (const auto& error : result.errors) {
-            LOG_ERROR("Dependency Error: {}", error);
+            log_error("Dependency Error: {}", error);
         }
         for (const auto& warning : result.warnings) {
-            LOG_WARNING("Dependency Warning: {}", warning);
+            log_warning("Dependency Warning: {}", warning);
         }
         
         if (result.success && result.errors.empty()) {
-            LOG_INFO("Dependency validation passed");
+            log_info("Dependency validation passed");
         }
         
         return result;
@@ -128,12 +128,12 @@ public:
     void transitionTo(Phase phase) {
         // 验证状态转换是否合法
         if (!isValidTransition(current_phase_, phase)) {
-            LOG_ERROR("Invalid phase transition: {} -> {}", 
+            log_error("Invalid phase transition: {} -> {}",
                       phaseToString(current_phase_), phaseToString(phase));
             return;
         }
         
-        LOG_INFO("Simulation phase: {} -> {}", 
+        log_info("Simulation phase: {} -> {}",
                  phaseToString(current_phase_), phaseToString(phase));
         current_phase_ = phase;
     }

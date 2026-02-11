@@ -50,7 +50,7 @@ public:
     
     /// 初始化仿真
     void initialize() {
-        LOG_INFO("Initializing simulator...");
+        log_info("Initializing simulator...");
         
         // 计算组件执行间隔
         computeStepIntervals();
@@ -64,12 +64,12 @@ public:
         
         // 初始化所有组件
         for (auto* component : registry_.getAllComponents()) {
-            LOG_INFO("Initializing component: {}", component->getName());
+            log_info("Initializing component: {}", component->getName());
             component->initialize();
         }
         
         is_initialized_ = true;
-        LOG_INFO("Simulator initialized with {} components", registry_.size());
+        log_info("Simulator initialized with {} components", registry_.size());
     }
     
     /// 运行仿真
@@ -78,7 +78,7 @@ public:
             initialize();
         }
         
-        LOG_INFO("Starting simulation: dt={}, duration={}", config_.dt, config_.duration);
+        log_info("Starting simulation: dt={}, duration={}", config_.dt, config_.duration);
         
         int total_steps = static_cast<int>(config_.duration / config_.dt);
         
@@ -88,7 +88,7 @@ public:
         }
         
         finalize();
-        LOG_INFO("Simulation completed. Final time: {}", current_time_);
+        log_info("Simulation completed. Final time: {}", current_time_);
     }
     
     /// 单步执行
@@ -102,7 +102,7 @@ public:
     
     /// 终结仿真
     void finalize() {
-        LOG_INFO("Finalizing simulator...");
+        log_info("Finalizing simulator...");
         for (auto* component : registry_.getAllComponents()) {
             component->finalize();
         }
