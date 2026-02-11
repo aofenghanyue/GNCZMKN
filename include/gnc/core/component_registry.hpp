@@ -55,7 +55,7 @@ public:
         // 记录组件顺序
         component_order_.push_back(name);
         
-        LOG_INFO("Registered component: {}", name);
+        log_info("Registered component: {}", name);
     }
     
     /**
@@ -139,7 +139,7 @@ public:
         }
         
         component_order_.push_back(name);
-        LOG_INFO("Registered component (dynamic): {}", name);
+        log_info("Registered component (dynamic): {}", name);
     }
     
 private:

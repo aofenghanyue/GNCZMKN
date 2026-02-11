@@ -17,7 +17,7 @@
 using namespace gnc::core;
 
 int main() {
-    LOG_INFO("=== GNC Simulation Framework ===");
+    gnc::log_info("=== GNC Simulation Framework ===");
     
     // ⭐ 三行代码模式
     SimulationBuilder builder;
@@ -25,6 +25,6 @@ int main() {
     auto& simulator = builder.build();              // 2. 构建仿真
     simulator.run();                                // 3. 运行仿真
     
-    LOG_INFO("=== Simulation Completed ===");
+    gnc::log_info("=== Simulation Completed ===");
     return 0;
 }

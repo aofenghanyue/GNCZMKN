@@ -118,7 +118,7 @@ public:
         topics_.push_back(std::make_unique<DataTopic<T>>(
             name, std::move(getter), field_names, std::move(formatter)
         ));
-        LOG_INFO("Registered data topic: {} ({} fields)", name, field_names.size());
+        log_info("Registered data topic: {} ({} fields)", name, field_names.size());
     }
     
     /**
@@ -150,7 +150,7 @@ public:
         file_.open(filename);
         
         if (!file_.is_open()) {
-            LOG_ERROR("Failed to open log file: {}", filename);
+            log_error("Failed to open log file: {}", filename);
             return;
         }
         
@@ -162,13 +162,13 @@ public:
         file_ << "\n";
         
         is_recording_ = true;
-        LOG_INFO("Data logging started: {}", filename);
+        log_info("Data logging started: {}", filename);
     }
     
     void endSession() override {
         if (file_.is_open()) {
             file_.close();
-            LOG_INFO("Data logging ended");
+            log_info("Data logging ended");
         }
         is_recording_ = false;
     }

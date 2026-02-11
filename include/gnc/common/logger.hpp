@@ -74,12 +74,35 @@ private:
     }
 };
 
-// 便捷宏
-#define LOG_TRACE(...)    gnc::Logger::instance().log(gnc::LogLevel::Trace, __VA_ARGS__)
-#define LOG_DEBUG(...)    gnc::Logger::instance().log(gnc::LogLevel::Debug, __VA_ARGS__)
-#define LOG_INFO(...)     gnc::Logger::instance().log(gnc::LogLevel::Info, __VA_ARGS__)
-#define LOG_WARNING(...)  gnc::Logger::instance().log(gnc::LogLevel::Warning, __VA_ARGS__)
-#define LOG_ERROR(...)    gnc::Logger::instance().log(gnc::LogLevel::Error, __VA_ARGS__)
-#define LOG_CRITICAL(...) gnc::Logger::instance().log(gnc::LogLevel::Critical, __VA_ARGS__)
+// 便捷函数
+template<typename... Args>
+inline void log_trace(const char* fmt, Args&&... args) {
+    Logger::instance().log(LogLevel::Trace, fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+inline void log_debug(const char* fmt, Args&&... args) {
+    Logger::instance().log(LogLevel::Debug, fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+inline void log_info(const char* fmt, Args&&... args) {
+    Logger::instance().log(LogLevel::Info, fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+inline void log_warning(const char* fmt, Args&&... args) {
+    Logger::instance().log(LogLevel::Warning, fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+inline void log_error(const char* fmt, Args&&... args) {
+    Logger::instance().log(LogLevel::Error, fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+inline void log_critical(const char* fmt, Args&&... args) {
+    Logger::instance().log(LogLevel::Critical, fmt, std::forward<Args>(args)...);
+}
 
 } // namespace gnc

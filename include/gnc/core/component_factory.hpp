@@ -81,11 +81,11 @@ public:
     template<typename T, typename... Interfaces>
     void registerType(const std::string& type_name) {
         if (creators_.count(type_name) > 0) {
-            LOG_WARNING("Component type already registered: {}", type_name);
+            log_warning("Component type already registered: {}", type_name);
             return;
         }
         creators_[type_name] = std::make_unique<ComponentCreator<T, Interfaces...>>();
-        LOG_INFO("Factory registered type: {}", type_name);
+        log_info("Factory registered type: {}", type_name);
     }
     
     /**

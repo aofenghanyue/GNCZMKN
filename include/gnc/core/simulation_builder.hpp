@@ -102,7 +102,7 @@ public:
         cfg.duration = sim_config["duration"].asDouble(10.0);
         simulator_.configure(cfg);
         
-        LOG_INFO("Simulation config: dt={}, duration={}", cfg.dt, cfg.duration);
+        log_info("Simulation config: dt={}, duration={}", cfg.dt, cfg.duration);
         
         // 2. 构建全局服务（优先级最高）
         buildServices(config_.globalServices(), globalServices_);
@@ -148,12 +148,12 @@ private:
     void buildEnvironment() {
         const auto& envConfig = config_.root()["environment"];
         if (envConfig.isNull()) {
-            LOG_INFO("No environment configuration, skipping");
+            log_info("No environment configuration, skipping");
             return;
         }
         
         environment_.id = "environment";
-        LOG_INFO("Building environment entity");
+        log_info("Building environment entity");
         
         // 创建Environment专有服务
         buildServices(envConfig["services"], environment_.services);
@@ -173,7 +173,7 @@ private:
             
             if (type_name.empty() || base_name.empty()) continue;
             if (!factory.hasType(type_name)) {
-                LOG_ERROR("Unknown component type: {}", type_name);
+                log_error("Unknown component type: {}", type_name);
                 continue;
             }
             
@@ -192,7 +192,7 @@ private:
             auto interfaces = factory.getInterfaces(type_name);
             registry.addDynamic(name, std::move(component), interfaces);
             
-            LOG_INFO("Environment component registered: {}", name);
+            log_info("Environment component registered: {}", name);
         }
     }
     
@@ -212,12 +212,12 @@ private:
             std::string name = comp_config["name"].asString();
             
             if (type_name.empty() || name.empty()) {
-                LOG_WARNING("Skipping invalid component config at index {}", i);
+                log_warning("Skipping invalid component config at index {}", i);
                 continue;
             }
             
             if (!factory.hasType(type_name)) {
-                LOG_ERROR("Unknown component type: {}", type_name);
+                log_error("Unknown component type: {}", type_name);
                 continue;
             }
             
@@ -248,11 +248,11 @@ private:
             vehicle.id = vConfig["id"].asString();
             
             if (vehicle.id.empty()) {
-                LOG_WARNING("Skipping vehicle with no ID at index {}", i);
+                log_warning("Skipping vehicle with no ID at index {}", i);
                 continue;
             }
             
-            LOG_INFO("Building vehicle: {}", vehicle.id);
+            log_info("Building vehicle: {}", vehicle.id);
             
             // 创建飞行器专有服务
             buildServices(vConfig["services"], vehicle.services);
@@ -272,7 +272,7 @@ private:
                 
                 if (type_name.empty() || base_name.empty()) continue;
                 if (!factory.hasType(type_name)) {
-                    LOG_ERROR("Unknown component type: {}", type_name);
+                    log_error("Unknown component type: {}", type_name);
                     continue;
                 }
                 
@@ -307,7 +307,7 @@ private:
             if (coordConfig["enabled"].asBool(false)) {
                 auto coordService = std::make_shared<gnc::services::CoordinateService>();
                 context.registerService(coordService);
-                LOG_INFO("CoordinateService enabled");
+                log_info("CoordinateService enabled");
             }
         }
         
