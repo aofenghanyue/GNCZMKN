@@ -12,7 +12,22 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # 查找 Eigen3
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(Eigen3 3.3 QUIET)
+if (NOT Eigen3_FOUND)
+    message(STATUS "Eigen3 not found, fetching from GitLab...")
+    include(FetchContent)
+    FetchContent_Declare(
+        Eigen3
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+        GIT_TAG        3.4.0
+    )
+    FetchContent_MakeAvailable(Eigen3)
+
+    if(NOT TARGET Eigen3::Eigen)
+        add_library(Eigen3::Eigen INTERFACE IMPORTED)
+        target_include_directories(Eigen3::Eigen INTERFACE ${eigen3_SOURCE_DIR})
+    endif()
+endif()
 
 # 包含目录
 include_directories(${CMAKE_SOURCE_DIR}/include)
