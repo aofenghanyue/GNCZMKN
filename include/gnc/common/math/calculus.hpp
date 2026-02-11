@@ -82,6 +82,28 @@ struct Rk45Result {
 };
 
 /**
+ * @brief RK45 积分工作区 (用于复用内存)
+ */
+struct Rk45Workspace {
+    VectorX k1, k2, k3, k4, k5, k6, k7;
+    VectorX tmp;  // 用于存储 y + h*... 的中间结果
+
+    // 初始化或调整大小
+    void resize(long size) {
+        if (k1.size() != size) {
+            k1.resize(size);
+            k2.resize(size);
+            k3.resize(size);
+            k4.resize(size);
+            k5.resize(size);
+            k6.resize(size);
+            k7.resize(size);
+            tmp.resize(size);
+        }
+    }
+};
+
+/**
  * @brief RK45 (Dormand-Prince) 单步积分
  * 
  * Butcher 表:
@@ -123,6 +145,73 @@ inline Rk45Result rk45_step(const OdeVectorFunc& f, double t, const VectorX& y, 
     result.y_err = h * (e1*k1 + e3*k3 + e4*k4 + e5*k5 + e6*k6 + e7*k7);
     result.error_norm = result.y_err.norm();
     
+    return result;
+}
+
+/**
+ * @brief RK45 (Dormand-Prince) 单步积分 (使用工作区，优化性能)
+ *
+ * 相比标准版本，此重载版本使用预分配的工作区来减少内存分配。
+ * 特别是减少了中间变量计算时的临时向量分配。
+ *
+ * @param f ODE 右端函数
+ * @param t 当前时间
+ * @param y 当前状态
+ * @param h 时间步长
+ * @param ws 预分配的工作区
+ * @return 包含 5 阶解和误差估计的结果
+ */
+inline Rk45Result rk45_step(const OdeVectorFunc& f, double t, const VectorX& y, double h, Rk45Workspace& ws) {
+    // Dormand-Prince 系数
+    constexpr double a21 = 1.0/5.0;
+    constexpr double a31 = 3.0/40.0, a32 = 9.0/40.0;
+    constexpr double a41 = 44.0/45.0, a42 = -56.0/15.0, a43 = 32.0/9.0;
+    constexpr double a51 = 19372.0/6561.0, a52 = -25360.0/2187.0, a53 = 64448.0/6561.0, a54 = -212.0/729.0;
+    constexpr double a61 = 9017.0/3168.0, a62 = -355.0/33.0, a63 = 46732.0/5247.0, a64 = 49.0/176.0, a65 = -5103.0/18656.0;
+    constexpr double a71 = 35.0/384.0, a73 = 500.0/1113.0, a74 = 125.0/192.0, a75 = -2187.0/6784.0, a76 = 11.0/84.0;
+
+    // 5阶权重
+    constexpr double b1 = 35.0/384.0, b3 = 500.0/1113.0, b4 = 125.0/192.0, b5 = -2187.0/6784.0, b6 = 11.0/84.0;
+    // 4阶权重 (用于误差估计)
+    constexpr double e1 = 71.0/57600.0, e3 = -71.0/16695.0, e4 = 71.0/1920.0;
+    constexpr double e5 = -17253.0/339200.0, e6 = 22.0/525.0, e7 = -1.0/40.0;
+
+    long size = y.size();
+    ws.resize(size);
+
+    // k1 = f(t, y)
+    ws.k1 = f(t, y);
+
+    // k2 = f(t + h/5, y + h*a21*k1)
+    ws.tmp.noalias() = y + (h * a21) * ws.k1;
+    ws.k2 = f(t + h/5.0, ws.tmp);
+
+    // k3 = f(t + 3*h/10, y + h*(a31*k1 + a32*k2))
+    ws.tmp.noalias() = y + h * (a31 * ws.k1 + a32 * ws.k2);
+    ws.k3 = f(t + 3.0*h/10.0, ws.tmp);
+
+    // k4 = f(t + 4*h/5, y + h*(a41*k1 + a42*k2 + a43*k3))
+    ws.tmp.noalias() = y + h * (a41 * ws.k1 + a42 * ws.k2 + a43 * ws.k3);
+    ws.k4 = f(t + 4.0*h/5.0, ws.tmp);
+
+    // k5 = f(t + 8*h/9, y + h*(a51*k1 + a52*k2 + a53*k3 + a54*k4))
+    ws.tmp.noalias() = y + h * (a51 * ws.k1 + a52 * ws.k2 + a53 * ws.k3 + a54 * ws.k4);
+    ws.k5 = f(t + 8.0*h/9.0, ws.tmp);
+
+    // k6 = f(t + h, y + h*(a61*k1 + a62*k2 + a63*k3 + a64*k4 + a65*k5))
+    ws.tmp.noalias() = y + h * (a61 * ws.k1 + a62 * ws.k2 + a63 * ws.k3 + a64 * ws.k4 + a65 * ws.k5);
+    ws.k6 = f(t + h, ws.tmp);
+
+    // k7 = f(t + h, y + h*(a71*k1 + a73*k3 + a74*k4 + a75*k5 + a76*k6))
+    ws.tmp.noalias() = y + h * (a71 * ws.k1 + a73 * ws.k3 + a74 * ws.k4 + a75 * ws.k5 + a76 * ws.k6);
+    ws.k7 = f(t + h, ws.tmp);
+
+    Rk45Result result;
+    // 使用 noalias 避免临时分配
+    result.y_new.noalias() = y + h * (b1*ws.k1 + b3*ws.k3 + b4*ws.k4 + b5*ws.k5 + b6*ws.k6);
+    result.y_err.noalias() = h * (e1*ws.k1 + e3*ws.k3 + e4*ws.k4 + e5*ws.k5 + e6*ws.k6 + e7*ws.k7);
+    result.error_norm = result.y_err.norm();
+
     return result;
 }
 

@@ -12,7 +12,17 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # 查找 Eigen3
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(Eigen3 3.3 QUIET)
+if(NOT Eigen3_FOUND)
+    message(STATUS "Eigen3 not found locally, downloading from GitLab...")
+    include(FetchContent)
+    FetchContent_Declare(
+      Eigen3
+      GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+      GIT_TAG 3.4.0
+    )
+    FetchContent_MakeAvailable(Eigen3)
+endif()
 
 # 包含目录
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -58,3 +68,11 @@ else()
     target_compile_options(test_math_headers PRIVATE -Wall -Wextra -pedantic)
 endif()
 
+# RK45 Benchmark
+add_executable(rk45_benchmark tests/rk45_benchmark.cpp)
+target_link_libraries(rk45_benchmark PRIVATE Eigen3::Eigen)
+if(MSVC)
+    target_compile_options(rk45_benchmark PRIVATE /W4 /utf-8)
+else()
+    target_compile_options(rk45_benchmark PRIVATE -O3 -Wall -Wextra -pedantic)
+endif()
