@@ -156,6 +156,8 @@ private:
         if (c == 'n') { pos += 4; return ConfigNode(); } // null
         if (c == '-' || std::isdigit(c)) return parseNumber(json, pos);
         
+        // Unexpected character, skip to avoid infinite loop
+        pos++;
         return ConfigNode();
     }
     
@@ -224,8 +226,24 @@ private:
                json[pos] == 'e' || json[pos] == 'E' || json[pos] == '+' || json[pos] == '-')) {
             pos++;
         }
-        double val = std::stod(json.substr(start, pos - start));
-        return ConfigNode::makeNumber(val);
+
+        std::string num_str = json.substr(start, pos - start);
+        if (num_str.empty()) return ConfigNode();
+
+        try {
+            size_t idx = 0;
+            double val = std::stod(num_str, &idx);
+
+            // Ensure the entire string was consumed
+            if (idx != num_str.length()) {
+                LOG_ERROR("Invalid number format: {}", num_str);
+                return ConfigNode();
+            }
+            return ConfigNode::makeNumber(val);
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to parse number '{}': {}", num_str, e.what());
+            return ConfigNode();
+        }
     }
     
     static ConfigNode parseBool(const std::string& json, size_t& pos) {

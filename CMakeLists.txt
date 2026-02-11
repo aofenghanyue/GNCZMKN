@@ -58,3 +58,10 @@ else()
     target_compile_options(test_math_headers PRIVATE -Wall -Wextra -pedantic)
 endif()
 
+# 配置管理器测试
+add_executable(test_config_manager tests/test_config_manager.cpp)
+if(MSVC)
+    target_compile_options(test_config_manager PRIVATE /W4 /utf-8)
+else()
+    target_compile_options(test_config_manager PRIVATE -Wall -Wextra -pedantic)
+endif()
