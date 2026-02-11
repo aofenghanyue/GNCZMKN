@@ -27,7 +27,14 @@ class DataTopicBase {
 public:
     virtual ~DataTopicBase() = default;
     virtual std::string getHeader() const = 0;
+
+    // Pure virtual to enforce implementation in derived classes
     virtual std::string getData() const = 0;
+
+    // Virtual with default implementation for backward compatibility
+    virtual void logData(std::ostream& os) const {
+        os << getData();
+    }
 };
 
 /**
@@ -38,12 +45,12 @@ template<typename T>
 class DataTopic : public DataTopicBase {
 public:
     using GetterFunc = std::function<const T&()>;
-    using FormatterFunc = std::function<std::string(const T&)>;
+    using StreamFormatterFunc = std::function<void(std::ostream&, const T&)>;
     
     DataTopic(const std::string& name, 
               GetterFunc getter,
               const std::vector<std::string>& field_names,
-              FormatterFunc formatter)
+              StreamFormatterFunc formatter)
         : name_(name)
         , getter_(std::move(getter))
         , field_names_(field_names)
@@ -58,15 +65,23 @@ public:
         return oss.str();
     }
     
+    // Implement logData efficiently
+    void logData(std::ostream& os) const override {
+        formatter_(os, getter_());
+    }
+
+    // Implement getData using logData (required by base)
     std::string getData() const override {
-        return formatter_(getter_());
+        std::ostringstream oss;
+        logData(oss);
+        return oss.str();
     }
     
 private:
     std::string name_;
     GetterFunc getter_;
     std::vector<std::string> field_names_;
-    FormatterFunc formatter_;
+    StreamFormatterFunc formatter_;
 };
 
 /**
@@ -103,22 +118,37 @@ public:
     }
     
     /**
-     * @brief 注册数据话题
+     * @brief 注册数据话题 (Stream optimized)
      * @tparam T 数据类型
      * @param name 话题名称
      * @param getter 获取数据的函数
      * @param field_names 字段名列表
-     * @param formatter 格式化函数（返回CSV格式字符串）
+     * @param formatter 格式化函数（写入输出流）
+     */
+    template<typename T>
+    void registerTopic(const std::string& name,
+                       std::function<const T&()> getter,
+                       const std::vector<std::string>& field_names,
+                       std::function<void(std::ostream&, const T&)> formatter) {
+        topics_.push_back(std::make_unique<DataTopic<T>>(
+            name, std::move(getter), field_names, std::move(formatter)
+        ));
+        LOG_INFO("Registered data topic: {} ({} fields)", name, field_names.size());
+    }
+
+    /**
+     * @brief 注册数据话题 (Legacy string formatter support)
      */
     template<typename T>
     void registerTopic(const std::string& name,
                        std::function<const T&()> getter,
                        const std::vector<std::string>& field_names,
                        std::function<std::string(const T&)> formatter) {
-        topics_.push_back(std::make_unique<DataTopic<T>>(
-            name, std::move(getter), field_names, std::move(formatter)
-        ));
-        LOG_INFO("Registered data topic: {} ({} fields)", name, field_names.size());
+        // Wrap legacy formatter
+        auto stream_formatter = [formatter](std::ostream& os, const T& v) {
+            os << formatter(v);
+        };
+        registerTopic<T>(name, std::move(getter), field_names, std::move(stream_formatter));
     }
     
     /**
@@ -132,10 +162,8 @@ public:
             return *storage;
         };
         registerTopic<double>(name, wrapper, {name}, 
-            [](const double& v) { 
-                std::ostringstream oss;
-                oss << std::setprecision(12) << v;
-                return oss.str();
+            [](std::ostream& os, const double& v) {
+                os << std::setprecision(12) << v;
             });
     }
     
@@ -178,7 +206,8 @@ public:
         
         file_ << std::setprecision(12) << time;
         for (const auto& topic : topics_) {
-            file_ << "," << topic->getData();
+            file_ << ",";
+            topic->logData(file_);
         }
         file_ << "\n";
         
