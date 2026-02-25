@@ -341,7 +341,7 @@ inline std::vector<std::complex<double>> polynomial_roots(const std::vector<doub
     }
     
     // 计算特征值
-    Eigen::EigenSolver<MatrixX> es(companion);
+    Eigen::EigenSolver<MatrixX> es(companion, false);
     auto eigenvalues = es.eigenvalues();
     
     for (int i = 0; i < eigenvalues.size(); ++i) {

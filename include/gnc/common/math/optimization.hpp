@@ -462,9 +462,8 @@ inline QpResult solve_qp_unconstrained(const MatrixX& H, const VectorX& f) {
     
     result.x = llt.solve(-f);
     // 目标函数值: 0.5 * x^T * H * x + f^T * x
-    // 注意矩阵乘法结果是 1x1 矩阵，需要取 (0) 转为 scalar
-    double xHx = (result.x.transpose() * H * result.x)(0);
-    double fx = (f.transpose() * result.x)(0);
+    double xHx = result.x.dot(H * result.x);
+    double fx = f.dot(result.x);
     result.obj = 0.5 * xHx + fx;
     result.success = true;
     result.iterations = 1;

@@ -82,15 +82,13 @@ inline double rad2deg(double rad) {
 
 /// 角度归一化到 [-π, π]
 inline double normalizeAngle(double angle) {
-    while (angle > constants::PI) angle -= constants::TWO_PI;
-    while (angle < -constants::PI) angle += constants::TWO_PI;
-    return angle;
+    return std::remainder(angle, constants::TWO_PI);
 }
 
 /// 角度归一化到 [0, 2π]
 inline double normalizeAngle2Pi(double angle) {
-    while (angle >= constants::TWO_PI) angle -= constants::TWO_PI;
-    while (angle < 0) angle += constants::TWO_PI;
+    angle = std::fmod(angle, constants::TWO_PI);
+    if (angle < 0) angle += constants::TWO_PI;
     return angle;
 }
 
