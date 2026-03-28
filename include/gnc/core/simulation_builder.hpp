@@ -117,6 +117,13 @@ public:
             buildSingleVehicle();
         }
         
+        // 5. 依赖验证
+        auto validation = DependencyValidator::validate(simulator_.getRegistry());
+        if (!validation.success) {
+            LOG_WARNING("Dependency validation found {} error(s)", 
+                        validation.errors.size());
+        }
+        
         return simulator_;
     }
     

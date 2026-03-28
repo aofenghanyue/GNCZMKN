@@ -156,7 +156,7 @@ public:
         // 总外力 = 推力指令 + 重力
         Vector3d total_force = g_cmd.acceleration_cmd + gravity;
 
-        dynamics_->setExternalForce(total_force);
+        dynamics_->addForce(total_force);
 
         ctrl_cmd_.force_cmd = total_force;
         ctrl_cmd_.timestamp = g_cmd.timestamp;

@@ -31,12 +31,17 @@ public:
         return state_;
     }
     
-    void setExternalForce(const Vector3d& force) override {
-        external_force_ = force;
+    void addForce(const Vector3d& force) override {
+        external_force_ += force;
     }
     
-    void setExternalTorque(const Vector3d& torque) override {
-        external_torque_ = torque;
+    void addTorque(const Vector3d& torque) override {
+        external_torque_ += torque;
+    }
+    
+    void clearExternalForces() override {
+        external_force_ = Vector3d::Zero();
+        external_torque_ = Vector3d::Zero();
     }
     
     void reset() override {

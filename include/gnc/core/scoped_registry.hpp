@@ -8,6 +8,7 @@
 #pragma once
 
 #include "component_registry.hpp"
+#include "gnc/common/logger.hpp"
 #include <string>
 
 namespace gnc::core {
@@ -52,7 +53,11 @@ public:
         
         // 添加作用域前缀
         std::string fullName = scope_ + name;
-        return registry_.get<Interface>(fullName);
+        auto* result = registry_.get<Interface>(fullName);
+        if (!result) {
+            LOG_WARNING("Component '{}' not found in scope '{}'", name, scope_);
+        }
+        return result;
     }
     
     /**

@@ -18,11 +18,14 @@ public:
     /// 获取当前飞行器状态
     virtual const VehicleState& getVehicleState() const = 0;
     
-    /// 设置外力 (惯性系, N)
-    virtual void setExternalForce(const Vector3d& force) = 0;
+    /// 累加外力 (惯性系, N)，多个组件可依次调用
+    virtual void addForce(const Vector3d& force) = 0;
     
-    /// 设置外力矩 (机体系, Nm)
-    virtual void setExternalTorque(const Vector3d& torque) = 0;
+    /// 累加外力矩 (机体系, Nm)，多个组件可依次调用
+    virtual void addTorque(const Vector3d& torque) = 0;
+    
+    /// 清零累积的外力和外力矩（每仿真步开始时调用）
+    virtual void clearExternalForces() = 0;
     
     /// 重置到初始状态
     virtual void reset() = 0;

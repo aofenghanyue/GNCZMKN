@@ -97,7 +97,14 @@ public:
     std::unique_ptr<ComponentBase> create(const std::string& type_name) const {
         auto it = creators_.find(type_name);
         if (it == creators_.end()) {
-            throw std::runtime_error("Unknown component type: " + type_name);
+            std::string msg = "Unknown component type: '" + type_name + "'. Available types: ";
+            bool first = true;
+            for (const auto& [name, _] : creators_) {
+                if (!first) msg += ", ";
+                msg += name;
+                first = false;
+            }
+            throw std::runtime_error(msg);
         }
         return it->second->create();
     }

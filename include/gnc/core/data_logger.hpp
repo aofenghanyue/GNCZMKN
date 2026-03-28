@@ -97,8 +97,12 @@ class CsvDataLogger : public interfaces::IDataLogger {
 public:
     CsvDataLogger() = default;
     ~CsvDataLogger() override {
-        if (is_recording_) {
-            endSession();
+        try {
+            if (is_recording_) {
+                endSession();
+            }
+        } catch (...) {
+            // 析构函数中不抛出异常
         }
     }
     

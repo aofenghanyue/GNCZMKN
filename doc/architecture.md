@@ -108,7 +108,7 @@ interfaces/
 ├── coord/
 │   └── frame_id.hpp         # 坐标系枚举: ECI, ECEF, NED, ENU, BODY, WIND, STABILITY, LAUNCH...
 ├── dynamics/
-│   └── i_dynamics.hpp       # IDynamics: getVehicleState, setExternalForce/Torque, reset
+│   └── i_dynamics.hpp       # IDynamics: getVehicleState, addForce/Torque, clearExternalForces, reset
 ├── environment/
 │   ├── i_earth_model.hpp    # IEarthModel: getRadius, geodeticToEcef, ecefToGeodetic
 │   ├── i_gravity_model.hpp  # IGravityModel: getGravity(position), getSeaLevelGravity
@@ -198,8 +198,9 @@ classDiagram
     class IDynamics {
         <<interface>>
         +getVehicleState() VehicleState
-        +setExternalForce(force : Vector3d) void
-        +setExternalTorque(torque : Vector3d) void
+        +addForce(force : Vector3d) void
+        +addTorque(torque : Vector3d) void
+        +clearExternalForces() void
         +reset() void
     }
 
@@ -386,12 +387,12 @@ void update(double dt) override {
 }
 ```
 
-#### 方式二：外力/力矩设置（推送模式）
+#### 方式二：外力/力矩累加（推送模式）
 
 ```cpp
 // Controller 计算完控制指令后
-dynamics_->setExternalForce(control_force);    // 推送到动力学
-dynamics_->setExternalTorque(control_torque);
+dynamics_->addForce(control_force);     // 累加到动力学
+dynamics_->addTorque(control_torque);
 ```
 
 #### 方式三：服务查询

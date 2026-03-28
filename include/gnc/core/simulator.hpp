@@ -6,6 +6,7 @@
 
 #include "component_registry.hpp"
 #include "scoped_registry.hpp"
+#include "dependency_validator.hpp"
 #include "gnc/common/logger.hpp"
 #include <memory>
 #include <vector>
@@ -50,6 +51,7 @@ public:
     
     /// 初始化仿真
     void initialize() {
+        phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Initializing);
         LOG_INFO("Initializing simulator...");
         
         // 计算组件执行间隔
@@ -79,6 +81,7 @@ public:
         }
         
         LOG_INFO("Starting simulation: dt={}, duration={}", config_.dt, config_.duration);
+        phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Running);
         
         int total_steps = static_cast<int>(config_.duration / config_.dt);
         
@@ -87,7 +90,9 @@ public:
             current_time_ += config_.dt;
         }
         
+        phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Finalizing);
         finalize();
+        phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Completed);
         LOG_INFO("Simulation completed. Final time: {}", current_time_);
     }
     
@@ -140,6 +145,7 @@ private:
     
     ComponentRegistry registry_;
     SimulatorConfig config_;
+    ExecutionPhaseManager phase_manager_;
     double current_time_ = 0.0;
     bool is_initialized_ = false;
 };
