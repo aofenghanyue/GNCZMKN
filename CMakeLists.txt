@@ -1,60 +1,82 @@
 cmake_minimum_required(VERSION 3.16)
-project(gnc_sim VERSION 1.0.0 LANGUAGES CXX)
+project(gnc_sim VERSION 2.0.0 LANGUAGES CXX)
 
-# C++17 标准
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 设置输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# 查找 Eigen3
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-# 包含目录
-include_directories(${CMAKE_SOURCE_DIR}/include)
+add_subdirectory(framework)
 
-# 收集源文件
-file(GLOB_RECURSE SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/*.cpp"
+set(USER_COMPONENTS_DIR "${CMAKE_SOURCE_DIR}/user/components")
+file(GLOB_RECURSE USER_COMPONENT_FILES CONFIGURE_DEPENDS
+    RELATIVE "${CMAKE_SOURCE_DIR}"
+    "user/components/*.hpp"
 )
 
-# 创建可执行文件
-add_executable(gnc_sim ${SOURCES})
+set(GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${GENERATED_DIR}")
 
-# 链接 Eigen3
-target_link_libraries(gnc_sim PRIVATE Eigen3::Eigen)
+set(AUTO_REGISTER_FILE "${GENERATED_DIR}/user_components_register.hpp")
+file(WRITE "${AUTO_REGISTER_FILE}" "#pragma once\n\n")
 
-# 编译选项
+if(USER_COMPONENT_FILES)
+    foreach(COMP_FILE IN LISTS USER_COMPONENT_FILES)
+        file(APPEND "${AUTO_REGISTER_FILE}" "#include \"${COMP_FILE}\"\n")
+    endforeach()
+else()
+    file(APPEND "${AUTO_REGISTER_FILE}" "\n")
+endif()
+
+list(LENGTH USER_COMPONENT_FILES USER_COMPONENT_COUNT)
+message(STATUS "Found ${USER_COMPONENT_COUNT} user component(s) in ${USER_COMPONENTS_DIR}")
+
+add_executable(gnc_sim src/runner.cpp)
+target_link_libraries(gnc_sim PRIVATE gnc_framework)
+target_include_directories(gnc_sim PRIVATE
+    "${GENERATED_DIR}"
+    "${CMAKE_SOURCE_DIR}"
+    "${USER_COMPONENTS_DIR}"
+)
+
 if(MSVC)
     target_compile_options(gnc_sim PRIVATE /W4 /utf-8)
 else()
     target_compile_options(gnc_sim PRIVATE -Wall -Wextra -pedantic)
 endif()
 
-# 打印配置信息
+option(BUILD_EXAMPLES "Build example programs" ON)
+if(BUILD_EXAMPLES AND EXISTS "${CMAKE_SOURCE_DIR}/examples/CMakeLists.txt")
+    add_subdirectory(examples)
+endif()
+
+option(BUILD_TESTS "Build test programs" ON)
+if(BUILD_TESTS)
+    add_executable(test_transform tests/test_transform.cpp)
+    target_link_libraries(test_transform PRIVATE gnc_framework)
+    if(MSVC)
+        target_compile_options(test_transform PRIVATE /W4 /utf-8)
+    else()
+        target_compile_options(test_transform PRIVATE -Wall -Wextra -pedantic)
+    endif()
+
+    add_executable(test_math_headers tests/test_math_headers.cpp)
+    target_link_libraries(test_math_headers PRIVATE gnc_framework)
+    if(MSVC)
+        target_compile_options(test_math_headers PRIVATE /W4 /utf-8)
+    else()
+        target_compile_options(test_math_headers PRIVATE -Wall -Wextra -pedantic)
+    endif()
+endif()
+
 message(STATUS "GNC Simulation Framework v${PROJECT_VERSION}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
-
-# 测试可执行文件
-add_executable(test_transform tests/test_transform.cpp)
-target_link_libraries(test_transform PRIVATE Eigen3::Eigen)
-if(MSVC)
-    target_compile_options(test_transform PRIVATE /W4 /utf-8)
-else()
-    target_compile_options(test_transform PRIVATE -Wall -Wextra -pedantic)
-endif()
-
-# 数学库测试
-add_executable(test_math_headers tests/test_math_headers.cpp)
-target_link_libraries(test_math_headers PRIVATE Eigen3::Eigen)
-if(MSVC)
-    target_compile_options(test_math_headers PRIVATE /W4 /utf-8)
-else()
-    target_compile_options(test_math_headers PRIVATE -Wall -Wextra -pedantic)
-endif()
+message(STATUS "User components dir: ${USER_COMPONENTS_DIR}")
+message(STATUS "Auto-register file: ${AUTO_REGISTER_FILE}")
 

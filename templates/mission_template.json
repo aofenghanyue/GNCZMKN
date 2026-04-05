@@ -1,0 +1,51 @@
+{
+    "_comment": "任务配置模板：复制到 user/config/missions/ 后，按带有 ★ 的注释项逐步修改",
+    "simulation": {
+        "_comment": "★ 修改仿真步长和仿真时长",
+        "dt": 0.01,
+        "duration": 30.0
+    },
+    "components": [
+        {
+            "_comment": "基础环境模型，通常保留",
+            "type": "Wgs84Earth",
+            "name": "earth",
+            "config": {}
+        },
+        {
+            "_comment": "动力学模型，★ 可替换为你自己的动力学组件",
+            "type": "SimpleDynamics",
+            "name": "dynamics",
+            "config": {
+                "_comment": "★ 可在这里设置动力学初始条件",
+                "initial_position": [0, 0, 0]
+            }
+        },
+        {
+            "_comment": "传感器组件，★ 可替换或补充更多传感器",
+            "type": "IdealImu",
+            "name": "imu",
+            "config": {
+                "frequency": 100
+            }
+        },
+        {
+            "_comment": "★ 将 type 改为你的导航算法类型名",
+            "type": "SimpleNavigation",
+            "name": "nav",
+            "config": {}
+        },
+        {
+            "_comment": "★ 将 type 改为你的制导算法类型名，并在 config 中填写参数",
+            "type": "MyGuidance",
+            "name": "guidance",
+            "config": {}
+        },
+        {
+            "_comment": "★ 将 type 改为你的控制算法类型名，并在 config 中填写参数",
+            "type": "MyController",
+            "name": "controller",
+            "config": {}
+        }
+    ]
+}

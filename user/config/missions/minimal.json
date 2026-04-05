@@ -1,0 +1,13 @@
+{
+    "simulation": {
+        "dt": 0.01,
+        "duration": 10.0
+    },
+    "components": [
+        { "type": "Wgs84Earth", "name": "earth", "config": {} },
+        { "type": "SimpleDynamics", "name": "dynamics", "config": {} },
+        { "type": "IdealImu", "name": "imu", "config": { "frequency": 100 } },
+        { "type": "SimpleNavigation", "name": "nav", "config": {} },
+        { "type": "ConstantGuidance", "name": "guidance", "config": { "thrust_z": 20.0 } }
+    ]
+}
