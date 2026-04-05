@@ -7,8 +7,10 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
+#include "gnc/core/observable_helpers.hpp"
 #include "gnc/interfaces/dynamics/i_dynamics.hpp"
 #include "gnc/interfaces/disturbance/i_disturbance.hpp"
+#include "gnc/interfaces/infrastructure/i_observable.hpp"
 #include <vector>
 
 namespace gnc::components {
@@ -19,7 +21,8 @@ namespace gnc::components {
  * 占位实现，展示框架用法
  */
 class SimpleDynamics : public core::ComponentBase,
-                        public interfaces::IDynamics {
+                        public interfaces::IDynamics,
+                        public interfaces::IObservable {
 public:
     SimpleDynamics() : ComponentBase("SimpleDynamics") {
         // 动力学通常以最高频率运行
@@ -103,6 +106,16 @@ public:
         state_.velocity += acceleration * dt;
         state_.position += state_.velocity * dt;
         state_.timestamp += dt;
+    }
+
+    std::vector<interfaces::ObservableField> getObservableFields() const override {
+        core::ObservableFieldBuilder builder;
+        builder.addVector3d("position", [this]() -> const Vector3d& { return state_.position; });
+        builder.addVector3d("velocity", [this]() -> const Vector3d& { return state_.velocity; });
+        builder.addQuaterniond("attitude", [this]() -> const Quaterniond& { return state_.attitude; });
+        builder.addVector3d("angular_velocity", [this]() -> const Vector3d& { return state_.angular_velocity; });
+        builder.addScalar("timestamp", [this]() { return state_.timestamp; });
+        return builder.build();
     }
     
 private:

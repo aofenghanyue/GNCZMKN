@@ -51,9 +51,8 @@ public:
         return isNumber() ? static_cast<int>(num_val_) : default_val;
     }
     
-    const std::string& asString(const std::string& default_val = "") const {
-        static std::string empty;
-        return isString() ? str_val_ : (default_val.empty() ? empty : default_val);
+    std::string asString(const std::string& default_val = "") const {
+        return isString() ? str_val_ : default_val;
     }
     
     // 对象访问

@@ -83,6 +83,10 @@ public:
         sim_time_ = time;
         sim_step_ = step;
     }
+
+    void setNameInternal_(const std::string& name) {
+        name_ = name;
+    }
     
 private:
     std::string name_;

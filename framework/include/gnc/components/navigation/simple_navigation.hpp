@@ -8,8 +8,10 @@
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/dependency_validator.hpp"
+#include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/interfaces/gnc/i_navigation.hpp"
+#include "gnc/interfaces/infrastructure/i_observable.hpp"
 #include "gnc/interfaces/sensors/i_imu_sensor.hpp"
 
 namespace gnc::components {
@@ -21,7 +23,8 @@ namespace gnc::components {
  */
 class SimpleNavigation : public core::ComponentBase,
                          public interfaces::INavigation,
-                         public core::IDependencyDeclarer {
+                         public core::IDependencyDeclarer,
+                         public interfaces::IObservable {
 public:
     SimpleNavigation() : ComponentBase("SimpleNavigation") {
         setExecutionFrequency(50.0);  // 50 Hz
@@ -83,6 +86,16 @@ public:
         nav_state_.position += nav_state_.velocity * dt;
         nav_state_.angular_velocity = imu_data.angular_velocity;
         nav_state_.timestamp = getSimTime();
+    }
+
+    std::vector<interfaces::ObservableField> getObservableFields() const override {
+        core::ObservableFieldBuilder builder;
+        builder.addVector3d("position", [this]() -> const Vector3d& { return nav_state_.position; });
+        builder.addVector3d("velocity", [this]() -> const Vector3d& { return nav_state_.velocity; });
+        builder.addQuaterniond("attitude", [this]() -> const Quaterniond& { return nav_state_.attitude; });
+        builder.addVector3d("angular_velocity", [this]() -> const Vector3d& { return nav_state_.angular_velocity; });
+        builder.addScalar("timestamp", [this]() { return nav_state_.timestamp; });
+        return builder.build();
     }
     
 private:

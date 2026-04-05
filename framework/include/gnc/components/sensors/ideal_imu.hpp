@@ -9,8 +9,10 @@
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/dependency_validator.hpp"
+#include "gnc/core/observable_helpers.hpp"
 #include "gnc/interfaces/sensors/i_imu_sensor.hpp"
 #include "gnc/interfaces/dynamics/i_dynamics.hpp"
+#include "gnc/interfaces/infrastructure/i_observable.hpp"
 
 namespace gnc::components {
 
@@ -24,7 +26,8 @@ namespace gnc::components {
  */
 class IdealImu : public core::ComponentBase, 
                  public interfaces::IImuSensor,
-                 public core::IDependencyDeclarer {
+                 public core::IDependencyDeclarer,
+                 public interfaces::IObservable {
 public:
     IdealImu() : ComponentBase("IdealImu") {
         setExecutionFrequency(100.0);  // 默认 100 Hz
@@ -80,6 +83,14 @@ public:
             imu_data_.angular_velocity = state.angular_velocity;
             imu_data_.timestamp = state.timestamp;
         }
+    }
+
+    std::vector<interfaces::ObservableField> getObservableFields() const override {
+        core::ObservableFieldBuilder builder;
+        builder.addVector3d("acceleration", [this]() -> const Vector3d& { return imu_data_.acceleration; });
+        builder.addVector3d("angular_velocity", [this]() -> const Vector3d& { return imu_data_.angular_velocity; });
+        builder.addScalar("timestamp", [this]() { return imu_data_.timestamp; });
+        return builder.build();
     }
     
 private:

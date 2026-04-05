@@ -4,13 +4,18 @@
  */
 #pragma once
 
+#include "auto_data_logger.hpp"
 #include "component_registry.hpp"
-#include "scoped_registry.hpp"
 #include "dependency_validator.hpp"
+#include "scoped_registry.hpp"
+#include "simulation_summary.hpp"
 #include "gnc/common/logger.hpp"
+
+#include <chrono>
+#include <cmath>
+#include <functional>
 #include <memory>
 #include <vector>
-#include <cmath>
 
 namespace gnc::core {
 
@@ -32,6 +37,9 @@ struct SimulatorConfig {
  */
 class Simulator {
 public:
+    using StepCallback = std::function<void(int step, double time, double dt)>;
+    using TerminationCondition = std::function<bool(int step, double time)>;
+
     Simulator() = default;
     ~Simulator() = default;
     
@@ -47,6 +55,30 @@ public:
     void configure(const SimulatorConfig& config) {
         config_ = config;
         computeStepIntervals();
+    }
+
+    bool initializeAutoDataLogger(const ConfigNode& config) {
+        return auto_logger_.initialize(config, registry_);
+    }
+
+    AutoDataLogger& getAutoDataLogger() { return auto_logger_; }
+    const AutoDataLogger& getAutoDataLogger() const { return auto_logger_; }
+
+    void onBeforeStep(StepCallback callback) {
+        before_step_callbacks_.push_back(std::move(callback));
+    }
+
+    void onAfterStep(StepCallback callback) {
+        after_step_callbacks_.push_back(std::move(callback));
+    }
+
+    void addTerminationCondition(const std::string& name,
+                                 TerminationCondition condition) {
+        termination_conditions_.push_back({name, std::move(condition)});
+    }
+
+    const std::string& getTerminationReason() const {
+        return termination_reason_;
     }
     
     /// 初始化仿真
@@ -79,21 +111,62 @@ public:
         if (!is_initialized_) {
             initialize();
         }
-        
+
         LOG_INFO("Starting simulation: dt={}, duration={}", config_.dt, config_.duration);
         phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Running);
-        
-        int total_steps = static_cast<int>(config_.duration / config_.dt);
-        
+
+        const int total_steps = static_cast<int>(config_.duration / config_.dt);
+        int executed_steps = 0;
+        termination_reason_ = "completed";
+        const auto wall_start = std::chrono::steady_clock::now();
+
         for (int step = 0; step < total_steps; ++step) {
+            for (auto& callback : before_step_callbacks_) {
+                callback(step, current_time_, config_.dt);
+            }
+
             this->step(step);
+            auto_logger_.recordStep(current_time_);
+
+            for (auto& callback : after_step_callbacks_) {
+                callback(step, current_time_, config_.dt);
+            }
+
             current_time_ += config_.dt;
+            executed_steps = step + 1;
+
+            for (const auto& condition : termination_conditions_) {
+                if (condition.condition(step, current_time_)) {
+                    termination_reason_ = condition.name;
+                    LOG_INFO("Simulation terminated early by condition '{}' at t={} s, step={}",
+                             condition.name, current_time_, step);
+                    goto simulation_end;
+                }
+            }
         }
-        
+
+simulation_end:
+        {
+            const auto wall_end = std::chrono::steady_clock::now();
+            const double wall_seconds = std::chrono::duration<double>(wall_end - wall_start).count();
+            auto_logger_.stop();
+
+            if (!auto_logger_.getOutputDir().empty()) {
+                SimulationSummary::SimInfo info;
+                info.dt = config_.dt;
+                info.duration = config_.duration;
+                info.final_time = current_time_;
+                info.total_steps = executed_steps;
+                info.termination_reason = termination_reason_;
+                info.wall_clock_seconds = wall_seconds;
+                SimulationSummary::write(auto_logger_.getOutputDir(), info, registry_, auto_logger_);
+            }
+        }
+
         phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Finalizing);
         finalize();
         phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Completed);
-        LOG_INFO("Simulation completed. Final time: {}", current_time_);
+        LOG_INFO("Simulation completed. Final time: {}, reason: {}", current_time_, termination_reason_);
     }
     
     /// 单步执行
@@ -118,6 +191,11 @@ public:
     double getCurrentTime() const { return current_time_; }
     
 private:
+    struct NamedCondition {
+        std::string name;
+        TerminationCondition condition;
+    };
+
     /// 根据频率计算各组件的步长间隔
     void computeStepIntervals() {
         double sim_freq = 1.0 / config_.dt;
@@ -146,7 +224,12 @@ private:
     
     ComponentRegistry registry_;
     SimulatorConfig config_;
+    AutoDataLogger auto_logger_;
     ExecutionPhaseManager phase_manager_;
+    std::vector<StepCallback> before_step_callbacks_;
+    std::vector<StepCallback> after_step_callbacks_;
+    std::vector<NamedCondition> termination_conditions_;
+    std::string termination_reason_ = "completed";
     double current_time_ = 0.0;
     bool is_initialized_ = false;
 };

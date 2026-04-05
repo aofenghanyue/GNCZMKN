@@ -11,6 +11,7 @@
 #include "component_factory.hpp"
 #include "config_manager.hpp"
 #include "service_context.hpp"
+#include "string_utils.hpp"
 #include "gnc/common/logger.hpp"
 #include "gnc/services/coordinate/coordinate_service.hpp"
 #include <sstream>
@@ -125,6 +126,12 @@ public:
             addBuildWarning(warning);
         }
 
+        buildStopConditions();
+
+        if (!simulator_.initializeAutoDataLogger(config_.root()["outputs"])) {
+            addBuildError("AutoDataLogger initialization failed during simulation build. Please check the outputs configuration and output directory settings.");
+        }
+
         if (!reportBuildDiagnostics()) {
             throw std::runtime_error("Simulation build failed with " +
                                      std::to_string(build_errors_.size()) +
@@ -169,6 +176,33 @@ private:
 
     static std::string joinRegisteredTypes(const ComponentFactory& factory) {
         return joinStrings(factory.getRegisteredTypes());
+    }
+
+    static std::string listFieldNames(const std::vector<interfaces::ObservableField>& fields) {
+        std::vector<std::string> names;
+        names.reserve(fields.size());
+        for (const auto& field : fields) {
+            names.push_back(field.name);
+        }
+        return joinStrings(names);
+    }
+
+    static std::string buildUnknownTypeMessage(const std::string& type_name,
+                                               const std::string& component_name,
+                                               const ComponentFactory& factory,
+                                               const std::string& context = "") {
+        std::string message = "Unknown component type: '" + type_name + "' (component name: '" + component_name + "')";
+        if (!context.empty()) {
+            message += " in " + context;
+        }
+        message += ". Available types: " + joinRegisteredTypes(factory);
+
+        const std::string suggestion = findClosestMatch(type_name, factory.getRegisteredTypes());
+        if (!suggestion.empty()) {
+            message += ". Did you mean '" + suggestion + "'?";
+        }
+        message += ". Please register the component or fix the type name.";
+        return message;
     }
 
     void addBuildError(const std::string& msg) {
@@ -231,6 +265,98 @@ private:
         return true;
     }
 
+    bool buildStopConditions() {
+        const auto& conditions = config_.simulation()["stop_conditions"];
+        if (conditions.isNull()) {
+            return true;
+        }
+        if (!conditions.isArray()) {
+            addBuildWarning("Simulation stop_conditions must be an array. The configured stop conditions will be ignored.");
+            return false;
+        }
+
+        auto& registry = simulator_.getRegistry();
+        bool success = true;
+
+        for (size_t i = 0; i < conditions.size(); ++i) {
+            const auto& condition = conditions[i];
+            const std::string type = condition["type"].asString();
+            const std::string component_name = condition["component"].asString();
+            const std::string field_name = condition["field"].asString();
+            const double threshold = condition["value"].asDouble(0.0);
+            const std::string description = condition["description"].asString(
+                type + "(" + component_name + "." + field_name + ", " + std::to_string(threshold) + ")");
+
+            if (type.empty() || component_name.empty() || field_name.empty()) {
+                addBuildWarning("Stop condition at index " + std::to_string(i) + " is missing required fields (type, component, field). Please provide all required fields.");
+                success = false;
+                continue;
+            }
+
+            auto* component = registry.get<ComponentBase>(component_name);
+            if (!component) {
+                std::string message = "Stop condition references unknown component '" + component_name + "'.";
+                const std::string suggestion = findClosestMatch(component_name, registry.getComponentNames());
+                if (!suggestion.empty()) {
+                    message += " Did you mean '" + suggestion + "'?";
+                }
+                message += " Please fix the component name in simulation.stop_conditions.";
+                addBuildWarning(message);
+                success = false;
+                continue;
+            }
+
+            auto* observable = dynamic_cast<interfaces::IObservable*>(component);
+            if (!observable) {
+                addBuildWarning("Stop condition references component '" + component_name + "' which does not implement IObservable. Please expose observable fields on that component or remove this stop condition.");
+                success = false;
+                continue;
+            }
+
+            std::function<double()> getter;
+            const auto fields = observable->getObservableFields();
+            for (const auto& field : fields) {
+                if (field.name == field_name) {
+                    getter = field.getter;
+                    break;
+                }
+            }
+
+            if (!getter) {
+                std::string message = "Stop condition references field '" + field_name + "' not found in component '" + component_name + "'. Available fields: " + listFieldNames(fields) + ".";
+                const std::vector<std::string> field_names = [&fields]() {
+                    std::vector<std::string> values;
+                    values.reserve(fields.size());
+                    for (const auto& field : fields) values.push_back(field.name);
+                    return values;
+                }();
+                const std::string suggestion = findClosestMatch(field_name, field_names);
+                if (!suggestion.empty()) {
+                    message += " Did you mean '" + suggestion + "'?";
+                }
+                message += " Please fix the field name in simulation.stop_conditions.";
+                addBuildWarning(message);
+                success = false;
+                continue;
+            }
+
+            if (type == "component_field_below") {
+                simulator_.addTerminationCondition(description, [getter, threshold](int, double) {
+                    return getter() < threshold;
+                });
+            } else if (type == "component_field_above") {
+                simulator_.addTerminationCondition(description, [getter, threshold](int, double) {
+                    return getter() > threshold;
+                });
+            } else {
+                addBuildWarning("Unknown stop condition type '" + type + "'. Supported types: component_field_below, component_field_above. Please fix the configuration.");
+                success = false;
+            }
+        }
+
+        return success;
+    }
+
     void buildEnvironment() {
         const auto& envConfig = config_.root()["environment"];
         if (envConfig.isNull()) {
@@ -260,10 +386,7 @@ private:
                 continue;
             }
             if (!factory.hasType(type_name)) {
-                addBuildError("Unknown component type: '" + type_name +
-                              "' (component name: '" + name + "') in environment configuration. "
-                              "Available types: " + joinRegisteredTypes(factory) +
-                              ". Please register the component or fix the type name.");
+                addBuildError(buildUnknownTypeMessage(type_name, name, factory, "environment configuration"));
                 continue;
             }
             if (registry.has(name)) {
@@ -311,10 +434,7 @@ private:
             }
             
             if (!factory.hasType(type_name)) {
-                addBuildError("Unknown component type: '" + type_name +
-                              "' (component name: '" + name + "'). Available types: " +
-                              joinRegisteredTypes(factory) +
-                              ". Please register the component or fix the type name.");
+                addBuildError(buildUnknownTypeMessage(type_name, name, factory));
                 continue;
             }
 
@@ -373,10 +493,7 @@ private:
                     continue;
                 }
                 if (!factory.hasType(type_name)) {
-                    addBuildError("Unknown component type: '" + type_name +
-                                  "' (component name: '" + name + "'). Available types: " +
-                                  joinRegisteredTypes(factory) +
-                                  ". Please register the component or fix the type name.");
+                    addBuildError(buildUnknownTypeMessage(type_name, name, factory));
                     continue;
                 }
 

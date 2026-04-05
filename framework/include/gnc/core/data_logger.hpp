@@ -2,6 +2,9 @@
  * @file data_logger.hpp
  * @brief 数据记录器实现
  * 
+ * DEPRECATED: 请优先使用新的 AutoDataLogger + IObservable 系统。
+ * 本文件保留仅为兼容现有示例与旧用法。
+ * 
  * 支持：
  * - 注册任意数据话题
  * - 输出到 CSV 格式

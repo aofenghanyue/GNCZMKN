@@ -3,13 +3,16 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
+#include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/interfaces/data_types.hpp"
 #include "gnc/interfaces/gnc/i_guidance.hpp"
 #include "gnc/interfaces/gnc/i_navigation.hpp"
+#include "gnc/interfaces/infrastructure/i_observable.hpp"
 
 class ConstantGuidance : public gnc::core::ComponentBase,
-                         public gnc::interfaces::IGuidance {
+                         public gnc::interfaces::IGuidance,
+                         public gnc::interfaces::IObservable {
 public:
     ConstantGuidance() : ComponentBase("ConstantGuidance") {
         setExecutionFrequency(50.0);
@@ -41,6 +44,13 @@ public:
 
     bool isActive() const override {
         return true;
+    }
+
+    std::vector<gnc::interfaces::ObservableField> getObservableFields() const override {
+        gnc::core::ObservableFieldBuilder builder;
+        builder.addVector3d("acceleration_cmd", [this]() -> const gnc::Vector3d& { return cmd_.acceleration_cmd; });
+        builder.addScalar("timestamp", [this]() { return cmd_.timestamp; });
+        return builder.build();
     }
 
 private:

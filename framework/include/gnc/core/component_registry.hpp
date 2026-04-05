@@ -47,6 +47,7 @@ public:
         }
         
         T* raw_ptr = component.get();
+        raw_ptr->setNameInternal_(name);
         components_[name] = std::move(component);
         
         // 注册所有接口
@@ -161,6 +162,7 @@ public:
         }
         
         ComponentBase* raw_ptr = component.get();
+        raw_ptr->setNameInternal_(name);
         components_[name] = std::move(component);
         
         // 动态注册接口
