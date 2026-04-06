@@ -55,7 +55,7 @@ if(BUILD_EXAMPLES AND EXISTS "${CMAKE_SOURCE_DIR}/examples/CMakeLists.txt")
     add_subdirectory(examples)
 endif()
 
-option(BUILD_TESTS "Build test programs" ON)
+option(BUILD_TESTS "Build test programs" OFF)
 if(BUILD_TESTS)
     add_executable(test_transform tests/test_transform.cpp)
     target_link_libraries(test_transform PRIVATE gnc_framework)
