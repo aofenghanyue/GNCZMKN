@@ -11,7 +11,7 @@
 1.  **数学库层 (Math Library)**：基于 `Eigen3` 封装，提供四元数、旋转算子、RK4积分器、一维/二维插值等纯数学运算。
 2.  **算法库层 (Algorithm Library)**：与飞行器无关的 GNC 通用算法，如增量 PID、巴特沃斯滤波器、坐标静态转换公式等。
 3.  **接口层 (Interface Layer)**：定义组件间通信的纯虚接口（如 `IDynamicsModel`, `IGuidance3DOF`）。这是解耦的核心。
-4.  **服务层 (Service Layer)**：跨组件的全局设施，例如使用树形拓扑与 LCA（最近公共祖先）算法管理的 `CoordinateService`。
+4.  **服务层 (Service Layer)**：跨组件的全局设施。通过 `ServiceContext` 按需注入。例如使用树形拓扑与 LCA 算法管理的 `CoordinateService`。
 5.  **应用层 (Application Layer)**：包含 `Simulator` 核心调度引擎和各种具体的组件实现。
 
 ---
@@ -20,22 +20,29 @@
 
 真正的工程挑战往往隐藏在细节中。以下是本框架在引擎层面的核心微设计：
 
-### 2.1 执行阶段状态机 (`ExecutionPhaseManager`)
-为了防止生命周期错乱（如在 `update` 阶段去申请依赖），引擎内置了严格的状态机：
-`NotStarted` $\rightarrow$ `Initializing` $\rightarrow$ `Running` $\rightarrow$ `Finalizing` $\rightarrow$ `Completed`
-任何跨阶段的非法调用都会被立刻拦截并报错。
+### 2.1 零依赖的配置管理器 (`ConfigManager` & `ConfigNode`)
+作为一个轻量级 C++ 框架，引入大型第三方 JSON 库（如 nlohmann/json）往往会让编译变得臃肿。
+*   **微设计**：框架内部手写了一个极其精简的递归下降解析器 `JsonParser` 和 `ConfigNode` 树。
+*   **访问追踪 (Access Tracking)**：`ConfigNode` 内置了 `accessed_keys_` 集合。当组件读取配置时（如 `config["mass"]`），该 key 会被标记。这使得框架能够检测出 JSON 中**未被使用的冗余配置项**，并向用户发出警告。
 
-### 2.2 依赖验证防御网 (`DependencyValidator`)
+### 2.2 状态向量的内存布局 (`StateLayout`)
+在动力学积分中，状态（位置、速度、姿态等）必须被展平为一个一维的 `Eigen::VectorXd` 才能交给 RK4 积分器。
+*   **微设计**：`StateLayout` 提供了一个双向映射字典。组件可以通过字符串名字（如 `"altitude"`）动态申请状态位，并获得一个整型索引。这使得动力学组件能够灵活地支持 3DOF（6维状态）到 6DOF（13维状态）的无缝切换，而不需要硬编码状态数组的下标。
+
+### 2.3 依赖验证防御网 (`DependencyValidator`)
 在组件实例化后、仿真正式开始前，框架会执行严格的依赖图扫描：
-*   **机制**：组件可以继承 `IDependencyDeclarer`，并重写 `getDependencies()` 方法，返回其需要的 `interface_type` 及其是否是必选项（`required`）。
-*   **验证**：`DependencyValidator::validate()` 会扫描全局注册表。如果某组件声明了强依赖 `IDynamicsModel`，但当前 JSON 没配置动力学组件，验证器会**直接阻断仿真启动**，并打印极具指导意义的错误信息（列出当前已有组件，并建议用户添加）。
+*   **机制**：组件可以继承 `IDependencyDeclarer`，返回其需要的 `interface_type` 及其是否是必选项（`required`）。
+*   **验证**：`DependencyValidator::validate()` 会扫描全局注册表。如果某组件声明了强依赖 `IDynamicsModel`，但当前 JSON 没配置，验证器会**直接阻断仿真启动**，并打印极具指导意义的错误信息。
 
-### 2.3 隔离的注册表视图 (`ScopedRegistry`)
+### 2.4 隔离的注册表视图 (`ScopedRegistry`)
 为了支持多飞行器对抗（如导弹打飞机），不同飞行器的同名组件（如 `missile.dynamics` 和 `target.dynamics`）在全局注册表 `ComponentRegistry` 中是带前缀的。
-*   **微设计**：在注入依赖时，引擎会为每个组件创建一个 `ScopedRegistry`。当导弹的制导组件调用 `registry.getByName<IDynamicsModel>("dynamics")` 时，`ScopedRegistry` 会自动补全前缀，将其解析为 `"missile.dynamics"`。
-*   **跨域访问**：如果组件名包含 `.`（如 `"env.earth"`），`ScopedRegistry` 会将其视为绝对路径进行全局查找。这种设计让多实体仿真无需修改任何组件内部代码！
+*   **微设计**：引擎会为每个组件创建一个 `ScopedRegistry`。当导弹的制导组件调用 `registry.getByName<IDynamicsModel>("dynamics")` 时，`ScopedRegistry` 会自动补全前缀为 `"missile.dynamics"`。如果组件名包含 `.`（如 `"env.earth"`），则视为绝对路径进行全局查找。这种设计让多实体仿真无需修改任何组件内部代码！
 
-### 2.4 积分器拦截与高频调度
+### 2.5 按需付费的服务注入 (`ServiceContext`)
+与基于名称字符串查找的 `ComponentRegistry` 不同，服务（如坐标转换服务）属于全局基础设施。
+*   **微设计**：`ServiceContext` 是一个基于 `std::type_index` 的强类型异构容器。组件通过 `services.get<CoordinateService>()` 直接获取类型安全的单例指针。这体现了 C++ "Pay only for what you use" 的原则，没用到的服务不会被实例化。
+
+### 2.6 积分器拦截与高频调度
 在 `Simulator::step()` 的源码中，有一个极其重要的细节：
 ```cpp
 auto* dyn_model = dynamic_cast<interfaces::IDynamicsModel*>(component);
