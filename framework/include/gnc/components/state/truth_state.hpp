@@ -10,130 +10,89 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/dependency_validator.hpp"
+#include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
-#include "gnc/interfaces/state/i_vehicle_state.hpp"
-#include "gnc/interfaces/dynamics/i_dynamics.hpp"
-#include "gnc/libraries/coord/coord.hpp"
-#include <cmath>
+#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
+#include "gnc/interfaces/infrastructure/i_observable.hpp"
+#include "gnc/interfaces/state/i_position_provider.hpp"
+#include "gnc/interfaces/state/i_velocity_provider.hpp"
 
 namespace gnc::components {
 
-using namespace gnc::math;
-using namespace gnc::coord;
-
-/**
- * @brief 真实飞行器状态
- * 
- * 从 Dynamics 组件读取状态并计算派生量
- */
 class TruthState : public core::ComponentBase,
-                   public interfaces::IVehicleState,
+                   public interfaces::IPositionProvider,
+                   public interfaces::IVelocityProvider,
+                   public interfaces::IObservable,
                    public core::IDependencyDeclarer {
 public:
     TruthState() : ComponentBase("TruthState") {}
-    
-    // ==================== 生命周期 ====================
-    
+
     void injectDependencies(core::ScopedRegistry& registry) override {
-        dynamics_ = registry.getByName<interfaces::IDynamics>("dynamics");
+        dynamics_ = registry.getByName<interfaces::IDynamicsModel>("dynamics");
+        position_provider_ = registry.getByName<interfaces::IPositionProvider>("dynamics");
+        velocity_provider_ = registry.getByName<interfaces::IVelocityProvider>("dynamics");
     }
-    
-    void update(double dt) override {
-        (void)dt;
-        
-        if (!dynamics_) return;
-        
-        const auto& state = dynamics_->getVehicleState();
-        position_ = Vector3(state.position.x, state.position.y, state.position.z);
-        velocity_ = Vector3(state.velocity.x, state.velocity.y, state.velocity.z);
-        attitude_ = Quaternion(state.attitude.w, state.attitude.x, state.attitude.y, state.attitude.z);
-        angularVelocity_ = Vector3(state.angular_velocity.x, state.angular_velocity.y, state.angular_velocity.z);
-        
-        // 计算经纬高（简化版，假设球形地球）
-        computeLLA();
-        
-        // 计算气动参数
-        computeAeroParams();
+
+    void update(double) override {
+        if (position_provider_) {
+            position_ = position_provider_->getPosition();
+        }
+        if (velocity_provider_) {
+            velocity_ = velocity_provider_->getVelocity();
+        }
+        if (!dynamics_) {
+            return;
+        }
+
+        const auto& layout = dynamics_->getStateLayout();
+        const auto& state = dynamics_->getState();
+        if (layout.has("q_w") && layout.has("q_x") && layout.has("q_y") && layout.has("q_z")) {
+            attitude_ = {
+                state[layout.indexOf("q_w")],
+                state[layout.indexOf("q_x")],
+                state[layout.indexOf("q_y")],
+                state[layout.indexOf("q_z")]
+            };
+        }
+        if (layout.has("omega_x") && layout.has("omega_y") && layout.has("omega_z")) {
+            angular_velocity_ = {
+                state[layout.indexOf("omega_x")],
+                state[layout.indexOf("omega_y")],
+                state[layout.indexOf("omega_z")]
+            };
+        }
     }
-    
-    // ==================== IVehicleState 实现 ====================
-    
-    Vector3 getPosition() const override { return position_; }
-    Vector3 getVelocity() const override { return velocity_; }
-    Quaternion getAttitude() const override { return attitude_; }
-    Vector3 getAngularVelocity() const override { return angularVelocity_; }
-    interfaces::LLA getLLA() const override { return lla_; }
-    double getAlpha() const override { return alpha_; }
-    double getBeta() const override { return beta_; }
-    double getAirspeed() const override { return airspeed_; }
-    double getMach() const override { return mach_; }
-    double getDynamicPressure() const override { return dynamicPressure_; }
+
+    gnc::Vector3d getPosition() const override { return position_; }
+    gnc::Vector3d getVelocity() const override { return velocity_; }
 
     std::vector<core::DependencyDeclaration> getDependencies() const override {
         return {
-            {std::type_index(typeid(interfaces::IDynamics)), "a dynamics interface", true}
+            {std::type_index(typeid(interfaces::IDynamicsModel)), "a dynamics model interface", true}
         };
     }
 
+    std::vector<interfaces::ObservableField> getObservableFields() const override {
+        core::ObservableFieldBuilder builder;
+        builder.addVector3d("position", [this]() -> const gnc::Vector3d& { return position_; });
+        builder.addVector3d("velocity", [this]() -> const gnc::Vector3d& { return velocity_; });
+        builder.addScalar("speed", [this]() { return velocity_.norm(); });
+        builder.addScalar("timestamp", [this]() { return getSimTime(); });
+        return builder.build();
+    }
+
 private:
-    void computeLLA() {
-        // 简化的ECEF转LLA（假设球形地球）
-        constexpr double R_EARTH = 6378137.0;
-        
-        double x = position_.x();
-        double y = position_.y();
-        double z = position_.z();
-        double p = std::sqrt(x*x + y*y);
-        
-        lla_.lon = std::atan2(y, x);
-        lla_.lat = std::atan2(z, p);
-        lla_.alt = std::sqrt(x*x + y*y + z*z) - R_EARTH;
-    }
-    
-    void computeAeroParams() {
-        // 将ECEF速度转换到Body系
-        Matrix3 R_ecef_ned = ecef_to_ned_rotation(lla_.lat, lla_.lon);
-        Matrix3 R_ned_body = attitude_.toRotationMatrix();
-        Vector3 v_body = R_ned_body * R_ecef_ned * velocity_;
-        
-        // 计算气动参数
-        airspeed_ = v_body.norm();
-        
-        if (airspeed_ > 1.0) {
-            alpha_ = std::atan2(v_body.z(), v_body.x());
-            beta_ = std::asin(v_body.y() / airspeed_);
-        } else {
-            alpha_ = 0.0;
-            beta_ = 0.0;
-        }
-        
-        // 简化的马赫数和动压计算
-        constexpr double SPEED_OF_SOUND = 340.0;  // m/s
-        constexpr double RHO = 1.225;             // kg/m³
-        
-        mach_ = airspeed_ / SPEED_OF_SOUND;
-        dynamicPressure_ = 0.5 * RHO * airspeed_ * airspeed_;
-    }
-    
-    // 依赖
-    interfaces::IDynamics* dynamics_ = nullptr;
-    
-    // 基本状态
-    Vector3 position_ = Vector3::Zero();
-    Vector3 velocity_ = Vector3::Zero();
-    Quaternion attitude_ = Quaternion::identity();
-    Vector3 angularVelocity_ = Vector3::Zero();
-    
-    // 派生状态
-    interfaces::LLA lla_;
-    double alpha_ = 0.0;
-    double beta_ = 0.0;
-    double airspeed_ = 0.0;
-    double mach_ = 0.0;
-    double dynamicPressure_ = 0.0;
+    interfaces::IDynamicsModel* dynamics_ = nullptr;
+    interfaces::IPositionProvider* position_provider_ = nullptr;
+    interfaces::IVelocityProvider* velocity_provider_ = nullptr;
+    gnc::Vector3d position_ = gnc::Vector3d::Zero();
+    gnc::Vector3d velocity_ = gnc::Vector3d::Zero();
+    gnc::Quaterniond attitude_ = gnc::Quaterniond::Identity();
+    gnc::Vector3d angular_velocity_ = gnc::Vector3d::Zero();
 };
 
-// 自动注册
-GNC_REGISTER_COMPONENT(TruthState, interfaces::IVehicleState)
+GNC_REGISTER_COMPONENT(TruthState,
+                       interfaces::IPositionProvider,
+                       interfaces::IVelocityProvider)
 
 } // namespace gnc::components

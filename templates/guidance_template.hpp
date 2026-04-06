@@ -16,7 +16,6 @@
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
-#include "gnc/interfaces/data_types.hpp"
 #include "gnc/interfaces/gnc/i_guidance.hpp"
 #include "gnc/interfaces/gnc/i_navigation.hpp"
 #include "gnc/interfaces/infrastructure/i_observable.hpp"

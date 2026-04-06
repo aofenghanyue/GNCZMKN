@@ -7,6 +7,7 @@
 #pragma once
 
 #include "gnc/interfaces/data_types.hpp"
+#include "gnc/interfaces/gnc/i_navigation.hpp"
 #include "gnc/common/math_types.hpp"
 #include <sstream>
 #include <iomanip>
@@ -88,36 +89,6 @@ inline std::string formatNavState(const interfaces::NavState& state) {
 
 /// NavState 字段名
 inline std::vector<std::string> navStateFields() {
-    return {"pos.x", "pos.y", "pos.z",
-            "vel.x", "vel.y", "vel.z",
-            "att.w", "att.x", "att.y", "att.z",
-            "omega.x", "omega.y", "omega.z",
-            "timestamp"};
-}
-
-/// VehicleState 格式化
-inline std::string formatVehicleState(const interfaces::VehicleState& state) {
-    std::ostringstream oss;
-    oss << std::setprecision(PRECISION)
-        << state.position.x << "," 
-        << state.position.y << "," 
-        << state.position.z << ","
-        << state.velocity.x << "," 
-        << state.velocity.y << "," 
-        << state.velocity.z << ","
-        << state.attitude.w << ","
-        << state.attitude.x << ","
-        << state.attitude.y << ","
-        << state.attitude.z << ","
-        << state.angular_velocity.x << "," 
-        << state.angular_velocity.y << "," 
-        << state.angular_velocity.z << ","
-        << state.timestamp;
-    return oss.str();
-}
-
-/// VehicleState 字段名
-inline std::vector<std::string> vehicleStateFields() {
     return {"pos.x", "pos.y", "pos.z",
             "vel.x", "vel.y", "vel.z",
             "att.w", "att.x", "att.y", "att.z",

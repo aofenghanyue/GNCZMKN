@@ -10,6 +10,8 @@
 #include "simulator.hpp"
 #include "component_factory.hpp"
 #include "config_manager.hpp"
+#include "integrators/euler_integrator.hpp"
+#include "integrators/rk4_integrator.hpp"
 #include "service_context.hpp"
 #include "string_utils.hpp"
 #include "gnc/common/logger.hpp"
@@ -105,6 +107,7 @@ public:
         cfg.dt = sim_config["dt"].asDouble(0.01);
         cfg.duration = sim_config["duration"].asDouble(10.0);
         simulator_.configure(cfg);
+        buildIntegrator();
         
         LOG_INFO("Simulation config: dt={}, duration={}", cfg.dt, cfg.duration);
         
@@ -203,6 +206,21 @@ private:
         }
         message += ". Please register the component or fix the type name.";
         return message;
+    }
+
+    void buildIntegrator() {
+        const std::string name = config_.simulation()["integrator"].asString("rk4");
+        if (name == "rk4") {
+            simulator_.setIntegrator(std::make_unique<RK4Integrator>());
+            return;
+        }
+        if (name == "euler") {
+            simulator_.setIntegrator(std::make_unique<EulerIntegrator>());
+            return;
+        }
+
+        addBuildWarning("Unknown integrator '" + name + "'. Using RK4.");
+        simulator_.setIntegrator(std::make_unique<RK4Integrator>());
     }
 
     void addBuildError(const std::string& msg) {

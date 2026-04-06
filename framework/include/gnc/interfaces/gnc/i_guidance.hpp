@@ -4,25 +4,14 @@
  */
 #pragma once
 
-#include "gnc/interfaces/data_types.hpp"
+#include "gnc/interfaces/gnc/i_guidance_6dof.hpp"
 
 namespace gnc::interfaces {
 
 /**
  * @brief 制导算法接口
  */
-class IGuidance {
-public:
-    virtual ~IGuidance() = default;
-    
-    /// 获取当前制导指令
-    virtual const GuidanceCommand& getGuidanceCommand() const = 0;
-    
-    /// 设置目标位置
-    virtual void setTarget(const Vector3d& target_position) = 0;
-    
-    /// 制导是否有效
-    virtual bool isActive() const = 0;
-};
+using GuidanceCommand = GuidanceCommand6DOF;
+using IGuidance = IGuidance6DOF;
 
 } // namespace gnc::interfaces

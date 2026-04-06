@@ -4,9 +4,17 @@
  */
 #pragma once
 
+#include "gnc/common/math_types.hpp"
 #include "gnc/interfaces/data_types.hpp"
 
 namespace gnc::interfaces {
+
+/// 控制指令数据包
+struct ControlCommand {
+    Vector3d torque_cmd;        ///< 力矩指令 (Nm)
+    Vector3d force_cmd;         ///< 力指令 (N)
+    double timestamp = 0.0;
+};
 
 /**
  * @brief 控制算法接口

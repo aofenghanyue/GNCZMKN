@@ -10,8 +10,10 @@
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/dependency_validator.hpp"
 #include "gnc/core/observable_helpers.hpp"
+#include "gnc/core/state_layout.hpp"
+#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
+#include "gnc/interfaces/state/i_velocity_provider.hpp"
 #include "gnc/interfaces/sensors/i_imu_sensor.hpp"
-#include "gnc/interfaces/dynamics/i_dynamics.hpp"
 #include "gnc/interfaces/infrastructure/i_observable.hpp"
 
 namespace gnc::components {
@@ -62,26 +64,38 @@ public:
 
     std::vector<core::DependencyDeclaration> getDependencies() const override {
         return {
-            {std::type_index(typeid(interfaces::IDynamics)), "a dynamics interface", true}
+            {std::type_index(typeid(interfaces::IDynamicsModel)), "a dynamics model interface", true}
         };
     }
     
     // --- ComponentBase 生命周期 ---
     
     void injectDependencies(core::ScopedRegistry& registry) override {
-        dynamics_ = registry.getByName<interfaces::IDynamics>("dynamics");
+        dynamics_ = registry.getByName<interfaces::IDynamicsModel>("dynamics");
     }
     
     void update(double dt) override {
         (void)dt;
         
-        if (dynamics_) {
-            const auto& state = dynamics_->getVehicleState();
-            // 理想情况：直接使用真值
-            // TODO: 实现真正的加速度计算
-            imu_data_.acceleration = Vector3d::Zero();  // 占位
-            imu_data_.angular_velocity = state.angular_velocity;
-            imu_data_.timestamp = state.timestamp;
+        if (!dynamics_) {
+            return;
+        }
+
+        const auto& layout = dynamics_->getStateLayout();
+        const auto& state = dynamics_->getState();
+        imu_data_.acceleration = Vector3d::Zero();
+        imu_data_.angular_velocity = Vector3d::Zero();
+        imu_data_.timestamp = getSimTime();
+
+        const int omega_x = layout.indexOf("omega_x");
+        const int omega_y = layout.indexOf("omega_y");
+        const int omega_z = layout.indexOf("omega_z");
+        if (omega_x >= 0 && omega_y >= 0 && omega_z >= 0) {
+            imu_data_.angular_velocity = {
+                state[omega_x],
+                state[omega_y],
+                state[omega_z]
+            };
         }
     }
 
@@ -95,7 +109,7 @@ public:
     
 private:
     interfaces::ImuData imu_data_;
-    interfaces::IDynamics* dynamics_ = nullptr;
+    interfaces::IDynamicsModel* dynamics_ = nullptr;
 };
 
 // 自动注册到工厂

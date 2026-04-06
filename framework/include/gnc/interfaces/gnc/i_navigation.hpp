@@ -4,9 +4,18 @@
  */
 #pragma once
 
-#include "gnc/interfaces/data_types.hpp"
+#include "gnc/common/math_types.hpp"
 
 namespace gnc::interfaces {
+
+/// 导航状态数据包
+struct NavState {
+    Vector3d position;          ///< 位置 (m)
+    Vector3d velocity;          ///< 速度 (m/s)
+    Quaterniond attitude;       ///< 姿态四元数
+    Vector3d angular_velocity;  ///< 机体角速度 (rad/s)
+    double timestamp = 0.0;
+};
 
 /**
  * @brief 导航解算接口

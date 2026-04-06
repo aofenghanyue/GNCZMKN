@@ -7,8 +7,11 @@
 #include "auto_data_logger.hpp"
 #include "component_registry.hpp"
 #include "dependency_validator.hpp"
+#include "integrators/rk4_integrator.hpp"
 #include "scoped_registry.hpp"
 #include "simulation_summary.hpp"
+#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
+#include "gnc/interfaces/infrastructure/i_integrator.hpp"
 #include "gnc/common/logger.hpp"
 
 #include <chrono>
@@ -57,6 +60,14 @@ public:
         computeStepIntervals();
     }
 
+    void setIntegrator(std::unique_ptr<interfaces::IIntegrator> integrator) {
+        integrator_ = std::move(integrator);
+    }
+
+    const interfaces::IIntegrator* getIntegrator() const {
+        return integrator_.get();
+    }
+
     bool initializeAutoDataLogger(const ConfigNode& config) {
         return auto_logger_.initialize(config, registry_);
     }
@@ -85,25 +96,28 @@ public:
     void initialize() {
         phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Initializing);
         LOG_INFO("Initializing simulator...");
+        current_time_ = 0.0;
         
-        // 计算组件执行间隔
         computeStepIntervals();
-        
-        // 注入依赖，根据组件名前缀创建对应的 ScopedRegistry
+
         for (auto* component : registry_.getAllComponents()) {
             std::string scope = extractScope(component->getName());
             ScopedRegistry scoped(scope, registry_);
             component->injectDependencies(scoped);
         }
-        
-        // 初始化所有组件
+
         for (auto* component : registry_.getAllComponents()) {
             LOG_INFO("Initializing component: {}", component->getName());
             component->initialize();
         }
+
+        if (!integrator_) {
+            integrator_ = std::make_unique<RK4Integrator>();
+        }
         
         is_initialized_ = true;
-        LOG_INFO("Simulator initialized with {} components", registry_.size());
+        LOG_INFO("Simulator initialized with {} components using '{}' integrator",
+                 registry_.size(), integrator_->name());
     }
     
     /// 运行仿真
@@ -173,7 +187,25 @@ simulation_end:
     void step(int step_index) {
         for (auto* component : registry_.getAllComponents()) {
             component->setSimTimeInternal_(current_time_, step_index);
-            if (component->shouldExecute(step_index)) {
+            if (!component->shouldExecute(step_index)) {
+                continue;
+            }
+
+            auto* dyn_model = dynamic_cast<interfaces::IDynamicsModel*>(component);
+            if (dyn_model && integrator_) {
+                Eigen::VectorXd x = dyn_model->getState();
+                integrator_->step(
+                    [dyn_model](double t,
+                                const Eigen::VectorXd& state,
+                                Eigen::VectorXd& dxdt) {
+                        dyn_model->computeDerivatives(t, state, dxdt);
+                    },
+                    current_time_,
+                    x,
+                    config_.dt
+                );
+                dyn_model->setState(x);
+            } else {
                 component->update(config_.dt);
             }
         }
@@ -225,6 +257,7 @@ private:
     ComponentRegistry registry_;
     SimulatorConfig config_;
     AutoDataLogger auto_logger_;
+    std::unique_ptr<interfaces::IIntegrator> integrator_;
     ExecutionPhaseManager phase_manager_;
     std::vector<StepCallback> before_step_callbacks_;
     std::vector<StepCallback> after_step_callbacks_;

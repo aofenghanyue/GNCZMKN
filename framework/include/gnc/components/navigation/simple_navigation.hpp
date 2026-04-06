@@ -10,9 +10,11 @@
 #include "gnc/core/dependency_validator.hpp"
 #include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
+#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
 #include "gnc/interfaces/gnc/i_navigation.hpp"
 #include "gnc/interfaces/infrastructure/i_observable.hpp"
-#include "gnc/interfaces/sensors/i_imu_sensor.hpp"
+#include "gnc/interfaces/state/i_position_provider.hpp"
+#include "gnc/interfaces/state/i_velocity_provider.hpp"
 
 namespace gnc::components {
 
@@ -61,30 +63,52 @@ public:
 
     std::vector<core::DependencyDeclaration> getDependencies() const override {
         return {
-            {std::type_index(typeid(interfaces::IImuSensor)), "an IMU sensor interface", true}
+            {std::type_index(typeid(interfaces::IDynamicsModel)), "a dynamics model interface", true}
         };
     }
     
     // --- ComponentBase 生命周期 ---
     
     void injectDependencies(core::ScopedRegistry& registry) override {
-        imu_ = registry.getByName<interfaces::IImuSensor>("imu");
+        dynamics_ = registry.getByName<interfaces::IDynamicsModel>("dynamics");
+        position_provider_ = registry.getByName<interfaces::IPositionProvider>("dynamics");
+        velocity_provider_ = registry.getByName<interfaces::IVelocityProvider>("dynamics");
     }
     
     void initialize() override {
-        is_valid_ = (imu_ != nullptr);
+        is_valid_ = (dynamics_ != nullptr);
     }
     
     void update(double dt) override {
-        if (!imu_) return;
-        
-        const auto& imu_data = imu_->getImuData();
-        
-        // TODO: 实现真正的导航滤波
-        // 简单积分示例
-        nav_state_.velocity += imu_data.acceleration * dt;
-        nav_state_.position += nav_state_.velocity * dt;
-        nav_state_.angular_velocity = imu_data.angular_velocity;
+        (void)dt;
+        if (!dynamics_) return;
+
+        if (position_provider_) {
+            nav_state_.position = position_provider_->getPosition();
+        }
+        if (velocity_provider_) {
+            nav_state_.velocity = velocity_provider_->getVelocity();
+        }
+
+        nav_state_.attitude = Quaterniond::Identity();
+        nav_state_.angular_velocity = Vector3d::Zero();
+        const auto& layout = dynamics_->getStateLayout();
+        const auto& state = dynamics_->getState();
+        if (layout.has("q_w") && layout.has("q_x") && layout.has("q_y") && layout.has("q_z")) {
+            nav_state_.attitude = {
+                state[layout.indexOf("q_w")],
+                state[layout.indexOf("q_x")],
+                state[layout.indexOf("q_y")],
+                state[layout.indexOf("q_z")]
+            };
+        }
+        if (layout.has("omega_x") && layout.has("omega_y") && layout.has("omega_z")) {
+            nav_state_.angular_velocity = {
+                state[layout.indexOf("omega_x")],
+                state[layout.indexOf("omega_y")],
+                state[layout.indexOf("omega_z")]
+            };
+        }
         nav_state_.timestamp = getSimTime();
     }
 
@@ -100,7 +124,9 @@ public:
     
 private:
     interfaces::NavState nav_state_;
-    interfaces::IImuSensor* imu_ = nullptr;
+    interfaces::IDynamicsModel* dynamics_ = nullptr;
+    interfaces::IPositionProvider* position_provider_ = nullptr;
+    interfaces::IVelocityProvider* velocity_provider_ = nullptr;
     bool is_valid_ = false;
 };
 

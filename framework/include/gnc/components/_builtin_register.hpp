@@ -9,7 +9,10 @@
  */
 #pragma once
 
+#include "gnc/components/dynamics/dynamics_3dof_spherical.hpp"
 #include "gnc/components/dynamics/simple_dynamics.hpp"
+#include "gnc/components/environment/spherical_gravity.hpp"
+#include "gnc/components/environment/standard_atmosphere.hpp"
 #include "gnc/components/environment/wgs84_earth.hpp"
 #include "gnc/components/navigation/simple_navigation.hpp"
 #include "gnc/components/sensors/ideal_imu.hpp"

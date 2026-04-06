@@ -20,6 +20,12 @@ public:
     
     /// 获取海平面标准重力加速度 (m/s²)
     virtual double getSeaLevelGravity() const = 0;
+
+    virtual double getGravityAtAltitude(double altitude) const {
+        constexpr double kEarthRadius = 6371000.0;
+        const double ratio = kEarthRadius / (kEarthRadius + altitude);
+        return getSeaLevelGravity() * ratio * ratio;
+    }
 };
 
 } // namespace gnc::interfaces

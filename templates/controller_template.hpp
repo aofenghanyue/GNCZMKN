@@ -16,8 +16,7 @@
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
-#include "gnc/interfaces/data_types.hpp"
-#include "gnc/interfaces/dynamics/i_dynamics.hpp"
+#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
 #include "gnc/interfaces/gnc/i_controller.hpp"
 #include "gnc/interfaces/gnc/i_guidance.hpp"
 #include "gnc/interfaces/gnc/i_navigation.hpp"
@@ -39,7 +38,7 @@ public:
     // 依赖注入：通常从 guidance / dynamics / nav 获取输入
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
         guidance_ = registry.getByName<gnc::interfaces::IGuidance>("guidance");
-        dynamics_ = registry.getByName<gnc::interfaces::IDynamics>("dynamics");
+        dynamics_ = registry.getByName<gnc::interfaces::IDynamicsModel>("dynamics");
         nav_ = registry.getByName<gnc::interfaces::INavigation>("nav");
     }
 
@@ -51,8 +50,6 @@ public:
 
         const auto& guidance_command = guidance_->getGuidanceCommand();
         const gnc::Vector3d control_force = guidance_command.acceleration_cmd;
-        dynamics_->addForce(control_force);
-
         ctrl_cmd_.force_cmd = control_force;
         ctrl_cmd_.timestamp = guidance_command.timestamp;
     }
@@ -72,7 +69,7 @@ public:
 
 private:
     gnc::interfaces::IGuidance* guidance_ = nullptr;
-    gnc::interfaces::IDynamics* dynamics_ = nullptr;
+    gnc::interfaces::IDynamicsModel* dynamics_ = nullptr;
     gnc::interfaces::INavigation* nav_ = nullptr;
 
     // ▲ 可根据你的控制架构扩展内部状态

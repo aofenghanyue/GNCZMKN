@@ -5,9 +5,9 @@
     },
     "components": [
         { "type": "Wgs84Earth", "name": "earth", "config": {} },
+        { "type": "ConstantGuidance", "name": "guidance", "config": { "thrust_z": 20.0 } },
         { "type": "SimpleDynamics", "name": "dynamics", "config": {} },
         { "type": "IdealImu", "name": "imu", "config": { "frequency": 100 } },
-        { "type": "SimpleNavigation", "name": "nav", "config": {} },
-        { "type": "ConstantGuidance", "name": "guidance", "config": { "thrust_z": 20.0 } }
+        { "type": "SimpleNavigation", "name": "nav", "config": {} }
     ]
 }
