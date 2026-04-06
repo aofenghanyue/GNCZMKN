@@ -1,111 +1,72 @@
 # 数据流向与工作流程机制
 
-本篇将揭示 GNC 仿真框架运转的底层秘密：**数据是如何在组件间流动的？主循环是如何调度的？多频率的组件是如何协调的？**
+本篇将彻底揭开 GNC 仿真框架运转的底层秘密：**零拷贝的拉取机制、多态积分器拦截，以及条件驱动的仿真终止。**
 
-## 1. “接口查询 + 主动拉取”机制取代消息总线
+## 1. 摒弃 Message 总线：零拷贝的 Pull 模型
 
-许多仿真框架（如 ROS）采用**发布/订阅（Pub/Sub）机制**：组件计算完数据后，将数据打包成 Message 丢进总线，其他组件通过回调函数（Callback）接收。
+传统的 ROS 仿真框架中，节点间通过 Pub/Sub 交换 Message。这在 GNC 仿真中有两大原罪：
+1.  **内存拷贝开销**：高频仿真下，序列化和拷贝带来极大的 CPU 负担。
+2.  **异步时序混乱**：控制算法很难保证拿到的是“当前时间步”的最新动力学状态，还是上一步的滞后状态。
 
-**GNC 框架的痛点与革新：**
-在 GNC 仿真中，控制频率通常极高（100Hz ~ 1000Hz），如果采用 Pub/Sub，不仅会带来巨大的序列化/反序列化和**内存拷贝开销**，还会导致极其难以调试的“异步时序错乱”问题。
+**GNC 框架的破局之道：**
+采用**接口查询 + 主动拉取 (Interface Query + Pull)**。
 
-因此，本框架**彻底摒弃了消息总线**，采用**接口查询 + 主动拉取 (Interface Query + Pull)** 的零拷贝模式。
+### 1.1 数据流向与时序强绑定
+数据的流向完全由 JSON 配置文件中 `components` 数组的顺序决定。
+例如，典型的时序为：`Earth` $\rightarrow$ `Mass` $\rightarrow$ `Aerodynamics` $\rightarrow$ `Guidance` $\rightarrow$ `Dynamics`。
 
-### 1.1 接口查询 (Dependency Injection)
-组件在初始化（`injectDependencies`）时，通过 `ScopedRegistry` 获取所需组件的**指针**。
+当 `Aerodynamics::update()` 被调用时，它需要攻角和马赫数。它通过 `guidance_` 和 `dynamics_` 指针**直接调用函数**：
 ```cpp
-void injectDependencies(gnc::core::ScopedRegistry& registry) override {
-    // 获取“导航”组件的指针，类型是纯虚接口 INavigation*
-    nav_ = registry.getByName<gnc::interfaces::INavigation>("nav");
-}
+const double alpha = guidance_->getFlightCommand().alpha;
+const double mach = dynamics_->getStateValue("velocity") / 340.0;
 ```
-
-### 1.2 主动拉取 (Pull Model)
-在每个仿真步（`update(dt)`），组件通过刚才拿到的指针，直接调用接口方法拉取数据。数据通常以 `const &` 返回，**零拷贝**。
-```cpp
-void update(double dt) override {
-    // 直接从内存中拉取导航组件最新算好的状态
-    const auto& state = nav_->getNavState(); 
-    // ... 执行当前组件的计算 ...
-}
-```
+没有中间结构体，没有队列，这是绝对的 **Zero-Copy**。
 
 ---
 
-## 2. 仿真主循环 (Main Loop) 与时序控制
+## 2. 仿真主循环的深度解剖 (`Simulator::run`)
 
-仿真器（`Simulator`）接管了所有的调度工作。一个完整的仿真循环可以概括为以下伪代码：
+主循环并不是简单的 `for` 循环遍历组件。它隐藏了精妙的拦截逻辑。
 
+### 2.1 积分器拦截机制 (Integrator Interception)
+在 `Simulator::step()` 中，引擎会对组件进行类型甄别 (Type-sniffing)：
 ```cpp
-void Simulator::run() {
-    double t = 0.0;
-    int step = 0;
+auto* dyn_model = dynamic_cast<interfaces::IDynamicsModel*>(component);
+if (dyn_model && integrator_) {
+    // 它是动力学模型！拦截其常规 update，交由 RK4 积分器处理
+    integrator_->step( [dyn_model](t, state, dxdt){ dyn_model->computeDerivatives(...); }, ... );
+} else {
+    // 常规算法组件
+    component->update(config_.dt);
+}
+```
+**设计意义**：这意味着你可以随时在 JSON 中把 `"integrator": "rk4"` 换成 `"euler"` 或 `"rk45"`，而不需要修改动力学组件的任何代码！动力学组件只负责提供导数（`computeDerivatives`），推进状态的工作由引擎接管。
 
-    // 1. 初始化所有组件
-    for (auto* comp : components_) {
-        comp->initialize();
-    }
+### 2.2 数据采集阶段 (`AutoDataLogger`)
+在所有组件的 `step()` 或 `update()` 结束后，主循环会统一调用 `auto_logger_.recordStep(current_time_)`。
+此时，Logger 会遍历所有注册了 `IObservable` 的组件，调用我们在 `ObservableFieldBuilder` 中绑定的 Lambda 表达式（如 `[this](){ return mass_; }`），将所有变量抓取并刷入 CSV 文件。
+这也是为什么闭包中捕获 `[this]` 指针是安全的，因为 Logger 的调用发生在该时间步的末尾。
 
-    // 2. 主循环
-    while (t < duration_ && !checkStopConditions()) {
-        
-        // 3. 遍历所有组件
-        for (auto* comp : components_) {
-            // 4. 检查该组件在当前时间步是否需要执行 (频率控制)
-            if (comp->shouldExecute(step)) {
-                comp->update(dt_); // 核心：执行组件的业务逻辑
-            }
-        }
-        
-        // 5. 记录日志 (如果该步需要记录)
-        data_logger_->logStep(t);
-        
-        // 6. 推进时间
-        t += dt_;
-        step++;
-    }
-
-    // 7. 清理
-    for (auto* comp : components_) {
-        comp->finalize();
+### 2.3 仿真终止条件 (`TerminationCondition`)
+仿真何时结束？不仅仅是时间到了 `duration`。
+框架支持注入动态终止条件。在主循环的最后：
+```cpp
+for (const auto& condition : termination_conditions_) {
+    if (condition.condition(step, current_time_)) {
+        termination_reason_ = condition.name;
+        goto simulation_end; // 提前安全终止
     }
 }
 ```
-
-### 2.1 依赖与执行顺序 (Execution Order)
-
-如果 `Controller` 拉取 `Guidance` 的数据，显然 `Guidance` 必须先执行计算（`update`）。
-**框架是如何保证时序的？**
-
-答案是：**完全由 JSON 配置文件中组件数组的顺序决定。**
-Simulator 会严格按照 JSON 列表中 `components` 数组的声明顺序来执行每个组件的 `update()`。
-
-**标准（推荐）的 GNC 时序：**
-1.  **环境模型** (`Earth`, `Atmosphere`, `Gravity`)：提供自然环境底座。
-2.  **飞行器特性** (`Mass`, `AeroCoefficients`)：质量和气动参数（可能依赖环境或动力学反馈的马赫数）。
-3.  **动力学积分器** (`Dynamics`)：利用上一步的力/力矩，积分出当前步的真实状态（位置、速度、姿态）。
-4.  **传感器** (`IMU`, `GPS`)：拉取真实状态，加入噪声。
-5.  **导航** (`Navigation`)：拉取传感器数据，进行滤波估计。
-6.  **制导** (`Guidance`)：拉取导航状态，计算期望指令。
-7.  **控制** (`Controller`)：拉取制导指令和导航状态，计算执行机构偏角/推力，**最后将力/力矩推送给 `Dynamics` 的受力累加器中**，供下个周期积分。
-
----
-
-## 3. 多频率组件协调 (Multi-Rate Scheduling)
-
-实际工程中，传感器的采样率、控制器的解算率和动力学的积分率通常是不同的。
-- 动力学积分：1000 Hz
-- IMU 传感器：100 Hz
-- GPS 传感器：10 Hz
-- 制导计算：50 Hz
-
-**在 JSON 中，我们只需要配置基础仿真步长 `dt` (如 0.001s, 即 1000Hz)。**
-各个组件通过 `setExecutionFrequency(Hz)` 或者 JSON 的 `config: { "frequency_hz": 100 }` 来设置自己的运行频率。
-
-`Simulator` 在初始化时，会自动计算出每个组件的**执行间隔（Interval）**。
-例如：基础 dt = 0.001s (1000Hz)。
-*   IMU 设置了 100Hz。Simulator 会计算出它的 Interval = 1000 / 100 = 10 步。
-*   在主循环的 `shouldExecute(step)` 判断中，IMU 只会在 `step % 10 == 0` 时返回 `true`，从而被执行。其余 9 步直接跳过，节省算力！
-
----
-> 下一步：通过实战案例来验证这些概念，请前往 [**基于 CAV-H 的新手全流程教程**](Tutorial_CAVH.md)。
+在 JSON 配置中，你可以轻松配置：
+```json
+"stop_conditions": [
+    {
+        "type": "component_field_below",
+        "component": "dynamics",
+        "field": "altitude",
+        "value": 10000.0
+    }
+]
+```
+引擎会在解析 JSON 时，自动将上述逻辑转化为一个 Lambda 表达式注入到 `termination_conditions_` 中。这极大地释放了配置文件的能力！

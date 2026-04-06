@@ -1,250 +1,120 @@
-# 新手全流程教程：基于 CAV-H 的 3DOF 仿真
+# 深入实战教程：基于 CAV-H 掌握框架高级特性
 
-本教程是整个 Wiki 最核心的实战篇。我们将以项目中自带的 `examples/03_cavh_3dof` 为例，**事无巨细地带您从零开始，使用 GNC 框架搭建一个高超声速飞行器 (CAV-H) 的三自由度 (3DOF) 下滑仿真模型。**
+仅仅让代码跑起来是不够的。本教程将以 `03_cavh_3dof` 为蓝本，抛弃枯燥的代码堆砌，直接带您领略框架的**配置解析机制、依赖验证网、以及动态状态观测**是如何在实际开发中大显身手的。
 
-## 1. 案例背景与任务目标
+## 1. 案例需求拆解
 
-**CAV-H** 是一种经典的高超声速滑翔飞行器。我们的任务目标是：
-1.  **环境**：地球采用标准的 WGS84 球体模型，大气采用标准大气模型。
-2.  **物理模型**：质量设定为 900kg（恒定），气动系数（升力、阻力）通过公式计算（与马赫数和攻角相关）。
-3.  **动力学**：采用 3 自由度球坐标系质点运动学积分器（`Dynamics3DOF_SphericalEarth`）。
-4.  **制导策略**：根据高度剖面，分段插值给定期望的攻角（Programmed AoA，程序攻角），同时保持倾侧角（Sigma）为 0 度。
-5.  **仿真终止条件**：当飞行器高度下降到 10km（10000m）时，自动停止仿真。
+**CAV-H** (高超声速滑翔飞行器) 3DOF 下滑仿真。
+**挑战**：
+1. 气动系数（CL, CD）是马赫数和攻角的非线性函数。这意味着气动组件必须从其他组件**拉取**数据。
+2. 期望的攻角是基于当前高度分段插值的。制导组件必须**拉取**高度。
+3. 需要在高度低于 10km 时自动停止仿真。
+4. 需要将飞行过程中的“升阻比 (Lift-to-Drag)”和“攻角”输出为图表。
 
 ---
 
-## 2. 第一步：编写 C++ 自定义组件
+## 2. 攻克挑战 1 & 2：安全的依赖注入
 
-根据上述任务，我们需要自己手写三个组件：**质量组件**、**气动组件**和**制导组件**。这三个文件均放置在 `examples/03_cavh_3dof/` 下。
-
-### 2.1 编写质量组件 (`cavh_mass.hpp`)
-质量组件非常简单，只需继承 `IMassProperty` 接口并返回 900kg 即可。为了让日志能记录质量，我们还继承了 `IObservable`。
-
-```cpp
-#pragma once
-#include "gnc/core/component_base.hpp"
-#include "gnc/core/component_factory.hpp"
-#include "gnc/interfaces/vehicle/i_mass_property.hpp"
-#include "gnc/interfaces/infrastructure/i_observable.hpp"
-
-class CavhMass : public gnc::core::ComponentBase, 
-                 public gnc::interfaces::IMassProperty, 
-                 public gnc::interfaces::IObservable {
-public:
-    CavhMass() : ComponentBase("CavhMass") {} // 构造函数，设定名字
-    
-    // 1. 从 JSON 配置文件读取质量
-    void configure(const gnc::core::ConfigNode& config) override {
-        mass_ = config["mass_kg"].asDouble(900.0);
-    }
-    
-    // 2. 实现接口要求的方法
-    double getMass() const override { return mass_; }
-    gnc::Matrix3d getInertiaMatrix() const override { return gnc::Matrix3d::Identity(); }
-    gnc::Vector3d getCenterOfMass() const override { return gnc::Vector3d::Zero(); }
-    void updateMassProperties(double) override {}
-    void update(double) override {} // 质量不变，不需要每步更新
-    
-    // 3. 暴露给 CSV 记录器
-    std::vector<gnc::interfaces::ObservableField> getObservableFields() const override {
-        gnc::core::ObservableFieldBuilder builder;
-        builder.addScalar("mass", [this]() { return mass_; });
-        return builder.build();
-    }
-private:
-    double mass_ = 900.0;
-};
-// 4. 宏注册：极其重要！
-GNC_REGISTER_COMPONENT(CavhMass, gnc::interfaces::IMassProperty)
-```
-
-### 2.2 编写气动组件 (`cavh_aerodynamics.hpp`)
-气动组件负责提供升力系数(CL)和阻力系数(CD)。计算 CL 和 CD 需要知道当前的**攻角(Alpha)**和**马赫数(Mach)**。
-因此，气动组件必须向框架“索要”制导组件（获取攻角指令）和动力学组件（获取速度计算马赫数）的指针！
+在编写 `CavhAerodynamics` 时，我们需要攻角（来自 Guidance）和马赫数（来自 Dynamics）。
+**错误做法**：在 `update` 里直接去找，找不到就崩溃。
+**正确做法**：利用框架的微设计——`IDependencyDeclarer`！
 
 ```cpp
-// ... 省略头文件包含 ...
+#include "gnc/core/dependency_validator.hpp"
+
 class CavhAerodynamics : public gnc::core::ComponentBase,
                          public gnc::interfaces::IAeroCoefficients,
-                         public gnc::interfaces::IObservable {
-public:
-    CavhAerodynamics() : ComponentBase("CavhAerodynamics") {}
-
-    // 1. 读取气动公式的常数项
-    void configure(const gnc::core::ConfigNode& config) override {
-        cl_alpha_ = config["cl_alpha_per_rad"].asDouble(1.6);
-        cd0_ = config["cd0"].asDouble(0.08);
-        reference_area_ = config["reference_area"].asDouble(0.48);
-        // ... (其他参数省略)
+                         public gnc::core::IDependencyDeclarer { // 1. 继承声明器
+// ...
+    // 2. 向框架注册：我必须要有这俩接口，否则别启动！
+    std::vector<gnc::core::DependencyDeclaration> getDependencies() const override {
+        return {
+            {std::type_index(typeid(gnc::interfaces::IGuidance3DOF)), "3DOF Guidance", true},
+            {std::type_index(typeid(gnc::interfaces::IDynamicsModel)), "Dynamics Model", true}
+        };
     }
 
-    // 2. 依赖注入：获取制导和动力学的指针！
+    // 3. 在这里安全地拿指针
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
         guidance_ = registry.getByName<gnc::interfaces::IGuidance3DOF>("guidance");
         dynamics_ = registry.getByName<gnc::interfaces::IDynamicsModel>("dynamics");
     }
-
-    // 3. 计算气动系数的核心逻辑
-    gnc::interfaces::AeroCoefficients computeCoefficients(double alpha, double, double mach) const override {
-        // 使用简单的多项式拟合高超气动特性
-        double cl = 0.0 + cl_alpha_ * alpha;
-        double cd = cd0_ + 1.25 * alpha * alpha + 0.015 * std::max(0.0, mach - 5.0);
-        return {cl, cd, 0.0, 0.0, 0.0, 0.0};
-    }
-
-    // 4. 提供给动力学拉取的接口方法（这部分比较特殊，动力学通常拉取 currentCoefficients）
-    // 为了演示，我们在内部私有方法中获取最新的 alpha 和 mach：
-private:
-    gnc::interfaces::AeroCoefficients currentCoefficients() const {
-        // 从制导拉取期望攻角 (假设 3DOF 能够完美跟踪攻角)
-        const double alpha = guidance_ ? guidance_->getFlightCommand().alpha : 0.0;
-        // 从动力学拉取速度，除以声速得到马赫数 (简化的声速常数)
-        const double mach = dynamics_ ? dynamics_->getStateValue("velocity") / 340.0 : 0.0;
-        return computeCoefficients(alpha, 0.0, mach);
-    }
-    
-    // ... 成员变量和注册宏省略 ...
+};
 ```
-
-### 2.3 编写程序攻角制导组件 (`cavh_programmed_aoa.hpp`)
-根据飞行高度，插值输出攻角。它需要向框架“索要”动力学组件的指针，以获取当前高度。
-
-```cpp
-class CavhProgrammedAoA : public gnc::core::ComponentBase, public gnc::interfaces::IGuidance3DOF {
-public:
-    CavhProgrammedAoA() : ComponentBase("CavhProgrammedAoA") {
-        setExecutionFrequency(20.0); // 制导频率 20Hz
-    }
-    
-    // 依赖注入：索要动力学指针
-    void injectDependencies(gnc::core::ScopedRegistry& registry) override {
-        dynamics_ = registry.getByName<gnc::interfaces::IDynamicsModel>("dynamics");
-    }
-    
-    // 核心更新：根据高度计算攻角
-    void update(double) override {
-        // 1. 拉取高度
-        double altitude = dynamics_ ? dynamics_->getStateValue("altitude") : 60000.0;
-        // 2. 根据高度数组插值得到攻角 (插值函数逻辑略)
-        command_.alpha = interpolateAlpha(altitude) * 3.14159 / 180.0; // 转弧度
-        command_.sigma = 0.0; // 倾侧角保持为 0
-    }
-    // ... 暴露指令及注册宏省略 ...
-```
+有了这段代码，如果我们在 JSON 中忘记配置 `"dynamics"`，引擎的 `DependencyValidator` 会在初始化阶段拦截，并打印：`"CavhAerodynamics requires Dynamics Model ... but no registered component provides this interface."` 这能节省你几个小时的 Debug 时间！
 
 ---
 
-## 3. 第二步：编写 JSON 仿真配置文件
+## 3. 攻克挑战 4：利用 IObservable 暴露计算结果
 
-代码写好了，如何将它们拼装起来运行呢？在 `examples/03_cavh_3dof/` 下创建 `cavh_mission.json`。
-**注意组件数组中的顺序！必须是：环境 -> 质量 -> 气动 -> 制导 -> 动力学！**（动力学最后执行，因为它是积分器，依赖前面算出的所有力和系数）。
+我们需要导出“升阻比”，但这并不是框架内置的属性。我们需要在 `CavhAerodynamics` 中计算并暴露它。
+
+```cpp
+#include "gnc/interfaces/infrastructure/i_observable.hpp"
+
+class CavhAerodynamics : public ..., public gnc::interfaces::IObservable {
+// ...
+    std::vector<gnc::interfaces::ObservableField> getObservableFields() const override {
+        gnc::core::ObservableFieldBuilder builder;
+        
+        // 暴露 CL 和 CD
+        builder.addScalar("CL", [this]() { return currentCoefficients().CL; });
+        builder.addScalar("CD", [this]() { return currentCoefficients().CD; });
+        
+        // 暴露自定义计算的升阻比！
+        builder.addScalar("lift_to_drag", [this]() {
+            const auto coeffs = currentCoefficients();
+            return std::abs(coeffs.CD) > 1e-9 ? coeffs.CL / coeffs.CD : 0.0;
+        });
+        
+        return builder.build();
+    }
+};
+```
+
+接着，在 `cavh_mission.json` 中配置日志引擎：
+```json
+"outputs": {
+    "record": {
+        "aero": ["CL", "CD", "lift_to_drag"]  // 名字必须与 addScalar 中的一致！
+    }
+}
+```
+引擎的 `AutoDataLogger` 会在每步结束时，通过回调 Lambda 提取并记录这些值！
+
+---
+
+## 4. 攻克挑战 3：JSON 驱动的高级仿真控制
+
+我们不需要在 C++ 代码里写 `if (altitude < 10000) exit(0);`，这违反了配置驱动的原则。
+在 `cavh_mission.json` 中，我们可以直接利用 `Simulator` 提供的动态终止条件解析能力：
 
 ```json
 {
     "simulation": {
-        "dt": 0.1,             // 仿真步长 0.1秒 (10Hz)
-        "duration": 600.0,     // 最大仿真时长 600秒
-        "integrator": "rk4",   // 采用四阶龙格库塔积分器
+        "dt": 0.1,
+        "duration": 600.0,
         "stop_conditions": [
             {
                 "type": "component_field_below",
                 "component": "dynamics",
                 "field": "altitude",
-                "value": 10000.0,  // 高度低于 10000m 时自动停止
-                "description": "Altitude below 10km"
+                "value": 10000.0
             }
         ]
-    },
-    "outputs": {
-        "directory": "user/outputs/{timestamp}", // 数据输出目录
-        "format": "csv",
-        "session_name": "cavh_3dof",
-        "record": {
-            "dynamics": ["altitude", "velocity", "mach", "alpha_deg"],
-            "aero": ["CL", "CD", "lift_to_drag"],
-            "guidance": "all" // 记录制导组件所有暴露的变量
-        }
-    },
-    "components": [
-        { "type": "StandardAtmosphere", "name": "atmosphere", "config": {} },
-        { "type": "SphericalGravity", "name": "gravity", "config": {} },
-        { 
-            "type": "CavhMass", 
-            "name": "mass", 
-            "config": { "mass_kg": 900.0 } 
-        },
-        { 
-            "type": "CavhAerodynamics", 
-            "name": "aero", 
-            "config": { "cl_alpha_per_rad": 1.8 } // 覆盖 C++ 中的默认配置
-        },
-        { 
-            "type": "CavhProgrammedAoA", 
-            "name": "guidance", 
-            "config": {
-                "schedule_altitude_m": [60000, 45000, 30000, 15000],
-                "schedule_alpha_deg": [20, 15, 10, 6]
-            }
-        },
-        { 
-            "type": "Dynamics3DOF_SphericalEarth", 
-            "name": "dynamics", 
-            "config": {
-                "initial_state": { // 给定高超滑翔的初始状态！
-                    "longitude": 110.0,
-                    "latitude": 30.0,
-                    "altitude": 60000.0,   // 起始高度 60km
-                    "velocity": 3200.0,    // 初始速度 3.2km/s
-                    "flight_path_angle": -6.0, // 初始弹道倾角
-                    "heading_angle": 90.0
-                }
-            }
-        }
-    ]
+    }
 }
 ```
+底层原理：`SimulatorBuilder` 在解析时，会利用反射获取 `dynamics` 组件的指针，然后绑定一个比较 `getStateValue("altitude") < 10000.0` 的 Lambda 表达式到主循环中！
 
 ---
 
-## 4. 第三步：编写 `main.cpp` 并编译运行
+## 5. 总结：这套组合拳的威力
 
-### 4.1 `main.cpp`
-为了让框架知道我们写了自定义组件，我们需要在 `main.cpp` 中 `#include` 它们（利用 C++ 的静态全局变量初始化机制，包含头文件即可触发宏 `GNC_REGISTER_COMPONENT` 自动向工厂注册！）。
+通过上述设计，我们将 CAV-H 的仿真剥离成了：
+1.  **极度纯粹的物理组件**：气动只算气动，制导只算插值，代码极短。
+2.  **绝对安全的依赖网**：由 `DependencyValidator` 在启动前把关。
+3.  **零侵入的日志**：通过 `IObservable` 和 Lambda 闭包，按需导出。
+4.  **外置的流程控制**：积分器类型、终止条件、执行频率全部交由 JSON 和 `Simulator` 接管。
 
-```cpp
-#include "gnc/common/logger.hpp"
-#include "gnc/components/_builtin_register.hpp" // 注册框架内置组件
-#include "gnc/core/simulation_builder.hpp"
-
-// 必须包含我们写的三个自定义组件的头文件，触发宏注册！
-#include "cavh_aerodynamics.hpp"
-#include "cavh_mass.hpp"
-#include "cavh_programmed_aoa.hpp"
-
-int main() {
-    gnc::core::SimulationBuilder builder;
-    // 加载我们刚写的 JSON 配置文件
-    if (!builder.loadConfig("examples/03_cavh_3dof/cavh_mission.json")) return 1;
-
-    // 一键构建仿真器并运行！
-    auto& simulator = builder.build();
-    simulator.run();
-    
-    return 0;
-}
-```
-
-### 4.2 编译与运行
-由于我们在 `examples` 下添加了代码，如果项目顶层 `CMakeLists.txt` 包含了它，我们可以直接在根目录下构建：
-
-```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release
-
-# 运行生成的执行文件
-./bin/cavh_3dof_example
-```
-
-> **恭喜您！**
-> 运行结束后，您可以在 `user/outputs/` 的最新时间戳文件夹下找到 `cavh_3dof.csv` 文件。使用 Python 脚本绘制出 `altitude` 和 `velocity` 的曲线，您就能看到完美的 CAV-H 典型高超声速滑翔弹道了！
+这才是 GNC 仿真框架设计的最高境界：**让算法工程师写最少的代码，得到最健壮、最可视化的结果！**

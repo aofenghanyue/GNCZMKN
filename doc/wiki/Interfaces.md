@@ -1,55 +1,68 @@
-# 接口设计与核心组件规范
+# 接口设计与组件进阶开发规范
 
-本框架的所有组件都必须遵循一套**标准的接口契约**。GNC 仿真环境由无数个“即插即用”的积木（组件）拼装而成，而这些积木之间的接头，就是位于 `framework/include/gnc/interfaces/` 目录下的接口定义。
+编写一个能运行的组件很容易，但要编写一个**安全、可观测、多频率友好**的工业级组件，必须深入理解框架的进阶规范。
 
-## 1. 接口的设计理念
+## 1. 组件开发的三重境界
 
-在 GNC 框架中，所有跨模块的交互都必须通过**纯虚接口（Abstract Interface）**进行。
-- **无实现细节**：接口类通常只包含纯虚函数（如 `virtual double getMass() const = 0;`）。
-- **零拷贝拉取**：接口方法倾向于返回基本类型、`const` 引用或简单的结构体，以避免深拷贝。
-- **强制依赖声明**：组件在生命周期初始化时，必须明确它需要哪些接口指针。
+### 1.1 第一重：满足基本生命周期
+继承 `ComponentBase`，在 `configure` 中读取 JSON，在 `update(dt)` 中计算并存储状态。
+
+### 1.2 第二重：安全地声明依赖 (`IDependencyDeclarer`)
+不要仅在 `injectDependencies` 中默默地调用 `getByName` 并在运行时崩溃。您应当主动声明依赖：
+
+```cpp
+#include "gnc/core/dependency_validator.hpp"
+
+class MyComponent : public gnc::core::ComponentBase, 
+                    public gnc::core::IDependencyDeclarer { // 继承声明接口
+// ...
+    // 明确告诉框架你需要什么
+    std::vector<gnc::core::DependencyDeclaration> getDependencies() const override {
+        return {
+            {std::type_index(typeid(gnc::interfaces::IDynamicsModel)), "Dynamics Model (Required)", true},
+            {std::type_index(typeid(gnc::interfaces::IAtmosphereModel)), "Atmosphere (Optional)", false}
+        };
+    }
+// ...
+};
+```
+这样，如果用户在 JSON 中漏配了组件，框架会在 `Initializing` 阶段优雅地抛出错误，而不是在 `Running` 阶段发生空指针段错误（Segfault）。
+
+### 1.3 第三重：实现无缝日志观测 (`IObservable`)
+如何让自己的内部变量能够被 CSV 记录下来？不需要手动写文件！框架提供了 `ObservableFieldBuilder` 这一绝佳的微设计。
+
+```cpp
+#include "gnc/interfaces/infrastructure/i_observable.hpp"
+#include "gnc/core/observable_helpers.hpp"
+
+class MyGuidance : public ..., public gnc::interfaces::IObservable {
+// ...
+    std::vector<gnc::interfaces::ObservableField> getObservableFields() const override {
+        gnc::core::ObservableFieldBuilder builder;
+        
+        // 添加标量：在 JSON 的 record 中配 "alpha_deg" 即可记录
+        builder.addScalar("alpha_deg", [this]() { return command_.alpha * 57.3; });
+        
+        // 自动展开三维向量：配置 "target_pos"，框架会自动记录 target_pos.x, y, z
+        builder.addVector3d("target_pos", [this]() -> const gnc::Vector3d& { return target_; });
+        
+        return builder.build();
+    }
+};
+```
+注意闭包捕获：必须通过 `[this]` 捕获对象自身，因为 `AutoDataLogger` 会在仿真循环结束时统一回调这些 Getter 拉取数据。
 
 ---
 
-## 2. 核心接口速查表
+## 2. 多频率调度的秘密 (`Execution Frequency`)
 
-以下列出框架内最核心的几类接口及其主要能力：
+在构造函数中，您通常会调用 `setExecutionFrequency(20.0)`。
+在底层，`Simulator::computeStepIntervals()` 会计算出您的组件需要跳过多少个基础步长：
+`interval = round( sim_freq / comp_freq )`
 
-### 2.1 环境接口 (Environment)
-这类接口通常是全局共享的，负责提供不随单一飞行器状态改变的自然环境数据。
-*   `IAtmosphereModel`: 提供基于高度的**大气密度、压力、温度和声速**（`getDensity`, `getSpeedOfSound`）。
-*   `IGravityModel`: 提供基于位置的**重力加速度**向量（`getGravity`）。
-*   `IEarthModel`: 提供**WGS84 坐标系转换**（LLA 到 ECEF 的互相转换）、地球半径和自转角速度。
+**最佳实践与注意点**：
+1.  **基础 dt 是王道**：如果在 JSON 中配置 `dt: 0.1` (10Hz)，但你在代码中 `setExecutionFrequency(100.0)`，那么 interval = 1。你的组件实际运行频率是被截断的 10Hz，不可能比基础步长更快。
+2.  **如何判断是否在执行？**：框架内部会调用 `shouldExecute(step)`。如果您需要在组件外部知道某一步是否是您的控制周期，可以调用这个方法。
+3.  **dt 的传递**：在您的 `update(double dt)` 中，传入的 `dt` 是**基础仿真步长**，**不是**您的控制周期！如果您的 PID 控制器需要使用实际的控制时间间隔，应当自己乘以 interval，或者使用 `dt * getStepInterval()`。
 
-### 2.2 飞行器物理特性接口 (Vehicle Properties)
-描述飞行器自身的固有物理属性，是动力学积分器的重要输入。
-*   `IMassProperty`: 提供**质量**（`getMass()`）、**惯性张量**（`getInertiaMatrix()`）以及**质心位置**。
-*   `IAeroCoefficients`: 根据马赫数、攻角、侧滑角等提供**气动力系数**（如 `CL`, `CD`, `CY`, `Cl`, `Cm`, `Cn`）及参考面积/长度。
-
-### 2.3 GNC 算法接口 (Guidance, Navigation, Control)
-框架中最常被用户自定义的业务层接口。
-*   `IGuidance3DOF`: 三自由度制导接口，主要输出为**期望攻角（$\alpha$）、期望倾侧角（$\sigma$）**，即 `FlightCommand3DOF`。
-*   `IGuidance6DOF`: 六自由度制导接口，输出为**期望的三轴加速度和姿态指令**（`GuidanceCommand`）。
-*   `INavigation`: 导航滤波器接口，输出为当前估算的**导航状态**（包含位置、速度、姿态四元数的 `NavState` 结构体）。
-*   `IController`: 控制器接口，输入制导指令和导航状态，输出具体的**执行器指令**（如舵面偏角指令、推力指令的 `ActuatorCommand`）。
-
-### 2.4 动力学模型接口 (Dynamics)
-*   `IDynamicsModel`: 仿真的心脏。它负责维护和积分飞行器的真实状态（Truth State）。
-    *   提供获取状态值的通用方法：`getStateValue(std::string_view name)`（如获取 "altitude", "mach", "velocity"）。
-    *   提供施加外力/力矩的接口：`addForce`, `addTorque`。
-
-### 2.5 基础设施与日志接口 (Infrastructure)
-*   `IObservable`: **至关重要的日志接口**。任何希望自己的内部变量被 CSV 记录器导出的组件，都必须继承并实现此接口的 `getObservableFields()` 方法。
-
----
-
-## 3. 跨模块的数据结构 (Data Types)
-
-为了避免参数列表过长，框架在 `data_types.hpp` 中定义了标准的数据载体（POD 结构体）：
-
-*   **`ImuData`**: 包含 `acceleration` (三轴比力), `angular_velocity` (三轴角速度), `timestamp`。
-*   **`NavState`**: 包含 `position` (ECEF系), `velocity` (ECEF系), `attitude` (NED到BODY的四元数), `angular_velocity` (BODY系), `timestamp`。
-*   **`FlightCommand3DOF`**: 三自由度指令，包含 `alpha` (攻角, rad), `sigma` (倾侧角, rad), `timestamp`。
-*   **`AeroCoefficients`**: 气动系数结构体，包含 `CL, CD, CY`（升力、阻力、侧力系数）和 `Cl, Cm, Cn`（滚转、俯仰、偏航力矩系数）。
-
-> 下一步：想知道这些接口如何组合成一个实际可运行的组件，请参阅 [**自定义组件开发指南**](Component_Development.md)。
+> 下一步：想看这些高级特性在真实代码中如何组合？请阅读 [**基于 CAV-H 的新手教程**](Tutorial_CAVH.md)。
