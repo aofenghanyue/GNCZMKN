@@ -6,7 +6,7 @@
 
 1. 先确定组件在仿真链路中的职责
 2. 选择合适的接口或接口组合
-3. 在 `user/components/` 下实现自己的组件
+3. 在 `user/<project>/components/` 下实现自己的组件
 4. 用 mission 配置把它装配进任务
 
 这样做的核心收益是，框架核心保持稳定，而你的领域模型、算法模型和任务模型都留在用户工作区里演化。
@@ -50,17 +50,18 @@
 
 ## 6.4 组件应该放在哪里
 
-推荐把自定义组件放在 `user/components/` 下，并按职责分目录，例如：
+推荐把自定义组件放在 `user/<project>/components/` 下，并按职责分目录，例如：
 
 ```text
-user/components/
+user/<project>/components/
 ├── guidance/
 ├── navigation/
 ├── controller/
 └── vehicle/
 ```
 
-当前构建系统会自动扫描 `user/components/**/*.hpp`，因此通常不需要修改顶层 `CMakeLists.txt`。
+当前构建系统会自动扫描活跃工程的 `user/<project>/components/**/*.hpp`，因此通常不需要修改顶层 `CMakeLists.txt`。
+如果某个组件已经在多个工程之间复用、接口语义稳定，而且你希望把它提升为仓库公共起步件，再考虑迁入 `framework/include/gnc/components/`；在此之前，优先把它留在具体项目目录里演化。
 
 ## 6.5 如何注册组件
 

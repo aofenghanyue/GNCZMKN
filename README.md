@@ -14,8 +14,8 @@
 
 - 用户手册入口：`doc/user-guide/README.md`
 - 运行入口：`src/runner.cpp`
-- 用户工作区：`user/components/`、`user/config/`
-- 示例：`examples/`
+- 用户工作区：`user/active_project`、`user/<project>/components/`、`user/<project>/config/`
+- 仓库随附样板工程：`user/example_*`
 - 模板：`templates/`
 
 ## 当前仓库的层次应该怎么理解
@@ -50,10 +50,11 @@
 - 用于最小闭环、联调和示例支撑的 starter components
 
 它们不是“框架核心协议”，也不是所有项目都应长期依赖的领域标准件。
+只有已经在多个工程之间复用、语义稳定、适合作为仓库公共起步件的组件，才应放在这里；项目私有或仍在快速演化的组件，优先留在 `user/<project>/components/`。
 
-### `examples`
+### `user/example_*`
 
-这里放的是任务样板与建模示例，用来说明：
+这里放的是随仓库附带的样板工程，用来说明：
 
 - 如何组织一套模型
 - 如何拆分角色
@@ -63,8 +64,9 @@
 
 这里是用户工作区，才是最推荐的扩展位置：
 
-- `user/components/` 放自定义组件
-- `user/config/` 放自己的任务配置
+- `user/<project>/components/` 放该工程的自定义组件
+- `user/<project>/config/` 放该工程的任务配置
+- `user/active_project` 指定当前活跃工程
 
 如果你的目标是“基于框架做自己的工程”，优先改这里，而不是直接改 `framework/include/gnc/components/`。
 
@@ -72,20 +74,21 @@
 
 直接运行 `gnc_sim` 时，默认读取：
 
-- `user/config/missions/default.json`
+- `user/example_03_cavh_3dof/config/mission.json`（由当前提交的 `user/active_project` 决定）
 
-这个文件现在已经被整理成一个可直接跑通并输出 CSV 的最小闭环任务。
+这个文件现在是仓库默认提交的首跑工程任务，可以直接跑通并输出 CSV。
 运行器会从当前工作目录和可执行文件目录向上搜索这条相对路径，因此从仓库根目录或 `build/bin` 直接启动都可以。
 对这类 repo-relative mission，运行器还会把相对输出路径继续锚定在同一个项目根下，因此结果仍然落到仓库里的 `user/outputs/`。
 
 如果你要运行别的任务，优先使用：
 
-- `gnc_sim --config user/config/missions/minimal.json`
+- `gnc_sim --config user/example_01_minimal/config/mission.json`
 
 注意：
 
-- `--config` 只负责解析任务路径，不会额外注册 example 专用组件
-- 像 `examples/03_cavh_3dof` 这类带有专用组件的示例，仍应优先使用它自己的示例可执行文件
+- `--config` 只负责解析任务路径；示例/项目专用组件是否可用，取决于构建期选择的自定义组件根
+- 当前仓库已把 project-style 示例并入 `user/` 工作区，例如 `user/example_01_minimal` 和 `user/example_03_cavh_3dof`
+- `user/active_project` 是仓库内的活跃工程文件，修改它后重新执行 `cmake --build`，CMake 会自动先重配置再构建
 
 ## 快速自检
 
@@ -101,6 +104,6 @@
 如果只记一条，请记这条：
 
 - `core` 和 `interfaces` 是长期基座
-- `components` 是当前仓库自带的起步件
-- `examples` 是样板
-- `user` 才是用户工程入口
+- `framework/include/gnc/components` 是仓库共享起步件
+- `user/example_*` 是随仓库附带的样板工程
+- `user/<your_project>` 才是你的工程入口

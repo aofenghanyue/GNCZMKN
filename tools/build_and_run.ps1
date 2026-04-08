@@ -1,5 +1,6 @@
 param(
-    [string]$ConfigFile = "user\\config\\missions\\default.json",
+    [string]$ConfigFile = "",
+    [string]$ActiveProject = "",
     [switch]$BuildOnly,
     [switch]$ListComponents,
     [string]$BuildType = "Release"
@@ -16,7 +17,11 @@ try {
     }
 
     Push-Location build
-    cmake .. -DCMAKE_BUILD_TYPE=$BuildType
+    $configureArgs = @("..", "-DCMAKE_BUILD_TYPE=$BuildType")
+    if ($ActiveProject -ne "") {
+        $configureArgs += "-DGNC_ACTIVE_PROJECT=$ActiveProject"
+    }
+    cmake @configureArgs
     if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
 
     cmake --build . --config $BuildType
@@ -32,7 +37,11 @@ try {
         return
     }
 
-    & ".\\build\\bin\\gnc_sim.exe" --config $ConfigFile
+    if ($ConfigFile -ne "") {
+        & ".\\build\\bin\\gnc_sim.exe" --config $ConfigFile
+    } else {
+        & ".\\build\\bin\\gnc_sim.exe"
+    }
 } finally {
     Pop-Location
 }

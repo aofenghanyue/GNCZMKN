@@ -1,5 +1,5 @@
 {
-    "_comment": "任务配置模板：复制到 user/config/missions/ 后，按带有 ▲ 的注释项逐步修改",
+    "_comment": "任务配置模板：复制到 user/<project>/config/mission.json 后，按带有 ▲ 的注释项逐步修改",
     "simulation": {
         "_comment": "▲ 修改仿真步长和仿真时长",
         "dt": 0.01,

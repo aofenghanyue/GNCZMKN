@@ -6,35 +6,31 @@
 
 | 路径 | 作用 | 用户需要知道什么 |
 | --- | --- | --- |
-| `CMakeLists.txt` | 顶层构建入口 | 扫描 `user/components/**/*.hpp`，生成自动注册头文件，构建 `gnc_sim`、示例和测试 |
+| `CMakeLists.txt` | 顶层构建入口 | 扫描当前自定义组件根，生成自动注册头文件，构建 `gnc_sim` 和测试 |
 | `framework/CMakeLists.txt` | 框架库定义 | 框架本体是 INTERFACE 头文件库，主要依赖 Eigen3 |
-| `examples/CMakeLists.txt` | 示例构建入口 | 当前启用了 `example_cavh_3dof` |
 | `src/runner.cpp` | 默认运行入口 | 支持 `--config`、向上搜索默认任务路径、列组件，并按 starter/custom 分组显示类型 |
 | `tools/build_and_run.ps1` | 一键构建运行脚本 | 适合 Windows 下快速验证、列组件和运行任务 |
 | `tools/plot_results.py` | 结果后处理脚本 | 面向 CSV 结果做简单绘图和文本摘要 |
-| `README.md` | 仓库入口说明 | 首次进入仓库时优先看，用于建立“基座 / 起步件 / 示例 / 用户工程区”的基本心智模型 |
+| `README.md` | 仓库入口说明 | 首次进入仓库时优先看，用于建立“基座 / 起步件 / 样板工程 / 用户工程区”的基本心智模型 |
 | `templates/guidance_template.hpp` | 制导组件模板 | 自定义制导的起点，默认先用 `bind(...)` 起步 |
 | `templates/controller_template.hpp` | 控制组件模板 | 自定义控制组件的起点，默认用 `guidance` 必需 + `nav` 可选 |
 | `templates/navigation_template.hpp` | 导航组件模板 | 自定义导航组件的起点，默认先用 `bind(...)` 起步 |
 | `templates/mission_template.json` | mission 模板 | 新任务文件起点，使用 `_comment` 提示配置意图 |
-| `user/components/README.md` | 用户组件目录说明 | 强调“放到用户目录、自动注册、无需改入口”这条工作流 |
-| `user/components/guidance/constant_guidance.hpp` | 当前用户自定义组件示例 | 最小可运行制导组件，也是自动注册链路的真实例子 |
-| `user/config/missions/default.json` | 用户默认首跑任务 | 默认入口读取的闭环任务，直接运行即可得到 CSV 与摘要 |
-| `user/config/missions/minimal.json` | 用户最小任务 | 当前仓库可直接运行的最小闭环任务 |
+| `user/README.md` | 用户工程区说明 | 说明 `user/active_project`、`user/<project>/components/` 和 `user/<project>/config/mission.json` 约定 |
+| `user/components/README.md` | legacy 组件目录说明 | 说明旧的 `user/components/` 已降级为过渡目录 |
+| `user/example_01_minimal/components/constant_guidance.hpp` | 当前最小工程组件示例 | 最小可运行制导组件，也是自动注册链路的真实例子 |
+| `user/example_03_cavh_3dof/config/mission.json` | 当前默认首跑任务 | 默认入口读取的闭环任务，直接运行即可得到 CSV 与摘要 |
+| `user/example_01_minimal/config/mission.json` | 用户最小任务 | 当前仓库可直接运行的最小闭环任务 |
 
 ## 8.2 示例与测试
 
 | 路径 | 作用 | 用户需要知道什么 |
 | --- | --- | --- |
-| `examples/01_minimal/README.md` | 最小示例说明 | 展示“复制组件 + 复制 mission + 重建运行”的最短路径 |
-| `examples/01_minimal/components/constant_guidance.hpp` | 最小示例组件 | 演示最简单的 6DOF 制导组件写法 |
-| `examples/01_minimal/config/mission.json` | 最小示例任务 | 演示最小 mission 结构 |
-| `examples/02_gravity_turn/simple_gravity_turn.cpp` | 自包含专用程序示例 | 演示 `loadConfigString()`、嵌入式使用和自动数据记录 |
-| `examples/03_cavh_3dof/main.cpp` | CAV-H 3DOF 示例入口 | 演示专用示例程序如何复用框架内核 |
-| `examples/03_cavh_3dof/cavh_programmed_aoa.hpp` | 3DOF 制导示例 | 按高度程序输出攻角/滚转指令 |
-| `examples/03_cavh_3dof/cavh_aerodynamics.hpp` | 气动模型示例 | 根据攻角和马赫数提供气动系数，并暴露可观测量 |
-| `examples/03_cavh_3dof/cavh_mass.hpp` | 质量模型示例 | 提供质量属性并支持数据记录 |
-| `examples/03_cavh_3dof/cavh_mission.json` | 完整 3DOF mission | 展示较完整的工程化装配方式 |
+| `user/example_02_gravity_turn/simple_gravity_turn.cpp` | 自包含专用程序示例 | 演示 `loadConfigString()`、嵌入式使用和自动数据记录 |
+| `user/example_03_cavh_3dof/components/cavh_programmed_aoa.hpp` | 3DOF 制导示例 | 按高度程序输出攻角/滚转指令 |
+| `user/example_03_cavh_3dof/components/cavh_aerodynamics.hpp` | 气动模型示例 | 根据攻角和马赫数提供气动系数，并暴露可观测量 |
+| `user/example_03_cavh_3dof/components/cavh_mass.hpp` | 质量模型示例 | 提供质量属性并支持数据记录 |
+| `user/example_03_cavh_3dof/config/mission.json` | 完整 3DOF mission | 展示较完整的工程化装配方式 |
 | `tests/test_cross_entity_access.cpp` | 作用域访问测试 | 说明跨实体全名访问是受支持的 |
 | `tests/test_starter_dependency_preflight.cpp` | starter 依赖预检查测试 | 说明轻量 starter 组件即使不写 `IDependencyDeclarer` 也会在构建期被拦下 |
 | `tests/test_declared_dependency_preflight.cpp` | declarer 绑定漂移测试 | 说明 declarer 组件也会继续预检查真实 `injectDependencies()` 绑定 |
@@ -164,7 +160,7 @@
 
 如果你是：
 
-- 使用者：优先看 `src/`、`user/`、`examples/`、`core/` 中的 `simulation_builder` 与 `simulator`
+- 使用者：优先看 `src/`、`user/`、`core/` 中的 `simulation_builder` 与 `simulator`
 - 扩展者：优先看 `component_base`、`interfaces/`、`observable_helpers`、`templates/`
 - 维护者：优先看 `component_factory`、`component_registry`、`config_manager`、`auto_data_logger`
 

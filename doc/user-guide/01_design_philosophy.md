@@ -21,15 +21,16 @@
 | 基础数学与通用类型层 | `framework/include/gnc/common` | 数学类型、Eigen 扩展、旋转/变换、数值计算、日志等基础能力 |
 | 抽象接口层 | `framework/include/gnc/interfaces` | 定义环境、动力学、导航、制导、控制、传感器、输出等接口契约 |
 | 框架核心层 | `framework/include/gnc/core` | 组件基类、注册表、工厂、配置解析、仿真器、构建器、自动数据记录等 |
-| 起步件层 | `framework/include/gnc/components` | 当前仓库随附的 starter components，服务于冷启动、最小闭环和示例 |
+| 起步件层 | `framework/include/gnc/components` | 当前仓库随附的 starter/public components，服务于冷启动、最小闭环和仓库样板工程 |
 | 服务与复用库层 | `framework/include/gnc/services`、`framework/include/gnc/libraries` | 坐标服务、PID、滤波器、状态空间、控制离散化等可复用能力 |
-| 用户扩展层 | `user/components`、`user/config` | 用户自定义组件和任务配置 |
-| 示例与验证层 | `examples`、`tests` | 示例模型、用法演示与基础验证 |
+| 用户扩展层 | `user/<project>/components`、`user/<project>/config`、`user/active_project` | 用户自定义组件、任务配置与活跃工程选择 |
+| 样板与验证层 | `user/example_*`、`tests` | 仓库样板工程、用法演示与基础验证 |
 
 这里有一个需要特别强调的现实边界：
 
 - `framework/include/gnc/components` 目前在物理目录上位于 `framework/` 下
 - 但在逻辑定位上，应把它看成“随仓库附带的起步件集合”，而不是 framework core 本身
+- 只有跨项目共享、语义稳定的公共组件，才适合沉淀到这里；项目私有组件仍应留在 `user/<project>/components/`
 
 ## 1.3 四个核心设计思想
 
@@ -43,7 +44,7 @@
 
 因此，大多数仿真任务的差异不需要通过修改 `main()` 表达，而是通过：
 
-- 在 `user/components/` 中添加新组件
+- 在 `user/<project>/components/` 中添加新组件
 - 在 mission JSON 中替换 `type`、调整 `name` 和 `config`
 
 ### 接口优先，而不是类名耦合
@@ -88,8 +89,8 @@
 
 从用户视角看，一次仿真执行流程可以概括为：
 
-1. CMake 收集 `user/components/**/*.hpp`
-2. 生成 `build/generated/user_components_register.hpp`
+1. CMake 根据 `user/active_project` 收集 `user/<project>/components/**/*.hpp`
+2. 生成 `build/generated/auto_registered_components.hpp`
 3. 程序启动后，静态注册宏把所有组件类型登记到 `ComponentFactory`
 4. `SimulationBuilder` 读取 JSON
 5. 根据 `type` 创建组件实例
@@ -176,8 +177,8 @@
 - `core/` 负责“怎么跑”
 - `interfaces/` 负责“怎么接”
 - `components/` 负责“先给你一些能用的实现”
-- `user/components/` 负责“你自己的模型”
-- `user/config/` 负责“这次任务怎么装起来”
+- `user/<project>/components/` 负责“你自己的模型”
+- `user/<project>/config/` 负责“这次任务怎么装起来”
 
 只要把这五者关系理解清楚，整个框架的设计就不会乱。
 > 2026-04-08 补充说明

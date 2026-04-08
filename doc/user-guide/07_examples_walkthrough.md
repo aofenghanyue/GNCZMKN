@@ -12,9 +12,9 @@
 
 相关文件：
 
-- `examples/01_minimal/README.md`
-- `examples/01_minimal/components/constant_guidance.hpp`
-- `examples/01_minimal/config/mission.json`
+- `user/example_01_minimal/README.md`
+- `user/example_01_minimal/components/constant_guidance.hpp`
+- `user/example_01_minimal/config/mission.json`
 
 这个示例演示的是最小工作闭环：
 
@@ -28,12 +28,12 @@
 - 一个 mission 如何实例化组件
 - 一条最简单的 GNC 链路如何在框架中表达
 
-## 7.3 仓库当前用户入口：`minimal.json`
+## 7.3 仓库当前样板工程：`example_01_minimal`
 
 相关文件：
 
-- `user/components/guidance/constant_guidance.hpp`
-- `user/config/missions/minimal.json`
+- `user/example_01_minimal/components/constant_guidance.hpp`
+- `user/example_01_minimal/config/mission.json`
 
 这实际上是把“最小示例”搬到了用户工作区里，方便直接构建和运行。它的意义非常大，因为它天然就是你做第一次自定义修改的起点。
 
@@ -48,7 +48,7 @@
 
 相关文件：
 
-- `examples/02_gravity_turn/simple_gravity_turn.cpp`
+- `user/example_02_gravity_turn/simple_gravity_turn.cpp`
 
 这个示例的特点是：
 
@@ -72,11 +72,12 @@
 
 相关文件：
 
-- `examples/03_cavh_3dof/main.cpp`
-- `examples/03_cavh_3dof/cavh_mission.json`
-- `examples/03_cavh_3dof/cavh_programmed_aoa.hpp`
-- `examples/03_cavh_3dof/cavh_aerodynamics.hpp`
-- `examples/03_cavh_3dof/cavh_mass.hpp`
+- `user/example_03_cavh_3dof/config/mission.json`
+- `user/example_03_cavh_3dof/components/cavh_programmed_aoa.hpp`
+- `user/example_03_cavh_3dof/components/cavh_aerodynamics.hpp`
+- `user/example_03_cavh_3dof/components/cavh_mass.hpp`
+
+这个示例现在已经迁入 `user/example_03_cavh_3dof`。如果你要用统一入口 `gnc_sim` 直接运行它，请将 `user/active_project` 设为 `example_03_cavh_3dof` 并重新构建。
 
 这是当前仓库里最有工程价值的示例。它展示了如何把一个较完整的飞行器模型拆成多个角色清晰的组件：
 
@@ -96,7 +97,7 @@
 
 当前这个示例还额外演示了 `outputs.debug_snapshots`：
 
-- `cavh_mission.json` 为 `aero` 组件开启了调试快照
+- `config/mission.json` 为 `aero` 组件开启了调试快照
 - `CavhAerodynamics` 在 `update()` 中用 `snapDebug()` 记录 `alpha_rad`、`speed`、`mach`、`CL`、`CD`
 - 输出目录里会多出一份独立调试 CSV，适合排查气动中间量，而不必把这些量全部塞进主观测字段
 

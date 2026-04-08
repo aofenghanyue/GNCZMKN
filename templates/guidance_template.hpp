@@ -3,7 +3,7 @@
  * @brief Guidance component template.
  *
  * Usage:
- * 1. Copy this file into `user/components/guidance/`.
+ * 1. Copy this file into `user/<project>/components/`.
  * 2. Rename the file and class.
  * 3. Replace the placeholder logic in `configure()` and `update()`.
  * 4. Rebuild the project.

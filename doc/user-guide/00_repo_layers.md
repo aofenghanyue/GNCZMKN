@@ -4,7 +4,7 @@
 
 - 当前仓库里哪些是“框架基座”
 - 哪些只是“随仓库附带的起步件”
-- 哪些是“任务样板”
+- 哪些是“任务样板工程”
 - 你自己的代码应该放哪
 
 如果这一层没想清楚，后面读代码时很容易把 starter component 误当成框架协议。
@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | 基座 | `framework/include/gnc/core`、`framework/include/gnc/interfaces`、`framework/include/gnc/common` | 框架长期稳定的运行机制与接口契约 |
 | 起步件 | `framework/include/gnc/components` | 随仓库附带的 starter components，用于冷启动、最小闭环和联调 |
-| 样板 | `examples` | 任务级示例，展示如何用基座与起步件搭模型 |
+| 样板工程 | `user/example_*` | 随仓库附带的任务级样板，展示如何用基座与起步件搭模型 |
 | 用户工程区 | `user` | 用户真正应长期扩展和维护的地方 |
 
 ## 0.2 为什么这个区分现在很重要
@@ -89,9 +89,9 @@
 
 例如：
 
-- `examples/01_minimal`
-- `examples/02_gravity_turn`
-- `examples/03_cavh_3dof`
+- `user/example_01_minimal`
+- `user/example_02_gravity_turn`
+- `user/example_03_cavh_3dof`
 
 ### 用户工程层
 
@@ -118,6 +118,7 @@
 
 - `framework/include/gnc/components` 在物理路径上还在 `framework/` 下
 - 但在逻辑定位上，应把它当成 starter kit 看待
+- 只有跨项目共享且语义稳定的公共组件，才适合继续沉淀到这里
 
 ## 0.5 你在不同目标下应该优先改哪里
 
@@ -133,22 +134,23 @@
 
 优先看：
 
-- `user/config/missions/default.json`
-- `user/config/missions/minimal.json`
-- `user/components/`
+- `user/active_project`
+- `user/example_03_cavh_3dof/config/mission.json`
+- `user/example_01_minimal/config/mission.json`
+- `user/<project>/components/`
 
 ### 如果你想学习一类完整建模方式
 
 优先看：
 
-- `examples/03_cavh_3dof`
+- `user/example_03_cavh_3dof`
 
 ### 如果你想写自己的工程组件
 
 优先从：
 
 - `templates/`
-- `user/components/`
+- `user/<project>/components/`
 
 开始，而不是直接复制 `framework/include/gnc/components` 里的 starter components。
 
@@ -157,6 +159,6 @@
 当前仓库最重要的阅读前提是：
 
 - `core + interfaces` 才是基座
-- `components` 是随仓库附带的起步件
-- `examples` 是样板
-- `user` 是你的工程入口
+- `framework/include/gnc/components` 是仓库共享起步件
+- `user/example_*` 是随仓库附带的样板工程
+- `user/<your_project>` 是你的工程入口

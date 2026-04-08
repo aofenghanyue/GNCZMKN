@@ -56,6 +56,24 @@ DependencyDeclaration optionalDependency(const std::string& lookup_name,
  * 
  * 组件可以选择性地实现此接口来声明依赖
  */
+/**
+ * @brief Optional dependency-contract layer for richer diagnostics
+ *
+ * Most components do not need to implement this interface. Required
+ * `bind(...)` and optional `bindIfPresent(...)` bindings are already
+ * preflight-checked during `SimulationBuilder::build()`.
+ *
+ * Implement this interface when the extra declaration adds real value:
+ * - the component has several dependencies and you want semantic,
+ *   human-readable descriptions in diagnostics
+ * - you need interface-existence checks that are not tied to a specific
+ *   lookup name
+ * - you want an explicit dependency contract for tooling or documentation
+ *
+ * Declarations do not replace real bindings. Any dependency listed in
+ * `getDependencies()` should still have a matching binding in
+ * `injectDependencies()`, and the framework validates both layers.
+ */
 class IDependencyDeclarer {
 public:
     virtual ~IDependencyDeclarer() = default;

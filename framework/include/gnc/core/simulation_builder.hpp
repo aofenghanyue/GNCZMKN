@@ -232,7 +232,7 @@ private:
             message += ". Did you mean '" + suggestion + "'?";
         }
         message += ". Please register the component or fix the type name.";
-        message += " Custom components are auto-discovered from user/components/*.hpp; use --list-components or --list-components-verbose to inspect the currently registered starter/custom types.";
+        message += " User-project components are auto-discovered from the active user/<project>/components root; use --list-components or --list-components-verbose to inspect the currently registered starter/custom types.";
         return message;
     }
 

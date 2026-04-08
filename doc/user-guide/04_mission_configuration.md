@@ -244,9 +244,9 @@
 
 - `user/config/missions/default.json`
   作用：默认首跑任务，直接展示一条能出 CSV 的最小闭环链路
-- `user/config/missions/minimal.json`
+- `user/example_01_minimal/config/mission.json`
   作用：最小可运行链路
-- `examples/03_cavh_3dof/cavh_mission.json`
+- `user/example_03_cavh_3dof/config/mission.json`
   作用：较完整的工程化模型装配示例
 
 阅读顺序建议是：先默认首跑，再最小配置，再完整模型。

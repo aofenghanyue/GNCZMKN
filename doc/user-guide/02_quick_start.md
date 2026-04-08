@@ -61,7 +61,7 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1
 指定任务文件：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -ConfigFile user\config\missions\minimal.json
+powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -ConfigFile user\example_01_minimal\config\mission.json
 ```
 
 只构建不运行：
@@ -74,13 +74,23 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 
 构建时，顶层 `CMakeLists.txt` 会递归扫描：
 
-- `user/components/**/*.hpp`
+- `user/active_project` 指定当前工程
+- 构建时扫描 `user/<active_project>/components/**/*.hpp`
 
 然后生成：
 
-- `build/generated/user_components_register.hpp`
+- `build/generated/auto_registered_components.hpp`
 
-这个生成文件会被 `src/runner.cpp` 包含，从而把你的用户组件头文件引入编译单元。只要你的组件头文件末尾使用了注册宏，框架就能在运行前自动识别它。
+这个生成文件会被 `src/runner.cpp` 包含，从而把当前选中的用户/项目组件头文件引入编译单元。只要组件头文件末尾使用了注册宏，框架就能在运行前自动识别它。
+
+如果你要让统一入口 `gnc_sim` 直接运行某个 project-style 示例或项目，可以在 CMake 配置时选择活动项目：
+
+```powershell
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGNC_ACTIVE_PROJECT=example_03_cavh_3dof
+cmake --build build --config Release
+```
+
+或者直接编辑仓库里的 `user/active_project` 文件，写入工程名，再重新构建。
 
 这也是为什么添加用户组件通常不需要修改：
 
@@ -117,7 +127,7 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 ### 运行现成的最小任务
 
 ```powershell
-.\build\bin\gnc_sim.exe --config user\config\missions\minimal.json
+.\build\bin\gnc_sim.exe --config user\example_01_minimal\config\mission.json
 ```
 
 当前仓库已经内置了可运行的最小配置，它会装配：
@@ -136,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 
 如果不传参数，`gnc_sim` 默认读取：
 
-- `user/config/missions/default.json`
+- `user/example_03_cavh_3dof/config/mission.json`（当前仓库提交的 active project）
 
 运行器会从：
 
@@ -146,39 +156,41 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 向上搜索这条相对路径，所以你既可以在仓库根目录运行，也可以直接在 `build/bin` 下运行默认入口。
 对这类 repo-relative mission，`outputs.directory` 这类相对路径也会继续落在同一个项目根下，而不是掉到 `build/bin` 下面。
 
-当前的 `default.json` 已调整为一个可直接跑通的最小闭环任务，适合作为首次启动入口。它会自动装配：
+当前仓库默认提交的 active project 指向 CAV-H 3DOF 样板工程。默认入口会装配：
 
-- `ConstantGuidance`
-- `SimpleDynamics`
-- `IdealImu`
-- `SimpleNavigation`
+- `StandardAtmosphere`
+- `SphericalGravity`
+- `CavhMass`
+- `CavhAerodynamics`
+- `CavhProgrammedAoA`
+- `Dynamics3DOF_SphericalEarth`
 
-并在 `user/outputs/{timestamp}` 下生成默认输出。
+并在 `user/outputs/{timestamp}` 下生成主 CSV、调试快照和摘要。只有当活跃工程缺少 `config/mission.json` 时，才会回退到 `user/config/missions/default.json`。
 
 ### 运行 CAV-H 3DOF 示例
 
-该示例单独编译为可执行文件：
+先在构建期选择该示例作为活动项目：
 
 ```powershell
-.\build\bin\example_cavh_3dof.exe
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGNC_ACTIVE_PROJECT=example_03_cavh_3dof
+cmake --build build --config Release
 ```
 
 默认会读取：
 
-- `examples/03_cavh_3dof/cavh_mission.json`
+- `user/example_03_cavh_3dof/config/mission.json`
 
-如果你想用统一入口运行它，也可以直接执行：
+随后可直接运行统一入口：
 
 ```powershell
-.\build\bin\gnc_sim.exe --config user\config\missions\minimal.json
+.\build\bin\gnc_sim.exe
 ```
 
 这里要注意一条边界：
 
-- `--config` 负责的是 mission 路径解析
-- 它不会自动把 `examples/` 目录下的专用组件注册进 `gnc_sim`
-
-因此像 `examples/03_cavh_3dof` 这类自带专用组件的示例，仍应优先运行它自己的示例可执行文件，而不是假设统一入口会自动获得 example 组件注册能力。
+- `--config` 只负责 mission 路径解析
+- example/project 专用组件是否进入 `gnc_sim`，取决于构建期选中的自定义组件根
+- 切换 `GNC_ACTIVE_PROJECT` 或 `user/active_project` 后需要重新构建，保证二进制内的组件注册和默认 mission 保持一致
 
 ## 2.7 输出文件会出现在哪里
 
@@ -197,8 +209,8 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 
 最省力的方式不是从零开始写新模型，而是按下面顺序：
 
-1. 先运行 `user/config/missions/minimal.json`
-2. 阅读 `user/components/guidance/constant_guidance.hpp`
+1. 先运行 `user/example_01_minimal/config/mission.json`
+2. 阅读 `user/example_01_minimal/components/constant_guidance.hpp`
 3. 调整制导参数，验证输出变化
 4. 再决定是替换制导、动力学、导航，还是增加新环境组件
 
@@ -219,7 +231,7 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 
 检查顺序：
 
-1. 组件头文件是否放在 `user/components/` 下
+1. 组件头文件是否放在当前活跃工程的 `user/<project>/components/` 下
 2. 头文件末尾是否写了注册宏
 3. `--list-components` 能否看到该类型名
 4. JSON 里的 `type` 是否与类名/注册名完全一致

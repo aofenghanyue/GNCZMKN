@@ -27,6 +27,7 @@
 - 这些 starter components 当前放在 `framework/include/gnc/components` 下
 - 但它们的逻辑定位不是 framework core
 - 更适合把它们看成“仓库附带的起步件与联调件”
+- 只有跨项目复用且语义稳定的公共组件，才适合继续放在这里；项目私有组件优先留在 `user/<project>/components/`
 
 ## 5.2 当前可直接在任务文件里使用的组件
 

@@ -166,11 +166,10 @@
 
 对这个框架来说，最实用的组织方式通常是：
 
-- `user/components/guidance/`
-- `user/components/navigation/`
-- `user/components/controller/`
-- 必要时增加 `user/components/dynamics/`、`environment/`、`vehicle/`
-- `user/config/missions/` 保存不同任务文件
+- `user/<project>/components/`
+- 在该目录下按需要再分 `guidance/`、`navigation/`、`controller/`、`dynamics/`、`environment/`、`vehicle/`
+- `user/<project>/config/mission.json` 保存该工程的默认任务文件
+- `user/active_project` 选择当前构建/运行的工程
 
 配套原则：
 

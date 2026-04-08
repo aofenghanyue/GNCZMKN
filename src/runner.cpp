@@ -2,11 +2,13 @@
 #include "gnc/components/_builtin_register.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
-#include "user_components_register.hpp"
+#include "active_project_config.hpp"
+#include "auto_registered_components.hpp"
 
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace gnc::core;
@@ -14,8 +16,6 @@ using namespace gnc::core;
 namespace {
 
 namespace fs = std::filesystem;
-
-constexpr const char* kDefaultConfigRelative = "user/config/missions/default.json";
 
 enum class RunnerMode {
     Run,
@@ -210,7 +210,11 @@ void printUsage(const char* program_name) {
               << "  " << program_name << " --list-components\n"
               << "  " << program_name << " --list-components-verbose\n"
               << "  " << program_name << " --help\n"
-              << "Default mission lookup: " << kDefaultConfigRelative << "\n"
+              << "Default mission lookup: " << gnc::build::kDefaultConfigRelative << "\n";
+    if (std::string_view(gnc::build::kActiveProjectName).size() > 0) {
+        std::cout << "Active project: " << gnc::build::kActiveProjectName << "\n";
+    }
+    std::cout
               << "  The runner searches upward from the current directory and the executable directory.\n";
 }
 
@@ -275,7 +279,7 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string requested_config =
-        options.use_default_config ? kDefaultConfigRelative : options.requested_config;
+        options.use_default_config ? gnc::build::kDefaultConfigRelative : options.requested_config;
     ConfigResolution config_resolution;
     std::vector<fs::path> searched_paths;
     if (!resolveConfigPath(requested_config, argv[0], config_resolution, searched_paths)) {
@@ -284,7 +288,7 @@ int main(int argc, char* argv[]) {
                       requested_config,
                       describeCandidatePaths(searched_paths));
         } else {
-            LOG_ERROR("Config file '{}' was not found. Checked: {}. You can pass an absolute path, a path relative to the current directory, or a repo-relative path such as --config examples/03_cavh_3dof/cavh_mission.json.",
+            LOG_ERROR("Config file '{}' was not found. Checked: {}. You can pass an absolute path, a path relative to the current directory, or a repo-relative path such as --config user/example_03_cavh_3dof/config/mission.json.",
                       requested_config,
                       describeCandidatePaths(searched_paths));
         }
