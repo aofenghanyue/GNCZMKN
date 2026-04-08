@@ -15,6 +15,8 @@
 #include <chrono>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -37,6 +39,12 @@ public:
         output_dir_.clear();
         enabled_ = false;
         sink_.reset();
+        debug_snapshot_components_.clear();
+        debug_snapshot_path_.clear();
+        debug_snapshots_enabled_ = false;
+        if (debug_snapshot_file_.is_open()) {
+            debug_snapshot_file_.close();
+        }
 
         if (config.isNull()) {
             LOG_INFO("AutoDataLogger disabled because no 'outputs' configuration was provided");
@@ -61,12 +69,10 @@ public:
         RecordRule rule = parseRecordRule(config);
         std::vector<std::string> excludes = parseExcludeList(config);
         discoverFields(registry, rule, excludes);
-
-        enabled_ = true;
-
-        if (active_fields_.empty()) {
-            LOG_WARNING("AutoDataLogger found no observable fields matching the configured record rule. No CSV file will be produced. Please check component names, field names, and whether target components implement IObservable.");
-            return true;
+        const auto debug_rule = parseDebugSnapshotRule(config, session_name, precision, flush_every_step);
+        if (!initializeDebugSnapshots(debug_rule, registry, output_dir_)) {
+            enabled_ = false;
+            return false;
         }
 
         if (format == "csv") {
@@ -80,40 +86,64 @@ public:
             return false;
         }
 
-        if (!sink_->open(session_name, output_dir_)) {
-            enabled_ = false;
-            return false;
+        if (!active_fields_.empty()) {
+            if (!sink_->open(session_name, output_dir_)) {
+                enabled_ = false;
+                return false;
+            }
+
+            std::vector<std::string> headers;
+            headers.reserve(active_fields_.size() + 1);
+            headers.push_back("time");
+            for (const auto& field : active_fields_) {
+                headers.push_back(field.column_name);
+            }
+            sink_->writeHeader(headers);
+            row_buffer_.reserve(active_fields_.size() + 1);
+        } else {
+            sink_.reset();
         }
 
-        std::vector<std::string> headers;
-        headers.reserve(active_fields_.size() + 1);
-        headers.push_back("time");
-        for (const auto& field : active_fields_) {
-            headers.push_back(field.column_name);
-        }
-        sink_->writeHeader(headers);
-        row_buffer_.reserve(active_fields_.size() + 1);
+        enabled_ = !active_fields_.empty() || debug_snapshots_enabled_;
 
-        LOG_INFO("AutoDataLogger enabled with {} field(s). Output directory: '{}'", active_fields_.size(), output_dir_);
+        if (!enabled_) {
+            LOG_WARNING("AutoDataLogger found no observable fields or debug snapshot targets matching the configured rules. No output file will be produced.");
+            return true;
+        }
+
+        if (!active_fields_.empty()) {
+            LOG_INFO("AutoDataLogger enabled with {} stable field(s). Output directory: '{}'", active_fields_.size(), output_dir_);
+        } else if (debug_snapshots_enabled_) {
+            LOG_INFO("AutoDataLogger enabled with debug snapshots only. Output directory: '{}'", output_dir_);
+        }
         return true;
     }
 
     void recordStep(double time) {
-        if (!enabled_ || !sink_ || !sink_->isOpen()) {
+        if (!enabled_) {
             return;
         }
 
-        row_buffer_.clear();
-        row_buffer_.push_back(time);
-        for (const auto& field : active_fields_) {
-            row_buffer_.push_back(field.getter());
+        if (sink_ && sink_->isOpen()) {
+            row_buffer_.clear();
+            row_buffer_.push_back(time);
+            for (const auto& field : active_fields_) {
+                row_buffer_.push_back(field.getter());
+            }
+            sink_->writeRow(row_buffer_);
         }
-        sink_->writeRow(row_buffer_);
+
+        recordDebugSnapshots(time);
     }
 
     void stop() {
         if (sink_ && sink_->isOpen()) {
             sink_->close();
+        }
+        if (debug_snapshot_file_.is_open()) {
+            debug_snapshot_file_.flush();
+            debug_snapshot_file_.close();
+            LOG_INFO("AutoDataLogger debug snapshot file closed");
         }
     }
 
@@ -152,6 +182,15 @@ private:
         Mode mode = Mode::None;
         std::vector<std::string> component_names;
         std::vector<ComponentRule> component_rules;
+    };
+
+    struct DebugSnapshotRule {
+        bool enabled = false;
+        bool all_components = true;
+        std::vector<std::string> component_names;
+        std::string session_name;
+        int precision = 12;
+        bool flush_every_step = false;
     };
 
     static std::string makeTimestampString() {
@@ -255,6 +294,103 @@ private:
         return excludes;
     }
 
+    DebugSnapshotRule parseDebugSnapshotRule(const ConfigNode& config,
+                                             const std::string& session_name,
+                                             int precision,
+                                             bool flush_every_step) const {
+        DebugSnapshotRule rule;
+        const auto& debug_node = config["debug_snapshots"];
+        if (debug_node.isNull()) {
+            return rule;
+        }
+
+        rule.session_name = session_name + "_debug_snapshots";
+        rule.precision = precision;
+        rule.flush_every_step = flush_every_step;
+
+        if (debug_node.isBool()) {
+            rule.enabled = debug_node.asBool(false);
+            return rule;
+        }
+
+        if (!debug_node.isObject()) {
+            return rule;
+        }
+
+        rule.enabled = debug_node["enabled"].asBool(true);
+        rule.session_name = debug_node["session_name"].asString(rule.session_name);
+        rule.precision = debug_node["precision"].asInt(rule.precision);
+        rule.flush_every_step = debug_node["flush_every_step"].asBool(rule.flush_every_step);
+
+        const auto& components_node = debug_node["components"];
+        if (components_node.isNull()) {
+            return rule;
+        }
+
+        if (components_node.isString()) {
+            const std::string value = components_node.asString();
+            if (!value.empty() && value != "all") {
+                rule.all_components = false;
+                rule.component_names.push_back(value);
+            }
+            return rule;
+        }
+
+        if (components_node.isArray()) {
+            rule.all_components = false;
+            for (size_t i = 0; i < components_node.size(); ++i) {
+                if (components_node[i].isString()) {
+                    rule.component_names.push_back(components_node[i].asString());
+                }
+            }
+        }
+
+        return rule;
+    }
+
+    bool initializeDebugSnapshots(const DebugSnapshotRule& rule,
+                                  const ComponentRegistry& registry,
+                                  const std::string& output_dir) {
+        debug_snapshot_components_.clear();
+        debug_snapshot_path_.clear();
+        debug_snapshots_enabled_ = false;
+
+        if (!rule.enabled) {
+            return true;
+        }
+
+        for (auto* component : registry.getAllComponents()) {
+            if (shouldRecordDebugComponent(component->getName(), rule)) {
+                debug_snapshot_components_.push_back(component);
+            }
+        }
+
+        if (debug_snapshot_components_.empty()) {
+            LOG_WARNING("AutoDataLogger debug snapshots were enabled, but no component matched the configured filter. No debug snapshot file will be produced.");
+            return true;
+        }
+
+        debug_snapshot_path_ = output_dir + "/" + rule.session_name + ".csv";
+        debug_snapshot_file_.open(debug_snapshot_path_);
+        if (!debug_snapshot_file_.is_open()) {
+            LOG_ERROR("AutoDataLogger failed to open debug snapshot file '{}'. Please ensure the directory exists and is writable.",
+                      debug_snapshot_path_);
+            return false;
+        }
+
+        debug_snapshot_precision_ = rule.precision;
+        debug_snapshot_flush_every_step_ = rule.flush_every_step;
+        debug_snapshot_file_ << "time,component,field,value\n";
+        if (debug_snapshot_flush_every_step_) {
+            debug_snapshot_file_.flush();
+        }
+
+        debug_snapshots_enabled_ = true;
+        LOG_INFO("AutoDataLogger debug snapshots enabled for {} component(s). Output file: '{}'",
+                 debug_snapshot_components_.size(), debug_snapshot_path_);
+        return true;
+    }
+
     void discoverFields(const ComponentRegistry& registry,
                         const RecordRule& rule,
                         const std::vector<std::string>& excludes) {
@@ -356,9 +492,46 @@ private:
         return false;
     }
 
+    static bool shouldRecordDebugComponent(const std::string& component_name,
+                                           const DebugSnapshotRule& rule) {
+        if (rule.all_components) {
+            return true;
+        }
+        return std::find(rule.component_names.begin(),
+                         rule.component_names.end(),
+                         component_name) != rule.component_names.end();
+    }
+
+    void recordDebugSnapshots(double time) {
+        if (!debug_snapshots_enabled_ || !debug_snapshot_file_.is_open()) {
+            return;
+        }
+
+        debug_snapshot_file_ << std::setprecision(debug_snapshot_precision_);
+        for (auto* component : debug_snapshot_components_) {
+            const auto& snapshot = component->getDebugSnapshot();
+            for (const auto& [field_name, value] : snapshot) {
+                debug_snapshot_file_ << time << ","
+                                     << component->getName() << ","
+                                     << field_name << ","
+                                     << value << "\n";
+            }
+        }
+
+        if (debug_snapshot_flush_every_step_) {
+            debug_snapshot_file_.flush();
+        }
+    }
+
     std::unique_ptr<interfaces::IRecordSink> sink_;
     std::vector<ActiveField> active_fields_;
     std::vector<double> row_buffer_;
+    std::ofstream debug_snapshot_file_;
+    std::vector<ComponentBase*> debug_snapshot_components_;
+    std::string debug_snapshot_path_;
+    int debug_snapshot_precision_ = 12;
+    bool debug_snapshot_flush_every_step_ = false;
+    bool debug_snapshots_enabled_ = false;
     std::string output_dir_;
     bool enabled_ = false;
 };

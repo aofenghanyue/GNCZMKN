@@ -113,6 +113,6 @@ private:
     }
 };
 
-GNC_REGISTER_COMPONENT(StandardAtmosphere, interfaces::IAtmosphereModel)
+GNC_REGISTER_STARTER_COMPONENT(StandardAtmosphere, interfaces::IAtmosphereModel)
 
 } // namespace gnc::components

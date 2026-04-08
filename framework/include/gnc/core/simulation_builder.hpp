@@ -10,13 +10,16 @@
 #include "simulator.hpp"
 #include "component_factory.hpp"
 #include "config_manager.hpp"
+#include "dependency_validator.hpp"
 #include "integrators/euler_integrator.hpp"
 #include "integrators/rk4_integrator.hpp"
 #include "service_context.hpp"
 #include "string_utils.hpp"
 #include "gnc/common/logger.hpp"
 #include "gnc/services/coordinate/coordinate_service.hpp"
+#include <algorithm>
 #include <sstream>
+#include <unordered_set>
 
 namespace gnc::core {
 
@@ -129,6 +132,7 @@ public:
             addBuildWarning(warning);
         }
 
+        preflightDependencyBindings(validation.failed_components);
         buildStopConditions();
 
         if (!simulator_.initializeAutoDataLogger(config_.root()["outputs"])) {
@@ -140,6 +144,8 @@ public:
                                      std::to_string(build_errors_.size()) +
                                      " error(s). See diagnostics report above.");
         }
+
+        logComponentInventory();
         
         return simulator_;
     }
@@ -168,6 +174,14 @@ public:
     }
 
 private:
+    static std::string extractScope(const std::string& full_name) {
+        const auto pos = full_name.find('.');
+        if (pos == std::string::npos) {
+            return "";
+        }
+        return full_name.substr(0, pos + 1);
+    }
+
     static std::string joinStrings(const std::vector<std::string>& values) {
         std::string result;
         for (size_t i = 0; i < values.size(); ++i) {
@@ -177,8 +191,14 @@ private:
         return result.empty() ? "(none)" : result;
     }
 
-    static std::string joinRegisteredTypes(const ComponentFactory& factory) {
-        return joinStrings(factory.getRegisteredTypes());
+    static std::string joinDiagnosticLines(const std::vector<std::string>& values) {
+        std::string result;
+        for (size_t i = 0; i < values.size(); ++i) {
+            if (i > 0) result += "\n  - ";
+            else result += "  - ";
+            result += values[i];
+        }
+        return result.empty() ? "  - (none)" : result;
     }
 
     static std::string listFieldNames(const std::vector<interfaces::ObservableField>& fields) {
@@ -190,6 +210,13 @@ private:
         return joinStrings(names);
     }
 
+    static std::string listStateFieldNames(const interfaces::IDynamicsModel* dynamics) {
+        if (!dynamics) {
+            return "(none)";
+        }
+        return joinStrings(dynamics->getStateLayout().names());
+    }
+
     static std::string buildUnknownTypeMessage(const std::string& type_name,
                                                const std::string& component_name,
                                                const ComponentFactory& factory,
@@ -198,14 +225,94 @@ private:
         if (!context.empty()) {
             message += " in " + context;
         }
-        message += ". Available types: " + joinRegisteredTypes(factory);
+        message += ". Available registered types: " + factory.describeRegisteredTypes();
 
         const std::string suggestion = findClosestMatch(type_name, factory.getRegisteredTypes());
         if (!suggestion.empty()) {
             message += ". Did you mean '" + suggestion + "'?";
         }
         message += ". Please register the component or fix the type name.";
+        message += " Custom components are auto-discovered from user/components/*.hpp; use --list-components or --list-components-verbose to inspect the currently registered starter/custom types.";
         return message;
+    }
+
+    void annotateComponentMetadata(ComponentBase* component,
+                                   const std::string& type_name,
+                                   const ComponentFactory& factory) {
+        if (!component) {
+            return;
+        }
+        component->setTypeNameInternal_(type_name);
+        component->setComponentCategoryInternal_(toString(factory.getCategory(type_name)));
+        component->setRegistrationOriginInternal_(factory.getRegistrationOrigin(type_name));
+    }
+
+    void logComponentInventory() {
+        std::vector<std::string> starter_types;
+        std::vector<std::string> custom_types;
+
+        for (const auto& name : simulator_.getRegistry().getComponentNames()) {
+            auto* component = simulator_.getRegistry().get<ComponentBase>(name);
+            if (!component) {
+                continue;
+            }
+
+            if (component->getComponentCategory() == "starter") {
+                starter_types.push_back(component->getTypeName());
+            } else {
+                custom_types.push_back(component->getTypeName());
+            }
+        }
+
+        auto unique_join = [](std::vector<std::string> values) {
+            std::sort(values.begin(), values.end());
+            values.erase(std::unique(values.begin(), values.end()), values.end());
+            return joinStrings(values);
+        };
+
+        LOG_INFO("Mission component inventory: starter types [{}], custom/example types [{}]",
+                 unique_join(std::move(starter_types)),
+                 unique_join(std::move(custom_types)));
+    }
+
+    void preflightDependencyBindings(const std::unordered_set<std::string>& validation_failed_components) {
+        auto& registry = simulator_.getRegistry();
+        for (auto* component : registry.getAllComponents()) {
+            if (validation_failed_components.find(component->getName()) != validation_failed_components.end()) {
+                continue;
+            }
+
+            ScopedRegistry::BindingDiagnostics diagnostics;
+            try {
+                ScopedRegistry scoped(extractScope(component->getName()),
+                                      registry,
+                                      component->getName(),
+                                      &diagnostics);
+                component->injectDependencies(scoped);
+            } catch (const std::exception& e) {
+                addBuildError("Component '" + component->getName() +
+                              "' failed implicit dependency injection preflight: " +
+                              e.what());
+                continue;
+            }
+
+            if (!diagnostics.errors.empty()) {
+                addBuildError("Component '" + component->getName() +
+                              "' failed implicit dependency injection preflight with " +
+                              std::to_string(diagnostics.errors.size()) +
+                              " required binding issue(s):\n" +
+                              joinDiagnosticLines(diagnostics.errors));
+                continue;
+            }
+
+            for (const auto& warning : diagnostics.warnings) {
+                addBuildWarning("Component '" + component->getName() +
+                                "' optional dependency preflight warning: " +
+                                warning);
+            }
+
+            component->markDependenciesInjectedInternal_();
+        }
     }
 
     void buildIntegrator() {
@@ -325,30 +432,49 @@ private:
             }
 
             auto* observable = dynamic_cast<interfaces::IObservable*>(component);
-            if (!observable) {
-                addBuildWarning("Stop condition references component '" + component_name + "' which does not implement IObservable. Please expose observable fields on that component or remove this stop condition.");
-                success = false;
-                continue;
-            }
+            auto* dynamics = dynamic_cast<interfaces::IDynamicsModel*>(component);
 
             std::function<double()> getter;
-            const auto fields = observable->getObservableFields();
-            for (const auto& field : fields) {
-                if (field.name == field_name) {
-                    getter = field.getter;
-                    break;
+            std::vector<std::string> candidate_fields;
+
+            if (observable) {
+                const auto fields = observable->getObservableFields();
+                candidate_fields.reserve(fields.size());
+                for (const auto& field : fields) {
+                    candidate_fields.push_back(field.name);
+                    if (!getter && field.name == field_name) {
+                        getter = field.getter;
+                    }
                 }
             }
 
+            if (!getter && dynamics && dynamics->getStateLayout().has(field_name)) {
+                getter = [dynamics, field_name]() {
+                    return dynamics->getStateValue(field_name);
+                };
+            }
+
+            if (!getter && dynamics) {
+                const auto& state_names = dynamics->getStateLayout().names();
+                candidate_fields.insert(candidate_fields.end(), state_names.begin(), state_names.end());
+            }
+
             if (!getter) {
-                std::string message = "Stop condition references field '" + field_name + "' not found in component '" + component_name + "'. Available fields: " + listFieldNames(fields) + ".";
-                const std::vector<std::string> field_names = [&fields]() {
-                    std::vector<std::string> values;
-                    values.reserve(fields.size());
-                    for (const auto& field : fields) values.push_back(field.name);
-                    return values;
-                }();
-                const std::string suggestion = findClosestMatch(field_name, field_names);
+                std::sort(candidate_fields.begin(), candidate_fields.end());
+                candidate_fields.erase(std::unique(candidate_fields.begin(), candidate_fields.end()), candidate_fields.end());
+
+                std::string message = "Stop condition references field '" + field_name + "' not found in component '" + component_name + "'.";
+                if (observable) {
+                    message += " Available observable fields: " + listFieldNames(observable->getObservableFields()) + ".";
+                }
+                if (dynamics) {
+                    message += " Available dynamics state fields: " + listStateFieldNames(dynamics) + ".";
+                }
+                if (!observable && !dynamics) {
+                    message += " The component neither implements IObservable nor IDynamicsModel.";
+                }
+
+                const std::string suggestion = findClosestMatch(field_name, candidate_fields);
                 if (!suggestion.empty()) {
                     message += " Did you mean '" + suggestion + "'?";
                 }
@@ -415,6 +541,7 @@ private:
             
             auto component = factory.create(type_name);
             auto* comp_ptr = component.get();
+            annotateComponentMetadata(comp_ptr, type_name, factory);
             
             const auto& component_config = comp_config["config"];
             component_config.resetAccessTracking();
@@ -464,6 +591,7 @@ private:
             
             auto component = factory.create(type_name);
             auto* comp_ptr = component.get();
+            annotateComponentMetadata(comp_ptr, type_name, factory);
             
             const auto& component_config = comp_config["config"];
             component_config.resetAccessTracking();
@@ -523,6 +651,7 @@ private:
                 
                 auto component = factory.create(type_name);
                 auto* comp_ptr = component.get();
+                annotateComponentMetadata(comp_ptr, type_name, factory);
                 
                 const auto& component_config = comp_config["config"];
                 component_config.resetAccessTracking();

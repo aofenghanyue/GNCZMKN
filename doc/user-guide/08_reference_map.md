@@ -9,16 +9,17 @@
 | `CMakeLists.txt` | 顶层构建入口 | 扫描 `user/components/**/*.hpp`，生成自动注册头文件，构建 `gnc_sim`、示例和测试 |
 | `framework/CMakeLists.txt` | 框架库定义 | 框架本体是 INTERFACE 头文件库，主要依赖 Eigen3 |
 | `examples/CMakeLists.txt` | 示例构建入口 | 当前启用了 `example_cavh_3dof` |
-| `src/runner.cpp` | 默认运行入口 | 读取 mission、列组件、构建并运行仿真 |
+| `src/runner.cpp` | 默认运行入口 | 支持 `--config`、向上搜索默认任务路径、列组件，并按 starter/custom 分组显示类型 |
 | `tools/build_and_run.ps1` | 一键构建运行脚本 | 适合 Windows 下快速验证、列组件和运行任务 |
 | `tools/plot_results.py` | 结果后处理脚本 | 面向 CSV 结果做简单绘图和文本摘要 |
-| `templates/guidance_template.hpp` | 制导组件模板 | 自定义制导的起点 |
-| `templates/controller_template.hpp` | 控制组件模板 | 自定义控制组件的起点 |
-| `templates/navigation_template.hpp` | 导航组件模板 | 自定义导航组件的起点 |
+| `README.md` | 仓库入口说明 | 首次进入仓库时优先看，用于建立“基座 / 起步件 / 示例 / 用户工程区”的基本心智模型 |
+| `templates/guidance_template.hpp` | 制导组件模板 | 自定义制导的起点，默认先用 `bind(...)` 起步 |
+| `templates/controller_template.hpp` | 控制组件模板 | 自定义控制组件的起点，默认用 `guidance` 必需 + `nav` 可选 |
+| `templates/navigation_template.hpp` | 导航组件模板 | 自定义导航组件的起点，默认先用 `bind(...)` 起步 |
 | `templates/mission_template.json` | mission 模板 | 新任务文件起点，使用 `_comment` 提示配置意图 |
 | `user/components/README.md` | 用户组件目录说明 | 强调“放到用户目录、自动注册、无需改入口”这条工作流 |
 | `user/components/guidance/constant_guidance.hpp` | 当前用户自定义组件示例 | 最小可运行制导组件，也是自动注册链路的真实例子 |
-| `user/config/missions/default.json` | 用户默认任务模板 | 带详细注释的任务模板，适合作为新任务起点 |
+| `user/config/missions/default.json` | 用户默认首跑任务 | 默认入口读取的闭环任务，直接运行即可得到 CSV 与摘要 |
 | `user/config/missions/minimal.json` | 用户最小任务 | 当前仓库可直接运行的最小闭环任务 |
 
 ## 8.2 示例与测试
@@ -35,6 +36,8 @@
 | `examples/03_cavh_3dof/cavh_mass.hpp` | 质量模型示例 | 提供质量属性并支持数据记录 |
 | `examples/03_cavh_3dof/cavh_mission.json` | 完整 3DOF mission | 展示较完整的工程化装配方式 |
 | `tests/test_cross_entity_access.cpp` | 作用域访问测试 | 说明跨实体全名访问是受支持的 |
+| `tests/test_starter_dependency_preflight.cpp` | starter 依赖预检查测试 | 说明轻量 starter 组件即使不写 `IDependencyDeclarer` 也会在构建期被拦下 |
+| `tests/test_declared_dependency_preflight.cpp` | declarer 绑定漂移测试 | 说明 declarer 组件也会继续预检查真实 `injectDependencies()` 绑定 |
 | `tests/test_integrators.cpp` | 积分器测试 | 验证 RK4 和 Euler 的基本精度关系 |
 | `tests/test_math_headers.cpp` | 数学头编译测试 | 说明数学库可直接复用 |
 | `tests/test_transform.cpp` | 坐标/旋转数值验证 | 说明数学与坐标库经过 MATLAB 对照验证 |
@@ -66,7 +69,7 @@
 | 路径 | 作用 | 用户需要知道什么 |
 | --- | --- | --- |
 | `framework/include/gnc/core/component_base.hpp` | 组件基类 | 定义生命周期、频率、仿真时间接口，是所有组件扩展的起点 |
-| `framework/include/gnc/core/component_factory.hpp` | 组件工厂 | 管理“类型名 -> 组件创建器”，注册宏最终落到这里 |
+| `framework/include/gnc/core/component_factory.hpp` | 组件工厂 | 管理“类型名 -> 组件创建器”，并记录 starter/custom 类别与注册来源 |
 | `framework/include/gnc/core/component_registry.hpp` | 组件注册表 | 管理实例名、接口映射、注册顺序，是依赖注入与调度基础 |
 | `framework/include/gnc/core/config_manager.hpp` | 配置系统 | 轻量 JSON 解析、节点访问、未使用字段检查 |
 | `framework/include/gnc/core/simulation_builder.hpp` | 仿真构建器 | 从 mission 生成完整仿真，包括组件、服务、停止条件和输出 |
@@ -76,7 +79,7 @@
 | `framework/include/gnc/core/dependency_validator.hpp` | 依赖校验 | 检查组件声明的依赖是否被满足，并管理执行阶段 |
 | `framework/include/gnc/core/auto_data_logger.hpp` | 自动数据记录 | 根据 `outputs` 配置自动发现 `IObservable` 字段并写 CSV |
 | `framework/include/gnc/core/csv_record_sink.hpp` | CSV 输出后端 | 自动记录系统的 CSV 实现 |
-| `framework/include/gnc/core/simulation_summary.hpp` | 仿真摘要生成器 | 在输出目录写 `summary.txt` |
+| `framework/include/gnc/core/simulation_summary.hpp` | 仿真摘要生成器 | 在输出目录写 `summary.txt`，并记录组件类型、starter/custom 类别与来源 |
 | `framework/include/gnc/core/observable_helpers.hpp` | 可观测字段辅助类 | 帮助组件快速组织标量/向量/四元数字段 |
 | `framework/include/gnc/core/state_layout.hpp` | 状态布局 | 管理 `IDynamicsModel` 中状态名与索引映射 |
 | `framework/include/gnc/core/string_utils.hpp` | 字符串工具 | 提供编辑距离和相近名字建议 |
@@ -120,7 +123,8 @@
 
 | 路径 | 作用 | 用户需要知道什么 |
 | --- | --- | --- |
-| `framework/include/gnc/components/_builtin_register.hpp` | 内建组件汇总注册 | 默认入口包含它来触发内建组件静态注册 |
+| `framework/include/gnc/components/README.md` | 起步件目录说明 | 明确这里是 starter components，而不是 framework core |
+| `framework/include/gnc/components/_builtin_register.hpp` | 起步件汇总注册 | 默认入口包含它来触发仓库随附 starter components 的静态注册 |
 | `framework/include/gnc/components/environment/wgs84_earth.hpp` | 地球模型组件 | 提供 `IEarthModel` |
 | `framework/include/gnc/components/environment/spherical_gravity.hpp` | 重力模型组件 | 提供 `IGravityModel` |
 | `framework/include/gnc/components/environment/standard_atmosphere.hpp` | 标准大气组件 | 提供 `IAtmosphereModel` |

@@ -3,24 +3,33 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
-#include "gnc/core/dependency_validator.hpp"
 #include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
-#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
 #include "gnc/interfaces/gnc/i_guidance_3dof.hpp"
 #include "gnc/interfaces/infrastructure/i_observable.hpp"
+#include "gnc/interfaces/state/i_velocity_provider.hpp"
 #include "gnc/interfaces/vehicle/i_aero_coefficients.hpp"
 
 #include <cmath>
 
 class CavhAerodynamics : public gnc::core::ComponentBase,
                          public gnc::interfaces::IAeroCoefficients,
-                         public gnc::interfaces::IObservable,
-                         public gnc::core::IDependencyDeclarer {
+                         public gnc::interfaces::IObservable {
 public:
     CavhAerodynamics() : ComponentBase("CavhAerodynamics") {}
 
-    void update(double) override {}
+    void update(double) override {
+        const double alpha = currentAlpha();
+        const double speed = currentSpeed();
+        const double mach = speed / 340.0;
+        const auto coeffs = computeCoefficients(alpha, 0.0, mach);
+
+        snapDebug("alpha_rad", alpha);
+        snapDebug("speed", speed);
+        snapDebug("mach", mach);
+        snapDebug("CL", coeffs.CL);
+        snapDebug("CD", coeffs.CD);
+    }
 
     void configure(const gnc::core::ConfigNode& config) override {
         cl0_ = config["cl0"].asDouble(0.0);
@@ -32,15 +41,9 @@ public:
     }
 
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
-        guidance_ = registry.getByName<gnc::interfaces::IGuidance3DOF>("guidance");
-        dynamics_ = registry.getByName<gnc::interfaces::IDynamicsModel>("dynamics");
-    }
-
-    std::vector<gnc::core::DependencyDeclaration> getDependencies() const override {
-        return {
-            {std::type_index(typeid(gnc::interfaces::IGuidance3DOF)), "a 3DOF guidance interface", true},
-            {std::type_index(typeid(gnc::interfaces::IDynamicsModel)), "a dynamics model interface", true}
-        };
+        registry.bindAll(
+            gnc::core::bind(guidance_, "guidance"),
+            gnc::core::bind(velocity_provider_, "dynamics"));
     }
 
     gnc::interfaces::AeroCoefficients computeCoefficients(double alpha,
@@ -71,9 +74,18 @@ public:
     }
 
 private:
+    double currentAlpha() const {
+        return guidance_ ? guidance_->getFlightCommand().alpha : 0.0;
+    }
+
+    double currentSpeed() const {
+        return velocity_provider_ ? velocity_provider_->getVelocity().norm() : 0.0;
+    }
+
     gnc::interfaces::AeroCoefficients currentCoefficients() const {
-        const double alpha = guidance_ ? guidance_->getFlightCommand().alpha : 0.0;
-        const double mach = dynamics_ ? dynamics_->getStateValue("velocity") / 340.0 : 0.0;
+        const double alpha = currentAlpha();
+        const double speed = currentSpeed();
+        const double mach = speed / 340.0;
         return computeCoefficients(alpha, 0.0, mach);
     }
 
@@ -84,7 +96,7 @@ private:
     double reference_area_ = 0.48;
     double reference_length_ = 2.5;
     gnc::interfaces::IGuidance3DOF* guidance_ = nullptr;
-    gnc::interfaces::IDynamicsModel* dynamics_ = nullptr;
+    gnc::interfaces::IVelocityProvider* velocity_provider_ = nullptr;
 };
 
 GNC_REGISTER_COMPONENT(CavhAerodynamics, gnc::interfaces::IAeroCoefficients)

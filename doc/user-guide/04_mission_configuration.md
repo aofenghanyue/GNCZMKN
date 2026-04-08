@@ -68,7 +68,7 @@
 - `value`：阈值
 - `description`：可读描述，建议总是填写
 
-停止条件依赖 `IObservable`。如果目标组件没有实现 `IObservable`，配置不会生效。
+停止条件优先使用 `IObservable` 字段；如果目标组件实现了 `IDynamicsModel`，也可以直接引用状态布局里的状态名，例如 `pos_z`、`altitude`。如果两者都不提供该字段，配置不会生效。
 
 ## 4.5 `outputs` 段
 
@@ -86,6 +86,7 @@
 | `flush_every_step` | 是否每步立即刷新文件 |
 | `record` | 记录规则 |
 | `exclude` | 过滤规则 |
+| `debug_snapshots` | 调试快照输出规则 |
 
 ### `record` 有四种用法
 
@@ -122,6 +123,35 @@
 - 写类似 `*.timestamp` 的模式，排除所有同名后缀字段
 
 这在你想保留主体量、去掉冗余时间戳时很有用。
+
+### `debug_snapshots` 怎么用
+
+这是给 `update()` 中间量准备的一条独立调试通道，不会污染主 CSV 的稳定列结构。
+
+推荐场景：
+
+- 记录某一步算法中的临时误差
+- 记录中间计算得到的系数、增益、切换量
+- 临时排查模型内部行为，但又不想把这些量都做成长期 `IObservable` 字段
+
+当前支持的键有：
+
+| 字段 | 含义 |
+| --- | --- |
+| `enabled` | 是否启用调试快照输出 |
+| `components` | 要记录哪些组件，省略或写 `"all"` 表示全部 |
+| `session_name` | 调试快照文件名主干，默认是主会话名后加 `_debug_snapshots` |
+| `precision` | 调试输出数值精度 |
+| `flush_every_step` | 是否每步立即刷新 |
+
+输出文件是单独的长表 CSV，固定列为：
+
+- `time`
+- `component`
+- `field`
+- `value`
+
+这意味着调试字段名可以按需动态出现，不需要在仿真开始前就把所有中间量都展开成宽表列。
 
 ## 4.6 `components` 段
 
@@ -212,11 +242,17 @@
 
 当前仓库里有三种很有代表性的配置风格：
 
+- `user/config/missions/default.json`
+  作用：默认首跑任务，直接展示一条能出 CSV 的最小闭环链路
 - `user/config/missions/minimal.json`
   作用：最小可运行链路
-- `user/config/missions/default.json`
-  作用：带模板化说明的用户入口配置
 - `examples/03_cavh_3dof/cavh_mission.json`
   作用：较完整的工程化模型装配示例
 
-阅读顺序建议也是这个顺序：先最小，再模板，再完整模型。
+阅读顺序建议是：先默认首跑，再最小配置，再完整模型。
+> 2026-04-08 补充说明
+>
+> - `record` + `IObservable` 用于正式、稳定、长期保留的主输出字段。
+> - `debug_snapshots` + `snapDebug(...)` 用于 `update()` 里的临时调试量，进入单独的长表 CSV。
+> - 同一个量可以同时出现在两边，但这意味着它会被写进两份文件，而不是由框架自动去重。
+> - 例如 `CavhAerodynamics` 的 `CL/CD` 既可以作为正式观测字段保留在主 CSV，也可以作为调试快照出现在 debug CSV；做任务归档时通常应按用途保留其中更合适的一边。

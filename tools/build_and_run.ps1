@@ -32,7 +32,7 @@ try {
         return
     }
 
-    & ".\\build\\bin\\gnc_sim.exe" $ConfigFile
+    & ".\\build\\bin\\gnc_sim.exe" --config $ConfigFile
 } finally {
     Pop-Location
 }

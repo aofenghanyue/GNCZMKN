@@ -101,9 +101,13 @@ public:
         computeStepIntervals();
 
         for (auto* component : registry_.getAllComponents()) {
+            if (component->dependenciesInjectedInternal_()) {
+                continue;
+            }
             std::string scope = extractScope(component->getName());
-            ScopedRegistry scoped(scope, registry_);
+            ScopedRegistry scoped(scope, registry_, component->getName());
             component->injectDependencies(scoped);
+            component->markDependenciesInjectedInternal_();
         }
 
         for (auto* component : registry_.getAllComponents()) {
@@ -187,6 +191,7 @@ simulation_end:
     void step(int step_index) {
         for (auto* component : registry_.getAllComponents()) {
             component->setSimTimeInternal_(current_time_, step_index);
+            component->clearDebugSnapshotInternal_();
             if (!component->shouldExecute(step_index)) {
                 continue;
             }
@@ -205,6 +210,7 @@ simulation_end:
                     config_.dt
                 );
                 dyn_model->setState(x);
+                component->update(config_.dt);
             } else {
                 component->update(config_.dt);
             }

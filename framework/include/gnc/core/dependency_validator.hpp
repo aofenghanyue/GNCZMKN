@@ -7,7 +7,9 @@
 #pragma once
 
 #include "component_registry.hpp"
+#include "string_utils.hpp"
 #include "gnc/common/logger.hpp"
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <typeindex>
@@ -24,7 +26,30 @@ struct DependencyDeclaration {
     std::type_index interface_type;
     std::string description;
     bool required;
+    std::string lookup_name;
 };
+
+template<typename Interface>
+DependencyDeclaration requireDependency(const std::string& lookup_name,
+                                        const std::string& description = "") {
+    return {
+        std::type_index(typeid(Interface)),
+        description,
+        true,
+        lookup_name
+    };
+}
+
+template<typename Interface>
+DependencyDeclaration optionalDependency(const std::string& lookup_name,
+                                         const std::string& description = "") {
+    return {
+        std::type_index(typeid(Interface)),
+        description,
+        false,
+        lookup_name
+    };
+}
 
 /**
  * @brief 可声明依赖的组件接口
@@ -48,6 +73,7 @@ public:
         bool success = true;
         std::vector<std::string> errors;
         std::vector<std::string> warnings;
+        std::unordered_set<std::string> failed_components;
     };
     
     /**
@@ -62,9 +88,11 @@ public:
             
             auto deps = declarer->getDependencies();
             for (const auto& dep : deps) {
-                bool found = checkInterfaceExists(registry, dep.interface_type);
+                bool found = dep.lookup_name.empty()
+                             ? checkInterfaceExists(registry, dep.interface_type)
+                             : checkDependencyLookup(registry, component->getName(), dep, result);
                 
-                if (!found) {
+                if (!found && dep.lookup_name.empty()) {
                     const std::string description =
                         dep.description.empty() ? dep.interface_type.name() : dep.description;
                     std::string msg = "Component '" + component->getName() +
@@ -76,6 +104,7 @@ public:
                     if (dep.required) {
                         result.errors.push_back(msg);
                         result.success = false;
+                        result.failed_components.insert(component->getName());
                     } else {
                         result.warnings.push_back(msg + "\n  Optional dependency: the component can still run without it.");
                     }
@@ -91,14 +120,110 @@ public:
     }
     
 private:
-    static std::string joinNames(const ComponentRegistry& registry) {
-        const auto& names = registry.getComponentNames();
+    static std::string joinStrings(const std::vector<std::string>& values) {
         std::string result;
-        for (size_t i = 0; i < names.size(); ++i) {
+        for (size_t i = 0; i < values.size(); ++i) {
             if (i > 0) result += ", ";
-            result += names[i];
+            result += values[i];
         }
         return result.empty() ? "(none)" : result;
+    }
+
+    static std::string joinNames(const ComponentRegistry& registry) {
+        return joinStrings(registry.getComponentNames());
+    }
+
+    static std::string extractScope(const std::string& component_name) {
+        const auto pos = component_name.rfind('.');
+        if (pos == std::string::npos) {
+            return "";
+        }
+        return component_name.substr(0, pos);
+    }
+
+    static std::string resolveLookupName(const std::string& owner_name,
+                                         const std::string& lookup_name) {
+        if (lookup_name.find('.') != std::string::npos) {
+            return lookup_name;
+        }
+
+        const std::string scope = extractScope(owner_name);
+        if (scope.empty()) {
+            return lookup_name;
+        }
+        return scope + "." + lookup_name;
+    }
+
+    static std::vector<std::string> getScopedComponentNames(const ComponentRegistry& registry,
+                                                            const std::string& owner_name) {
+        std::vector<std::string> result;
+        const std::string scope = extractScope(owner_name);
+        for (const auto& name : registry.getComponentNames()) {
+            if (extractScope(name) == scope) {
+                result.push_back(name);
+            }
+        }
+        return result;
+    }
+
+    static std::vector<std::string> getScopedProviders(const ComponentRegistry& registry,
+                                                       const std::string& owner_name,
+                                                       std::type_index type_idx) {
+        std::vector<std::string> result;
+        const std::string scope = extractScope(owner_name);
+        for (const auto& name : registry.getComponentsForInterface(type_idx)) {
+            if (extractScope(name) == scope) {
+                result.push_back(name);
+            }
+        }
+        return result;
+    }
+
+    static bool checkDependencyLookup(const ComponentRegistry& registry,
+                                      const std::string& owner_name,
+                                      const DependencyDeclaration& dep,
+                                      ValidationResult& result) {
+        const std::string resolved_name = resolveLookupName(owner_name, dep.lookup_name);
+        const bool component_exists = registry.has(resolved_name);
+        const auto providers = registry.getComponentsForInterface(dep.interface_type);
+        const bool interface_found = std::find(providers.begin(), providers.end(), resolved_name) != providers.end();
+
+        if (interface_found) {
+            return true;
+        }
+
+        const std::string description =
+            dep.description.empty() ? dep.interface_type.name() : dep.description;
+        std::string msg = "Component '" + owner_name + "' requires " + description +
+                         " via lookup '" + dep.lookup_name + "' (resolved as '" + resolved_name + "')";
+
+        if (component_exists) {
+            msg += ", but component '" + resolved_name + "' does not implement interface '" +
+                   std::string(dep.interface_type.name()) + "'.";
+        } else {
+            msg += ", but no component with that name is registered.";
+        }
+
+        const auto scope_components = getScopedComponentNames(registry, owner_name);
+        msg += "\n  Same-scope components: " + joinStrings(scope_components);
+
+        const auto scoped_providers = getScopedProviders(registry, owner_name, dep.interface_type);
+        msg += "\n  Same-scope providers for this interface: " + joinStrings(scoped_providers);
+        msg += "\n  Registered providers for this interface: " + joinStrings(providers);
+
+        const std::string suggestion = findClosestMatch(resolved_name, registry.getComponentNames());
+        if (!suggestion.empty()) {
+            msg += "\n  Did you mean '" + suggestion + "'?";
+        }
+
+        if (dep.required) {
+            result.errors.push_back(msg);
+            result.success = false;
+            result.failed_components.insert(owner_name);
+        } else {
+            result.warnings.push_back(msg + "\n  Optional dependency: the component can still run without it.");
+        }
+        return false;
     }
 
     static bool checkInterfaceExists(const ComponentRegistry& registry,

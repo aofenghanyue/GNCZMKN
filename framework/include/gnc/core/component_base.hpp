@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <map>
 #include <string>
 
 namespace gnc::core {
@@ -38,6 +39,7 @@ public:
     virtual void initialize() {}
     
     /// 更新（每个仿真步调用，由调度器根据频率决定是否调用）
+    /// 对连续动力学组件，该钩子适合放积分后的后处理逻辑，而不应再次积分
     virtual void update(double dt) = 0;
     
     /// 终结（仿真结束时调用）
@@ -51,6 +53,8 @@ public:
     // --- 依赖注入 ---
     
     /// 注入组件依赖（由Simulator在initialize前调用）
+    // Dependency injection should stay side-effect free. The framework may preflight
+    // required bindings during build and skip reinjection later if it already succeeded.
     virtual void injectDependencies(ScopedRegistry& registry) { (void)registry; }
     
     /// 注入服务依赖（由Simulator在injectDependencies后调用）
@@ -59,6 +63,14 @@ public:
     // --- 元数据 ---
     
     const std::string& getName() const { return name_; }
+    const std::string& getTypeName() const { return type_name_; }
+    const std::string& getComponentCategory() const { return component_category_; }
+    const std::string& getRegistrationOrigin() const { return registration_origin_; }
+
+    /// 获取当前步由组件主动写入的调试快照
+    const std::map<std::string, double>& getDebugSnapshot() const {
+        return debug_snapshot_;
+    }
     
     // --- 执行频率控制 ---
     
@@ -87,13 +99,52 @@ public:
     void setNameInternal_(const std::string& name) {
         name_ = name;
     }
+
+    void setTypeNameInternal_(const std::string& type_name) {
+        type_name_ = type_name;
+    }
+
+    void setComponentCategoryInternal_(const std::string& category) {
+        component_category_ = category;
+    }
+
+    void setRegistrationOriginInternal_(const std::string& origin) {
+        registration_origin_ = origin;
+    }
+
+    void clearDebugSnapshotInternal_() {
+        debug_snapshot_.clear();
+    }
+
+    bool dependenciesInjectedInternal_() const {
+        return dependencies_injected_;
+    }
+
+    void markDependenciesInjectedInternal_() {
+        dependencies_injected_ = true;
+    }
+
+    void resetDependenciesInjectedInternal_() {
+        dependencies_injected_ = false;
+    }
+
+protected:
+    /// 记录当前步的调试标量，不要求它成为稳定可观测字段
+    void snapDebug(const std::string& name, double value) {
+        debug_snapshot_[name] = value;
+    }
     
 private:
     std::string name_;
+    std::string type_name_;
+    std::string component_category_ = "custom";
+    std::string registration_origin_;
     double freq_hz_ = 0.0;      // 0表示每步执行
     int step_interval_ = 1;      // 执行步长间隔
     double sim_time_ = 0.0;
     int sim_step_ = 0;
+    std::map<std::string, double> debug_snapshot_;
+    bool dependencies_injected_ = false;
 };
 
 } // namespace gnc::core

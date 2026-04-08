@@ -3,7 +3,6 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
-#include "gnc/core/dependency_validator.hpp"
 #include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/core/state_layout.hpp"
@@ -12,6 +11,7 @@
 #include "gnc/interfaces/environment/i_gravity_model.hpp"
 #include "gnc/interfaces/gnc/i_guidance_3dof.hpp"
 #include "gnc/interfaces/infrastructure/i_observable.hpp"
+#include "gnc/interfaces/state/i_altitude_provider.hpp"
 #include "gnc/interfaces/state/i_position_provider.hpp"
 #include "gnc/interfaces/state/i_velocity_provider.hpp"
 #include "gnc/interfaces/vehicle/i_aero_coefficients.hpp"
@@ -24,10 +24,10 @@ namespace gnc::components {
 
 class Dynamics3DOF_SphericalEarth : public core::ComponentBase,
                                     public interfaces::IDynamicsModel,
+                                    public interfaces::IAltitudeProvider,
                                     public interfaces::IPositionProvider,
                                     public interfaces::IVelocityProvider,
-                                    public interfaces::IObservable,
-                                    public core::IDependencyDeclarer {
+                                    public interfaces::IObservable {
 public:
     Dynamics3DOF_SphericalEarth() : ComponentBase("Dynamics3DOF_SphericalEarth") {
         idx_lon_ = layout_.addVariable("longitude");
@@ -52,21 +52,12 @@ public:
     }
 
     void injectDependencies(core::ScopedRegistry& registry) override {
-        atmosphere_ = registry.getByName<interfaces::IAtmosphereModel>("atmosphere");
-        gravity_ = registry.getByName<interfaces::IGravityModel>("gravity");
-        aero_ = registry.getByName<interfaces::IAeroCoefficients>("aero");
-        mass_ = registry.getByName<interfaces::IMassProperty>("mass");
-        guidance_ = registry.getByName<interfaces::IGuidance3DOF>("guidance");
-    }
-
-    std::vector<core::DependencyDeclaration> getDependencies() const override {
-        return {
-            {std::type_index(typeid(interfaces::IAtmosphereModel)), "an atmosphere model interface", true},
-            {std::type_index(typeid(interfaces::IGravityModel)), "a gravity model interface", true},
-            {std::type_index(typeid(interfaces::IAeroCoefficients)), "an aerodynamic coefficient interface", true},
-            {std::type_index(typeid(interfaces::IMassProperty)), "a mass property interface", true},
-            {std::type_index(typeid(interfaces::IGuidance3DOF)), "a 3DOF guidance interface", true}
-        };
+        registry.bindAll(
+            core::bind(atmosphere_, "atmosphere"),
+            core::bind(gravity_, "gravity"),
+            core::bind(aero_, "aero"),
+            core::bind(mass_, "mass"),
+            core::bind(guidance_, "guidance"));
     }
 
     const core::StateLayout& getStateLayout() const override {
@@ -132,6 +123,10 @@ public:
             r * std::cos(lat) * std::sin(lon),
             r * std::sin(lat)
         };
+    }
+
+    double getAltitude() const override {
+        return state_[idx_h_];
     }
 
     gnc::Vector3d getVelocity() const override {
@@ -203,8 +198,9 @@ private:
     double earth_radius_ = 6371000.0;
 };
 
-GNC_REGISTER_COMPONENT(Dynamics3DOF_SphericalEarth,
+GNC_REGISTER_STARTER_COMPONENT(Dynamics3DOF_SphericalEarth,
                        interfaces::IDynamicsModel,
+                       interfaces::IAltitudeProvider,
                        interfaces::IPositionProvider,
                        interfaces::IVelocityProvider)
 

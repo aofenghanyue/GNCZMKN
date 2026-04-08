@@ -1,13 +1,13 @@
 /**
  * @file my_navigation.hpp
- * @brief 自定义导航算法模板
+ * @brief Navigation component template.
  *
- * 使用方法：
- * 1. 复制本文件到 `user/components/navigation/`
- * 2. 重命名文件
- * 3. 按 `▲` 标记修改类名、参数和导航解算逻辑
- * 4. 重新执行 `cmake` 与构建
- * 5. 在任务配置中把组件类型名改成你的类名
+ * Usage:
+ * 1. Copy this file into `user/components/navigation/`.
+ * 2. Rename the file and class.
+ * 3. Replace the placeholder logic in `configure()` and `update()`.
+ * 4. Rebuild the project.
+ * 5. Use the class name as the mission `type`.
  */
 #pragma once
 
@@ -23,24 +23,22 @@
 class MyNavigation : public gnc::core::ComponentBase,
                      public gnc::interfaces::INavigation {
 public:
-    // ▲ 修改类名与默认执行频率
     MyNavigation() : ComponentBase("MyNavigation") {
         setExecutionFrequency(100.0);
     }
 
-    // ▲ 在这里读取你的导航参数
     void configure(const gnc::core::ConfigNode& config) override {
         (void)config;
     }
 
-    // 导航一般会依赖 IMU，也可以按需增加 GPS 等输入
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
-        imu_ = registry.getByName<gnc::interfaces::IImuSensor>("imu");
+        registry.bindAll(gnc::core::bind(imu_, "imu"));
     }
 
-    // ▲▲▲ 在这里实现你的导航解算逻辑 ▲▲▲
     void update(double dt) override {
-        if (!imu_) return;
+        if (!imu_) {
+            return;
+        }
 
         const auto& imu_data = imu_->getImuData();
         nav_state_.velocity += imu_data.acceleration * dt;
@@ -49,7 +47,6 @@ public:
         nav_state_.timestamp = getSimTime();
     }
 
-    // 下面这些接口函数通常保持不变
     const gnc::interfaces::NavState& getNavState() const override {
         return nav_state_;
     }
@@ -64,14 +61,14 @@ public:
 
 private:
     gnc::interfaces::IImuSensor* imu_ = nullptr;
-
-    // ▲ 可根据滤波器或解算器需要扩展内部状态
     gnc::interfaces::NavState nav_state_;
 };
 
-// ▲ 可选：如果你希望框架自动记录该组件的数据，
-// ▲ 可以让类额外继承 `public gnc::interfaces::IObservable`
-// ▲ 并取消注释下面的方法示例。
+// Optional: add `public gnc::interfaces::IObservable` to the class declaration
+// and expose stable output fields if this component should appear in `outputs.record`.
+// `bind(...)` preflight already validates the real required bindings. Add
+// `public gnc::core::IDependencyDeclarer` only when you want extra semantic
+// descriptions beyond those real binding diagnostics.
 //
 // std::vector<gnc::interfaces::ObservableField> getObservableFields() const override {
 //     gnc::core::ObservableFieldBuilder builder;
@@ -83,5 +80,4 @@ private:
 //     return builder.build();
 // }
 
-// ▲ 注册名必须与类名一致
 GNC_REGISTER_COMPONENT(MyNavigation, gnc::interfaces::INavigation)

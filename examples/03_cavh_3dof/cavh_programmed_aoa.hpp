@@ -5,9 +5,9 @@
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
-#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
 #include "gnc/interfaces/gnc/i_guidance_3dof.hpp"
 #include "gnc/interfaces/infrastructure/i_observable.hpp"
+#include "gnc/interfaces/state/i_altitude_provider.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -32,11 +32,11 @@ public:
     }
 
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
-        dynamics_ = registry.getByName<gnc::interfaces::IDynamicsModel>("dynamics");
+        registry.bindAll(gnc::core::bind(altitude_provider_, "dynamics"));
     }
 
     void update(double) override {
-        const double altitude = dynamics_ ? dynamics_->getStateValue("altitude") : schedule_altitude_.front();
+        const double altitude = altitude_provider_ ? altitude_provider_->getAltitude() : schedule_altitude_.front();
         command_.alpha = deg2rad(interpolateAlpha(altitude));
         command_.sigma = deg2rad(sigma_deg_);
         command_.timestamp = getSimTime();
@@ -104,7 +104,7 @@ private:
     }
 
     gnc::interfaces::FlightCommand3DOF command_;
-    gnc::interfaces::IDynamicsModel* dynamics_ = nullptr;
+    gnc::interfaces::IAltitudeProvider* altitude_provider_ = nullptr;
     std::vector<double> schedule_altitude_;
     std::vector<double> schedule_alpha_deg_;
     double sigma_deg_ = 0.0;

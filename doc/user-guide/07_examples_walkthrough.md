@@ -94,6 +94,12 @@
 - 如何把领域模型拆成多个独立组件
 - 如何通过 `outputs.record` 只记录真正关键的字段
 
+当前这个示例还额外演示了 `outputs.debug_snapshots`：
+
+- `cavh_mission.json` 为 `aero` 组件开启了调试快照
+- `CavhAerodynamics` 在 `update()` 中用 `snapDebug()` 记录 `alpha_rad`、`speed`、`mach`、`CL`、`CD`
+- 输出目录里会多出一份独立调试 CSV，适合排查气动中间量，而不必把这些量全部塞进主观测字段
+
 ## 7.6 CAV-H 示例透露出的建模方法
 
 这个示例非常适合作为“如何从任务需求拆模型”的范本。它没有把所有公式塞进一个巨大类，而是按物理职责拆分：
@@ -171,3 +177,8 @@
 - `test_math_headers.cpp` 说明数学扩展头文件是可单独编译复用的
 
 因此，示例告诉你“怎么用”，测试告诉你“作者认为哪些行为必须成立”。
+> 2026-04-08 补充说明
+>
+> - CAV-H 示例里，`CavhAerodynamics` 既可以把 `CL/CD/lift_to_drag` 作为正式观测字段暴露给主 CSV，也可以在 `update()` 里用 `snapDebug()` 记录调试快照。
+> - 如果两边同时开启，主 CSV 和 debug CSV 会各保留一份相同物理量；这是两条通道都在工作，不是框架错误。
+> - 用法建议是：长期分析和任务归档优先看正式观测字段，单步排错和调参优先看 `debug_snapshots`。

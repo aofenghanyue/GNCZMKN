@@ -24,14 +24,15 @@
 
 ## 建议阅读顺序
 
-1. [01_design_philosophy.md](01_design_philosophy.md)
-2. [02_quick_start.md](02_quick_start.md)
-3. [03_simulation_workflow.md](03_simulation_workflow.md)
-4. [04_mission_configuration.md](04_mission_configuration.md)
-5. [05_builtin_capabilities.md](05_builtin_capabilities.md)
-6. [06_custom_extension.md](06_custom_extension.md)
-7. [07_examples_walkthrough.md](07_examples_walkthrough.md)
-8. [08_reference_map.md](08_reference_map.md)
+1. [00_repo_layers.md](00_repo_layers.md)
+2. [01_design_philosophy.md](01_design_philosophy.md)
+3. [02_quick_start.md](02_quick_start.md)
+4. [03_simulation_workflow.md](03_simulation_workflow.md)
+5. [04_mission_configuration.md](04_mission_configuration.md)
+6. [05_builtin_capabilities.md](05_builtin_capabilities.md)
+7. [06_custom_extension.md](06_custom_extension.md)
+8. [07_examples_walkthrough.md](07_examples_walkthrough.md)
+9. [08_reference_map.md](08_reference_map.md)
 
 ## 读完后你应该能做到
 

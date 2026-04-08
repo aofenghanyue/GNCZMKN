@@ -1,7 +1,18 @@
 {
     "simulation": {
         "dt": 0.01,
-        "duration": 2.0
+        "duration": 10.0
+    },
+    "outputs": {
+        "directory": "user/outputs/{timestamp}",
+        "format": "csv",
+        "session_name": "default_run",
+        "record": {
+            "guidance": "all",
+            "dynamics": ["position", "velocity", "speed"],
+            "nav": ["position", "velocity"]
+        },
+        "exclude": ["*.timestamp"]
     },
     "components": [
         {
@@ -10,24 +21,32 @@
             "config": {}
         },
         {
+            "type": "ConstantGuidance",
+            "name": "guidance",
+            "config": {
+                "thrust_z": 20.0
+            }
+        },
+        {
             "type": "SimpleDynamics",
             "name": "dynamics",
             "config": {
-                "initial_position": [0, 0, 100]
+                "initial_position": [0, 0, 100],
+                "initial_velocity": [0, 0, 0]
             }
         },
         {
             "type": "IdealImu",
             "name": "imu",
             "config": {
-                "frequency": 100
+                "frequency_hz": 100
             }
         },
         {
             "type": "SimpleNavigation",
             "name": "nav",
             "config": {
-                "frequency": 50
+                "frequency_hz": 50
             }
         }
     ]

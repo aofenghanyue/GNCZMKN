@@ -96,20 +96,28 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 .\build\bin\gnc_sim.exe --list-components
 ```
 
+如果你还想看每个类型来自哪个头文件，可以使用：
+
+```powershell
+.\build\bin\gnc_sim.exe '--list-components-verbose'
+```
+
 在当前仓库里，实际运行会列出：
 
-- 内建组件，例如 `Wgs84Earth`、`SphericalGravity`、`StandardAtmosphere`、`SimpleDynamics`
-- 用户组件 `ConstantGuidance`
+- Starter components，例如 `Wgs84Earth`、`SphericalGravity`、`StandardAtmosphere`、`SimpleDynamics`
+- Custom/example components，例如用户组件 `ConstantGuidance`
 
 这一步很重要，因为它能立刻验证：
 
 - 组件是否成功注册
 - 你的自定义头文件是否被构建系统发现
+- 你看到的类型到底属于“仓库随附起步件”还是“你自己的扩展件”
+- verbose 模式下还能直接确认某个类型的注册来源文件
 
 ### 运行现成的最小任务
 
 ```powershell
-.\build\bin\gnc_sim.exe user\config\missions\minimal.json
+.\build\bin\gnc_sim.exe --config user\config\missions\minimal.json
 ```
 
 当前仓库已经内置了可运行的最小配置，它会装配：
@@ -130,9 +138,22 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 
 - `user/config/missions/default.json`
 
-但要注意，当前仓库中的 `default.json` 更接近“带说明的模板任务”，其中引用了 `MyGuidance`、`MyController` 这类占位组件类型。新用户第一次运行时不要把它当成首跑配置，建议直接使用：
+运行器会从：
 
-- `user/config/missions/minimal.json`
+- 当前工作目录
+- 可执行文件所在目录
+
+向上搜索这条相对路径，所以你既可以在仓库根目录运行，也可以直接在 `build/bin` 下运行默认入口。
+对这类 repo-relative mission，`outputs.directory` 这类相对路径也会继续落在同一个项目根下，而不是掉到 `build/bin` 下面。
+
+当前的 `default.json` 已调整为一个可直接跑通的最小闭环任务，适合作为首次启动入口。它会自动装配：
+
+- `ConstantGuidance`
+- `SimpleDynamics`
+- `IdealImu`
+- `SimpleNavigation`
+
+并在 `user/outputs/{timestamp}` 下生成默认输出。
 
 ### 运行 CAV-H 3DOF 示例
 
@@ -146,6 +167,19 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 
 - `examples/03_cavh_3dof/cavh_mission.json`
 
+如果你想用统一入口运行它，也可以直接执行：
+
+```powershell
+.\build\bin\gnc_sim.exe --config user\config\missions\minimal.json
+```
+
+这里要注意一条边界：
+
+- `--config` 负责的是 mission 路径解析
+- 它不会自动把 `examples/` 目录下的专用组件注册进 `gnc_sim`
+
+因此像 `examples/03_cavh_3dof` 这类自带专用组件的示例，仍应优先运行它自己的示例可执行文件，而不是假设统一入口会自动获得 example 组件注册能力。
+
 ## 2.7 输出文件会出现在哪里
 
 如果任务配置中包含 `outputs` 段，框架会自动创建输出目录。当前示例通常写到：
@@ -155,7 +189,7 @@ powershell -ExecutionPolicy Bypass -File tools/build_and_run.ps1 -BuildOnly
 典型输出包括：
 
 - `*.csv`：记录的可观测数据
-- `summary.txt`：仿真摘要，包括步长、执行时间、终止原因、组件列表等
+- `summary.txt`：仿真摘要，包括步长、执行时间、终止原因、组件实例列表，以及本次任务实际使用的 starter/custom 类型清单
 
 如果没有配置 `outputs`，仿真仍然可以运行，只是不会自动写 CSV。
 

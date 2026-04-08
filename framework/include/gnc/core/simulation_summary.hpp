@@ -13,6 +13,8 @@
 #include <fstream>
 #include <iomanip>
 #include <string>
+#include <vector>
+#include <algorithm>
 
 namespace gnc::core {
 
@@ -63,15 +65,46 @@ public:
              << (info.wall_clock_seconds > 0.0 ? info.final_time / info.wall_clock_seconds : 0.0)
              << "x\n\n";
 
+        std::vector<std::string> starter_types;
+        std::vector<std::string> custom_types;
         file << "--- Components (" << registry.size() << ") ---\n";
         for (const auto& name : registry.getComponentNames()) {
             auto* component = registry.get<ComponentBase>(name);
             if (!component) {
                 continue;
             }
-            file << "  [" << name << "] freq=" << component->getExecutionFrequency() << " Hz\n";
+            if (component->getComponentCategory() == "starter") {
+                starter_types.push_back(component->getTypeName());
+            } else {
+                custom_types.push_back(component->getTypeName());
+            }
+
+            file << "  [" << name << "]"
+                 << " type=" << (component->getTypeName().empty() ? "(unknown)" : component->getTypeName())
+                 << " category=" << component->getComponentCategory()
+                 << " freq=" << component->getExecutionFrequency() << " Hz";
+            if (!component->getRegistrationOrigin().empty()) {
+                file << " origin=" << component->getRegistrationOrigin();
+            }
+            file << "\n";
         }
         file << "\n";
+
+        auto unique_join = [](std::vector<std::string> values) {
+            std::sort(values.begin(), values.end());
+            values.erase(std::unique(values.begin(), values.end()), values.end());
+
+            std::string result;
+            for (size_t i = 0; i < values.size(); ++i) {
+                if (i > 0) result += ", ";
+                result += values[i];
+            }
+            return result.empty() ? std::string("(none)") : result;
+        };
+
+        file << "--- Component Inventory ---\n";
+        file << "  Starter types: " << unique_join(std::move(starter_types)) << "\n";
+        file << "  Custom types:  " << unique_join(std::move(custom_types)) << "\n\n";
 
         file << "--- Data Recording ---\n";
         if (logger.isEnabled()) {

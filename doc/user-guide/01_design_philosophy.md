@@ -21,10 +21,15 @@
 | 基础数学与通用类型层 | `framework/include/gnc/common` | 数学类型、Eigen 扩展、旋转/变换、数值计算、日志等基础能力 |
 | 抽象接口层 | `framework/include/gnc/interfaces` | 定义环境、动力学、导航、制导、控制、传感器、输出等接口契约 |
 | 框架核心层 | `framework/include/gnc/core` | 组件基类、注册表、工厂、配置解析、仿真器、构建器、自动数据记录等 |
-| 内建组件层 | `framework/include/gnc/components` | 可直接用于任务配置的基础组件 |
+| 起步件层 | `framework/include/gnc/components` | 当前仓库随附的 starter components，服务于冷启动、最小闭环和示例 |
 | 服务与复用库层 | `framework/include/gnc/services`、`framework/include/gnc/libraries` | 坐标服务、PID、滤波器、状态空间、控制离散化等可复用能力 |
 | 用户扩展层 | `user/components`、`user/config` | 用户自定义组件和任务配置 |
 | 示例与验证层 | `examples`、`tests` | 示例模型、用法演示与基础验证 |
+
+这里有一个需要特别强调的现实边界：
+
+- `framework/include/gnc/components` 目前在物理目录上位于 `framework/` 下
+- 但在逻辑定位上，应把它看成“随仓库附带的起步件集合”，而不是 framework core 本身
 
 ## 1.3 四个核心设计思想
 
@@ -93,7 +98,7 @@
 8. 调用 `injectServices()`、`injectDependencies()` 注入服务和其他组件
 9. `Simulator` 根据仿真步长和组件频率执行主循环
 10. 对 `IDynamicsModel` 组件使用积分器推进状态
-11. 对普通组件调用 `update(dt)`
+11. 对连续动力学组件执行积分后的 `update(dt)` 后处理钩子，对普通组件调用 `update(dt)`
 12. `AutoDataLogger` 记录当前步的数据
 13. 满足停止条件或达到结束时间后收尾，输出 `summary.txt`
 
@@ -105,7 +110,7 @@
 | --- | --- | --- |
 | 构造函数 | 创建实例时 | 设置组件名、默认频率、状态布局等 |
 | `configure()` | 读取 mission 配置时 | 读取 JSON 参数、初始化默认值 |
-| `injectDependencies()` | 仿真初始化前 | 获取其他组件接口指针 |
+| `injectDependencies()` | 构建后、初始化前的依赖绑定阶段 | 获取其他组件接口指针；应保持为无副作用绑定逻辑 |
 | `injectServices()` | 构建阶段 | 获取服务对象，例如坐标服务 |
 | `initialize()` | 开始仿真前 | 做一致性检查、准备缓存 |
 | `update()` 或 `computeDerivatives()` | 每个执行周期 | 写核心算法 |
@@ -113,12 +118,46 @@
 
 调度上有两个重要规则：
 
-- 如果组件实现了 `IDynamicsModel`，仿真器不会调用它的 `update()` 来推进状态，而是通过积分器调用 `computeDerivatives()`
+- 如果组件实现了 `IDynamicsModel`，仿真器不会依赖它的 `update()` 来推进状态，而是通过积分器调用 `computeDerivatives()`
+- 连续动力学组件的 `update()` 适合放积分后的后处理逻辑，而不应再次做积分
 - 组件频率通过 `setExecutionFrequency()` 指定，仿真器会自动换算为步进间隔
 
 因此，动力学组件和普通组件的写法是不同的。不要把“状态推进逻辑”塞回 `update()`，否则会与框架的积分路径脱节。
 
-## 1.6 当前代码中体现出的设计取舍
+## 1.6 依赖声明的两档策略
+
+当前框架对依赖装配采用两档策略，而不是要求所有组件一律实现 `IDependencyDeclarer`：
+
+- 轻量组件：直接在 `injectDependencies()` 中使用 `bind(...)` / `bindIfPresent(...)`
+- 装配型组件：在此基础上继续实现 `IDependencyDeclarer`
+
+这里的区别不在于“有没有依赖”，而在于“显式声明是否真的能提供额外价值”。
+
+适合只用 `bind(...)` 预检查的情况：
+
+- 依赖数量很少
+- 都是同作用域短名绑定
+- `getDependencies()` 只是机械重复 `injectDependencies()` 里的必需绑定
+
+适合继续保留 `IDependencyDeclarer` 的情况：
+
+- 依赖较多，缺失时希望一次性报出整组装配问题
+- 依赖描述本身具有明确的任务语义
+- 多实体装配中需要更完整的构建期诊断
+
+当前仓库已经按这条边界开始收口：
+
+- `SimpleNavigation`、`TruthState`、`CavhProgrammedAoA` 这类轻量组件回到了 `bind(...)` 预检查
+- `Dynamics3DOF_SphericalEarth`、`CavhAerodynamics` 这类装配型组件仍保留显式依赖声明
+
+并且现在 declarer 也不是“只看声明、不看真实绑定”的特殊通道：
+
+- 显式依赖声明先负责提供更完整的装配语义
+- 随后的依赖预检查仍会执行真实 `injectDependencies()`
+
+因此 declarer 的定位已经更清楚了：它是对绑定语义和诊断质量的增强，而不是绕开真实注入逻辑的替代路径。
+
+## 1.7 当前代码中体现出的设计取舍
 
 从现有实现可以看出几个很鲜明的工程取舍：
 
@@ -130,7 +169,7 @@
 
 如果你后续继续演进这个框架，这些取舍应该被视为主线，而不是临时实现细节。
 
-## 1.7 用户应如何理解这个框架
+## 1.8 用户应如何理解这个框架
 
 最合适的理解方式是：
 
@@ -141,3 +180,10 @@
 - `user/config/` 负责“这次任务怎么装起来”
 
 只要把这五者关系理解清楚，整个框架的设计就不会乱。
+> 2026-04-08 补充说明
+>
+> - `SimulationBuilder::build()` 负责实例化组件、做依赖校验、执行真实 `injectDependencies()` 预检查、构建 stop condition，并初始化数据记录器。
+> - `Simulator::initialize()` 发生在真正开跑前：它只会对尚未在构建期标记为“依赖已注入”的组件补做依赖注入，然后调用各组件的 `initialize()`。
+> - 因此 `injectDependencies()` 应尽量保持为无副作用的绑定阶段；一次性缓存准备和更重的初始化更适合放在 `initialize()`。
+> - 当前仓库已经不再依赖重复 declarer 才能获得整组缺依赖诊断；包括 `Dynamics3DOF_SphericalEarth`、`CavhAerodynamics` 在内，诊断主路径都已经回到真实 `injectDependencies()` 预检查。
+> - `IDependencyDeclarer` 仍可使用，但定位已经收紧成“显式依赖契约增强层”，而不是默认必需层。

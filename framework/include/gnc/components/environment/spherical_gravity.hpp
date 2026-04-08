@@ -32,6 +32,6 @@ private:
     double sea_level_g_ = 9.80665;
 };
 
-GNC_REGISTER_COMPONENT(SphericalGravity, interfaces::IGravityModel)
+GNC_REGISTER_STARTER_COMPONENT(SphericalGravity, interfaces::IGravityModel)
 
 } // namespace gnc::components

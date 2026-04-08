@@ -70,6 +70,6 @@ public:
 };
 
 // 自动注册到工厂
-GNC_REGISTER_COMPONENT(Wgs84Earth, interfaces::IEarthModel)
+GNC_REGISTER_STARTER_COMPONENT(Wgs84Earth, interfaces::IEarthModel)
 
 } // namespace gnc::components

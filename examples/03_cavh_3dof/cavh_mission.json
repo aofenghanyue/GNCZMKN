@@ -17,6 +17,12 @@
         "directory": "user/outputs/{timestamp}",
         "format": "csv",
         "session_name": "cavh_3dof",
+        "debug_snapshots": {
+            "enabled": true,
+            "components": [
+                "aero"
+            ]
+        },
         "record": {
             "dynamics": [
                 "altitude",

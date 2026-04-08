@@ -4,50 +4,304 @@
 #include "gnc/core/simulation_builder.hpp"
 #include "user_components_register.hpp"
 
+#include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace gnc::core;
 
 namespace {
 
-constexpr const char* kDefaultConfig = "user/config/missions/default.json";
+namespace fs = std::filesystem;
+
+constexpr const char* kDefaultConfigRelative = "user/config/missions/default.json";
+
+enum class RunnerMode {
+    Run,
+    ListComponents,
+    Help
+};
+
+struct RunnerOptions {
+    RunnerMode mode = RunnerMode::Run;
+    bool list_verbose = false;
+    bool use_default_config = true;
+    std::string requested_config;
+};
+
+struct ConfigResolution {
+    std::string resolved_path;
+    fs::path anchor_root;
+};
+
+std::string normalizePath(const fs::path& path) {
+    return path.lexically_normal().generic_string();
+}
+
+void appendUniquePath(std::vector<fs::path>& paths, const fs::path& candidate) {
+    if (candidate.empty()) {
+        return;
+    }
+
+    const std::string normalized = normalizePath(candidate);
+    for (const auto& existing : paths) {
+        if (normalizePath(existing) == normalized) {
+            return;
+        }
+    }
+    paths.push_back(candidate);
+}
+
+std::vector<fs::path> collectSearchRoots(const char* program_name) {
+    std::vector<fs::path> roots;
+    std::error_code ec;
+
+    appendUniquePath(roots, fs::current_path(ec));
+
+    ec.clear();
+    const fs::path program_path = fs::absolute(fs::path(program_name ? program_name : ""), ec);
+    if (!ec && !program_path.empty()) {
+        appendUniquePath(roots, program_path.parent_path());
+    }
+
+    return roots;
+}
+
+std::string describeCandidatePaths(const std::vector<fs::path>& candidates) {
+    if (candidates.empty()) {
+        return "(none)";
+    }
+
+    std::string result;
+    for (size_t i = 0; i < candidates.size(); ++i) {
+        if (i > 0) {
+            result += ", ";
+        }
+        result += normalizePath(candidates[i]);
+    }
+    return result;
+}
+
+bool resolveConfigPath(const std::string& requested_path,
+                       const char* program_name,
+                       ConfigResolution& resolution,
+                       std::vector<fs::path>& searched_paths) {
+    searched_paths.clear();
+    resolution = {};
+
+    const fs::path config_path(requested_path);
+    std::error_code ec;
+
+    if (config_path.is_absolute()) {
+        appendUniquePath(searched_paths, config_path);
+        if (!fs::exists(config_path, ec) || ec) {
+            return false;
+        }
+
+        const fs::path absolute_candidate = fs::absolute(config_path, ec);
+        resolution.resolved_path = ec ? normalizePath(config_path) : normalizePath(absolute_candidate);
+        return true;
+    }
+
+    for (fs::path root : collectSearchRoots(program_name)) {
+        root = root.lexically_normal();
+        while (!root.empty()) {
+            const fs::path candidate = root / config_path;
+            appendUniquePath(searched_paths, candidate);
+
+            ec.clear();
+            if (fs::exists(candidate, ec) && !ec) {
+                ec.clear();
+                const fs::path absolute_candidate = fs::absolute(candidate, ec);
+                resolution.resolved_path = ec ? normalizePath(candidate) : normalizePath(absolute_candidate);
+                resolution.anchor_root = root;
+                return true;
+            }
+
+            const fs::path parent = root.parent_path();
+            if (parent == root) {
+                break;
+            }
+            root = parent;
+        }
+    }
+
+    return false;
+}
+
+bool setMode(RunnerOptions& options, RunnerMode mode, std::string& error) {
+    if (options.mode != RunnerMode::Run && options.mode != mode) {
+        error = "Only one CLI action can be used at a time.";
+        return false;
+    }
+    options.mode = mode;
+    return true;
+}
+
+bool parseArgs(int argc, char* argv[], RunnerOptions& options, std::string& error) {
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+
+        if (arg == "--help" || arg == "-h") {
+            return setMode(options, RunnerMode::Help, error);
+        }
+
+        if (arg == "--list-components") {
+            options.list_verbose = false;
+            if (!setMode(options, RunnerMode::ListComponents, error)) {
+                return false;
+            }
+            continue;
+        }
+
+        if (arg == "--list-components-verbose") {
+            options.list_verbose = true;
+            if (!setMode(options, RunnerMode::ListComponents, error)) {
+                return false;
+            }
+            continue;
+        }
+
+        if (arg == "--config") {
+            if (i + 1 >= argc) {
+                error = "Missing path after --config.";
+                return false;
+            }
+            if (options.mode != RunnerMode::Run) {
+                error = "The --config option cannot be combined with other CLI actions.";
+                return false;
+            }
+            if (!options.requested_config.empty()) {
+                error = "Config file was specified more than once.";
+                return false;
+            }
+            options.requested_config = argv[++i];
+            options.use_default_config = false;
+            continue;
+        }
+
+        if (!arg.empty() && arg[0] == '-') {
+            error = "Unknown option: " + arg;
+            return false;
+        }
+
+        if (options.mode != RunnerMode::Run) {
+            error = "A config path cannot be combined with other CLI actions.";
+            return false;
+        }
+        if (!options.requested_config.empty()) {
+            error = "Config file was specified more than once.";
+            return false;
+        }
+        options.requested_config = arg;
+        options.use_default_config = false;
+    }
+
+    return true;
+}
 
 void printUsage(const char* program_name) {
     std::cout << "GNC Simulation Framework v2.0\n"
               << "Usage:\n"
               << "  " << program_name << "\n"
               << "  " << program_name << " <config.json>\n"
+              << "  " << program_name << " --config <config.json>\n"
               << "  " << program_name << " --list-components\n"
+              << "  " << program_name << " --list-components-verbose\n"
               << "  " << program_name << " --help\n"
-              << "Default config: " << kDefaultConfig << "\n";
+              << "Default mission lookup: " << kDefaultConfigRelative << "\n"
+              << "  The runner searches upward from the current directory and the executable directory.\n";
 }
 
-void listComponents() {
-    auto types = ComponentFactory::instance().getRegisteredTypes();
-    std::cout << "Registered component types (" << types.size() << "):\n";
-    for (const auto& type : types) {
-        std::cout << "  - " << type << "\n";
+void listComponents(bool verbose) {
+    const auto infos = ComponentFactory::instance().getRegisteredTypeInfos();
+    std::vector<std::string> starter_types;
+    std::vector<std::string> custom_types;
+
+    for (const auto& info : infos) {
+        if (info.category == ComponentCategory::Starter) {
+            starter_types.push_back(info.type_name);
+        } else {
+            custom_types.push_back(info.type_name);
+        }
+    }
+
+    std::cout << "Registered component types (" << infos.size() << "):\n";
+
+    std::cout << "  Starter components (" << starter_types.size() << "):\n";
+    for (const auto& info : infos) {
+        if (info.category != ComponentCategory::Starter) {
+            continue;
+        }
+        std::cout << "    - " << info.type_name;
+        if (verbose && !info.registration_origin.empty()) {
+            std::cout << " [" << info.registration_origin << "]";
+        }
+        std::cout << "\n";
+    }
+
+    std::cout << "  Custom/example components (" << custom_types.size() << "):\n";
+    for (const auto& info : infos) {
+        if (info.category != ComponentCategory::Custom) {
+            continue;
+        }
+        std::cout << "    - " << info.type_name;
+        if (verbose && !info.registration_origin.empty()) {
+            std::cout << " [" << info.registration_origin << "]";
+        }
+        std::cout << "\n";
     }
 }
 
 }
 
 int main(int argc, char* argv[]) {
-    std::string config_file = kDefaultConfig;
-
-    if (argc > 1) {
-        const std::string arg = argv[1];
-        if (arg == "--help" || arg == "-h") {
-            printUsage(argv[0]);
-            return 0;
-        }
-        if (arg == "--list-components") {
-            listComponents();
-            return 0;
-        }
-        config_file = arg;
+    RunnerOptions options;
+    std::string parse_error;
+    if (!parseArgs(argc, argv, options, parse_error)) {
+        LOG_ERROR("{}", parse_error);
+        printUsage(argv[0]);
+        return 1;
     }
+
+    if (options.mode == RunnerMode::Help) {
+        printUsage(argv[0]);
+        return 0;
+    }
+    if (options.mode == RunnerMode::ListComponents) {
+        listComponents(options.list_verbose);
+        return 0;
+    }
+
+    const std::string requested_config =
+        options.use_default_config ? kDefaultConfigRelative : options.requested_config;
+    ConfigResolution config_resolution;
+    std::vector<fs::path> searched_paths;
+    if (!resolveConfigPath(requested_config, argv[0], config_resolution, searched_paths)) {
+        if (options.use_default_config) {
+            LOG_ERROR("No default mission could be found. Looked for '{}' by searching upward from the current directory and executable directory. Checked: {}. Pass --config <path> to run an explicit mission.",
+                      requested_config,
+                      describeCandidatePaths(searched_paths));
+        } else {
+            LOG_ERROR("Config file '{}' was not found. Checked: {}. You can pass an absolute path, a path relative to the current directory, or a repo-relative path such as --config examples/03_cavh_3dof/cavh_mission.json.",
+                      requested_config,
+                      describeCandidatePaths(searched_paths));
+        }
+        return 1;
+    }
+
+    if (!config_resolution.anchor_root.empty()) {
+        std::error_code ec;
+        fs::current_path(config_resolution.anchor_root, ec);
+        if (ec) {
+            LOG_WARNING("Resolved mission root '{}' was found, but the process working directory could not be updated: {}",
+                        normalizePath(config_resolution.anchor_root),
+                        ec.message());
+        }
+    }
+
+    const std::string& config_file = config_resolution.resolved_path;
 
     LOG_INFO("=== GNC Simulation Framework v2.0 ===");
     LOG_INFO("Config: {}", config_file);

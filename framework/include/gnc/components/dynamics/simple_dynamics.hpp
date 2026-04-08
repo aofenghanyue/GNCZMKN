@@ -7,7 +7,6 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
-#include "gnc/core/dependency_validator.hpp"
 #include "gnc/core/observable_helpers.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/core/state_layout.hpp"
@@ -28,8 +27,7 @@ class SimpleDynamics : public core::ComponentBase,
                        public interfaces::IDynamicsModel,
                        public interfaces::IPositionProvider,
                        public interfaces::IVelocityProvider,
-                       public interfaces::IObservable,
-                       public core::IDependencyDeclarer {
+                       public interfaces::IObservable {
 public:
     SimpleDynamics() : ComponentBase("SimpleDynamics") {
         setExecutionFrequency(0.0);
@@ -105,14 +103,10 @@ public:
     }
 
     void injectDependencies(core::ScopedRegistry& registry) override {
-        guidance_ = registry.getByName<interfaces::IGuidance6DOF>("guidance");
+        registry.bindAll(core::bindIfPresent(guidance_, "guidance"));
     }
 
     void update(double) override {
-    }
-
-    std::vector<core::DependencyDeclaration> getDependencies() const override {
-        return {};
     }
 
     std::vector<interfaces::ObservableField> getObservableFields() const override {
@@ -145,7 +139,7 @@ private:
     mutable gnc::Vector3d velocity_cache_ = gnc::Vector3d::Zero();
 };
 
-GNC_REGISTER_COMPONENT(SimpleDynamics,
+GNC_REGISTER_STARTER_COMPONENT(SimpleDynamics,
                        interfaces::IDynamicsModel,
                        interfaces::IPositionProvider,
                        interfaces::IVelocityProvider)

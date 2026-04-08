@@ -15,8 +15,30 @@
 #include <stdexcept>
 #include <vector>
 #include <typeindex>
+#include <algorithm>
 
 namespace gnc::core {
+
+enum class ComponentCategory {
+    Starter,
+    Custom
+};
+
+inline const char* toString(ComponentCategory category) {
+    switch (category) {
+    case ComponentCategory::Starter:
+        return "starter";
+    case ComponentCategory::Custom:
+        return "custom";
+    default:
+        return "unknown";
+    }
+}
+
+inline std::string normalizeRegistrationOrigin(std::string path) {
+    std::replace(path.begin(), path.end(), '\\', '/');
+    return path;
+}
 
 /**
  * @brief 组件创建器基类
@@ -66,6 +88,13 @@ public:
  */
 class ComponentFactory {
 public:
+    struct RegisteredTypeInfo {
+        std::string type_name;
+        ComponentCategory category = ComponentCategory::Custom;
+        std::string registration_origin;
+        std::vector<std::type_index> interfaces;
+    };
+
     /// 获取单例实例
     static ComponentFactory& instance() {
         static ComponentFactory factory;
@@ -79,13 +108,25 @@ public:
      * @param type_name 类型名称（用于配置文件）
      */
     template<typename T, typename... Interfaces>
-    void registerType(const std::string& type_name) {
+    void registerType(const std::string& type_name,
+                      ComponentCategory category = ComponentCategory::Custom,
+                      const std::string& registration_origin = "") {
         if (creators_.count(type_name) > 0) {
             LOG_WARNING("Component type already registered: {}", type_name);
             return;
         }
-        creators_[type_name] = std::make_unique<ComponentCreator<T, Interfaces...>>();
-        LOG_INFO("Factory registered type: {}", type_name);
+        RegisteredTypeEntry entry;
+        entry.creator = std::make_unique<ComponentCreator<T, Interfaces...>>();
+        entry.category = category;
+        entry.registration_origin = normalizeRegistrationOrigin(registration_origin);
+        creators_[type_name] = std::move(entry);
+        LOG_INFO("Factory registered {} type: {}", toString(category), type_name);
+    }
+
+    template<typename T, typename... Interfaces>
+    void registerStarterType(const std::string& type_name,
+                             const std::string& registration_origin = "") {
+        registerType<T, Interfaces...>(type_name, ComponentCategory::Starter, registration_origin);
     }
     
     /**
@@ -97,16 +138,11 @@ public:
     std::unique_ptr<ComponentBase> create(const std::string& type_name) const {
         auto it = creators_.find(type_name);
         if (it == creators_.end()) {
-            std::string msg = "Unknown component type: '" + type_name + "'. Available types: ";
-            bool first = true;
-            for (const auto& [name, _] : creators_) {
-                if (!first) msg += ", ";
-                msg += name;
-                first = false;
-            }
+            std::string msg = "Unknown component type: '" + type_name +
+                              "'. Available registered types: " + describeRegisteredTypes();
             throw std::runtime_error(msg);
         }
-        return it->second->create();
+        return it->second.creator->create();
     }
     
     /**
@@ -119,7 +155,7 @@ public:
         if (it == creators_.end()) {
             return {};
         }
-        return it->second->getInterfaces();
+        return it->second.creator->getInterfaces();
     }
     
     /**
@@ -134,15 +170,87 @@ public:
      */
     std::vector<std::string> getRegisteredTypes() const {
         std::vector<std::string> types;
-        for (const auto& [name, _] : creators_) {
-            types.push_back(name);
+        auto infos = getRegisteredTypeInfos();
+        types.reserve(infos.size());
+        for (const auto& info : infos) {
+            types.push_back(info.type_name);
         }
         return types;
+    }
+
+    std::vector<RegisteredTypeInfo> getRegisteredTypeInfos() const {
+        std::vector<RegisteredTypeInfo> infos;
+        infos.reserve(creators_.size());
+        for (const auto& [name, entry] : creators_) {
+            RegisteredTypeInfo info;
+            info.type_name = name;
+            info.category = entry.category;
+            info.registration_origin = entry.registration_origin;
+            info.interfaces = entry.creator->getInterfaces();
+            infos.push_back(std::move(info));
+        }
+
+        std::sort(infos.begin(), infos.end(), [](const RegisteredTypeInfo& lhs,
+                                                 const RegisteredTypeInfo& rhs) {
+            if (lhs.category != rhs.category) {
+                return lhs.category < rhs.category;
+            }
+            return lhs.type_name < rhs.type_name;
+        });
+        return infos;
+    }
+
+    std::string describeRegisteredTypes() const {
+        const auto infos = getRegisteredTypeInfos();
+        std::vector<std::string> starter_types;
+        std::vector<std::string> custom_types;
+
+        for (const auto& info : infos) {
+            if (info.category == ComponentCategory::Starter) {
+                starter_types.push_back(info.type_name);
+            } else {
+                custom_types.push_back(info.type_name);
+            }
+        }
+
+        auto join = [](const std::vector<std::string>& values) {
+            std::string result;
+            for (size_t i = 0; i < values.size(); ++i) {
+                if (i > 0) result += ", ";
+                result += values[i];
+            }
+            return result.empty() ? "(none)" : result;
+        };
+
+        return "starter=[" + join(starter_types) + "], custom=[" + join(custom_types) + "]";
+    }
+
+    ComponentCategory getCategory(const std::string& type_name) const {
+        auto it = creators_.find(type_name);
+        if (it == creators_.end()) {
+            return ComponentCategory::Custom;
+        }
+        return it->second.category;
+    }
+
+    std::string getRegistrationOrigin(const std::string& type_name) const {
+        auto it = creators_.find(type_name);
+        if (it == creators_.end()) {
+            return "";
+        }
+        return it->second.registration_origin;
     }
     
 private:
     ComponentFactory() = default;
-    std::unordered_map<std::string, std::unique_ptr<ComponentCreatorBase>> creators_;
+
+    struct RegisteredTypeEntry {
+        std::unique_ptr<ComponentCreatorBase> creator;
+        ComponentCategory category = ComponentCategory::Custom;
+        std::string registration_origin;
+    };
+
+    std::unordered_map<std::string, RegisteredTypeEntry> creators_;
 };
 
 /**
@@ -155,9 +263,19 @@ private:
         struct ComponentType##_Registrar { \
             ComponentType##_Registrar() { \
                 gnc::core::ComponentFactory::instance() \
-                    .registerType<ComponentType, __VA_ARGS__>(#ComponentType); \
+                    .registerType<ComponentType, __VA_ARGS__>(#ComponentType, gnc::core::ComponentCategory::Custom, __FILE__); \
             } \
         } ComponentType##_registrar_instance; \
+    }
+
+#define GNC_REGISTER_STARTER_COMPONENT(ComponentType, ...) \
+    namespace { \
+        struct ComponentType##_StarterRegistrar { \
+            ComponentType##_StarterRegistrar() { \
+                gnc::core::ComponentFactory::instance() \
+                    .registerStarterType<ComponentType, __VA_ARGS__>(#ComponentType, __FILE__); \
+            } \
+        } ComponentType##_starter_registrar_instance; \
     }
 
 } // namespace gnc::core
