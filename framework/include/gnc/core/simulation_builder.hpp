@@ -17,7 +17,9 @@
 #include "string_utils.hpp"
 #include "gnc/common/logger.hpp"
 #include "gnc/services/coordinate/coordinate_service.hpp"
+#include "gnc/services/coordinate/soviet_coordinate_system.hpp"
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <unordered_set>
 
@@ -104,6 +106,7 @@ public:
     Simulator& build() {
         build_errors_.clear();
         build_warnings_.clear();
+        pending_coordinate_installations_.clear();
 
         const auto& sim_config = config_.simulation();
         SimulatorConfig cfg;
@@ -114,7 +117,7 @@ public:
         
         LOG_INFO("Simulation config: dt={}, duration={}", cfg.dt, cfg.duration);
         
-        buildServices(config_.globalServices(), globalServices_);
+        buildServices(config_.globalServices(), globalServices_, "global", "");
         
         buildEnvironment();
         
@@ -123,6 +126,8 @@ public:
         } else {
             buildSingleVehicle();
         }
+
+        bindCoordinateServices();
         
         auto validation = DependencyValidator::validate(simulator_.getRegistry());
         for (const auto& error : validation.errors) {
@@ -180,6 +185,13 @@ private:
             return "";
         }
         return full_name.substr(0, pos + 1);
+    }
+
+    static std::string normalizeCoordinateSchemeName(std::string scheme) {
+        for (char& ch : scheme) {
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        }
+        return scheme;
     }
 
     static std::string joinStrings(const std::vector<std::string>& values) {
@@ -511,7 +523,7 @@ private:
         environment_.id = "environment";
         LOG_INFO("Building environment entity");
         
-        buildServices(envConfig["services"], environment_.services);
+        buildServices(envConfig["services"], environment_.services, "env", "env");
         
         auto& registry = simulator_.getRegistry();
         auto& factory = ComponentFactory::instance();
@@ -561,7 +573,7 @@ private:
     }
     
     void buildSingleVehicle() {
-        buildServices(config_.services(), globalServices_);
+        buildServices(config_.services(), globalServices_, "flight_vehicle", "");
         
         auto& registry = simulator_.getRegistry();
         auto& factory = ComponentFactory::instance();
@@ -607,6 +619,7 @@ private:
     
     void buildMultiVehicle() {
         const auto& vehiclesConfig = config_.vehicles();
+        vehicles_.reserve(vehiclesConfig.size());
         for (size_t i = 0; i < vehiclesConfig.size(); ++i) {
             const auto& vConfig = vehiclesConfig[i];
             
@@ -621,7 +634,8 @@ private:
             
             LOG_INFO("Building vehicle: {}", vehicle.id);
             
-            buildServices(vConfig["services"], vehicle.services);
+            auto* pending_vehicle_services = &vehicle.services;
+            buildServices(vConfig["services"], vehicle.services, vehicle.id, vehicle.id);
             
             auto& registry = simulator_.getRegistry();
             auto& factory = ComponentFactory::instance();
@@ -669,6 +683,12 @@ private:
             }
             
             vehicles_.push_back(std::move(vehicle));
+            auto* stable_vehicle_services = &vehicles_.back().services;
+            for (auto& pending : pending_coordinate_installations_) {
+                if (pending.context == pending_vehicle_services) {
+                    pending.context = stable_vehicle_services;
+                }
+            }
         }
     }
     
@@ -690,11 +710,85 @@ private:
         // if (svcConfig.has("atmosphere")) { ... }
     }
     
+    struct PendingCoordinateInstallation {
+        ServiceContext* context = nullptr;
+        ConfigNode config;
+        std::string service_scope_name;
+        std::string registry_scope;
+    };
+
+    void bindCoordinateServices() {
+        auto& registry = simulator_.getRegistry();
+        for (const auto& pending : pending_coordinate_installations_) {
+            if (!pending.context) {
+                continue;
+            }
+
+            auto* service = pending.context->get<gnc::services::CoordinateService>();
+            if (!service) {
+                continue;
+            }
+
+            try {
+                ScopedRegistry scoped(pending.registry_scope, registry, "coordinate_service");
+                gnc::services::coordinate::soviet::installSovietCoordinateSystem(
+                    *service,
+                    pending.config,
+                    scoped,
+                    pending.service_scope_name);
+            } catch (const std::exception& e) {
+                addBuildError("Coordinate service installation failed in scope '" +
+                              pending.service_scope_name + "': " + e.what());
+            }
+        }
+    }
+
+    void recordCoordinateInstallation(ServiceContext& context,
+                                      const ConfigNode& config,
+                                      const std::string& service_scope_name,
+                                      const std::string& registry_scope) {
+        for (auto& pending : pending_coordinate_installations_) {
+            if (pending.context == &context) {
+                pending.config = config;
+                pending.service_scope_name = service_scope_name;
+                pending.registry_scope = registry_scope;
+                return;
+            }
+        }
+
+        pending_coordinate_installations_.push_back(
+            PendingCoordinateInstallation{&context, config, service_scope_name, registry_scope});
+    }
+
+    void buildServices(const ConfigNode& svcConfig,
+                       ServiceContext& context,
+                       const std::string& service_scope_name,
+                       const std::string& registry_scope) {
+        if (svcConfig.isNull()) return;
+
+        if (svcConfig.has("coordinate")) {
+            const auto& coordConfig = svcConfig["coordinate"];
+            if (coordConfig["enabled"].asBool(false)) {
+                const std::string scheme = normalizeCoordinateSchemeName(
+                    coordConfig["scheme"].asString("soviet"));
+                if (!scheme.empty() && scheme != "soviet") {
+                    addBuildError("Unknown coordinate service scheme '" + scheme +
+                                  "'. Only 'soviet' is supported.");
+                } else {
+                    context.registerService(std::make_shared<gnc::services::CoordinateService>());
+                    recordCoordinateInstallation(context, coordConfig, service_scope_name, registry_scope);
+                    LOG_INFO("CoordinateService enabled with built-in Soviet coordinate system");
+                }
+            }
+        }
+    }
+
     ConfigManager config_;
     Simulator simulator_;
     ServiceContext globalServices_;
     EnvironmentInstance environment_;
     std::vector<VehicleInstance> vehicles_;
+    std::vector<PendingCoordinateInstallation> pending_coordinate_installations_;
     std::vector<std::string> build_errors_;
     std::vector<std::string> build_warnings_;
 };

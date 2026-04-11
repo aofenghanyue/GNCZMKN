@@ -256,3 +256,55 @@
 > - `debug_snapshots` + `snapDebug(...)` 用于 `update()` 里的临时调试量，进入单独的长表 CSV。
 > - 同一个量可以同时出现在两边，但这意味着它会被写进两份文件，而不是由框架自动去重。
 > - 例如 `CavhAerodynamics` 的 `CL/CD` 既可以作为正式观测字段保留在主 CSV，也可以作为调试快照出现在 debug CSV；做任务归档时通常应按用途保留其中更合适的一边。
+## 4.10 Coordinate Service
+
+The framework currently ships one official built-in coordinate system: the Soviet system.
+
+Enable it through `services.coordinate` (or the corresponding environment/global/flight-vehicle service block):
+
+```json
+{
+  "coordinate": {
+    "enabled": true,
+    "scheme": "soviet",
+    "launch": {
+      "latitude_rad": 0.5235987755982988,
+      "longitude_rad": 1.9198621771937625,
+      "azimuth_rad": 1.5707963267948966,
+      "t0": 0.0,
+      "earth_rotation_angle_rad": 0.0
+    },
+    "bindings": {
+      "earth": { "name": "earth" }
+    }
+  }
+}
+```
+
+The supported binding keys are intentionally narrow:
+
+- `bindings.subject`
+- `bindings.earth.name`
+- `bindings.local_geographic.name`
+- `bindings.body_attitude.name`
+- `bindings.track_motion.name`
+- `bindings.wind_velocity.name`
+
+Semantic rules:
+
+- Flight-vehicle-local coordinate services default `bindings.subject` to the current flight vehicle.
+- Global or environment coordinate services must set `bindings.subject` when any dynamic binding is used.
+- `bindings.local_geographic.name` must point to an `IPositionProvider` whose `getPosition()` returns `[lat_rad, lon_rad, alt_m]`.
+- `bindings.body_attitude.name` must point to an `IAttitudeProvider` whose `getAttitude()` returns `q_L^B`.
+- `bindings.track_motion.name` must point to an `IVelocityProvider` whose `getVelocity()` returns launch-frame ground-relative velocity.
+- `bindings.wind_velocity.name` must point to an `IVelocityProvider` whose `getVelocity()` returns body-frame air-relative velocity.
+
+Removed legacy fields now fail the build:
+
+- `local_geographic.position_repr`
+- `body_attitude.reference_frame`
+- `track_motion.frame`
+- `track_motion.velocity_frame`
+- `track_motion.velocity_kind`
+- `wind_velocity.frame`
+- `wind_velocity.kind`

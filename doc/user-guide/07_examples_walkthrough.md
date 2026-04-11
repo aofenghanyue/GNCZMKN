@@ -183,3 +183,34 @@
 > - CAV-H 示例里，`CavhAerodynamics` 既可以把 `CL/CD/lift_to_drag` 作为正式观测字段暴露给主 CSV，也可以在 `update()` 里用 `snapDebug()` 记录调试快照。
 > - 如果两边同时开启，主 CSV 和 debug CSV 会各保留一份相同物理量；这是两条通道都在工作，不是框架错误。
 > - 用法建议是：长期分析和任务归档优先看正式观测字段，单步排错和调参优先看 `debug_snapshots`。
+## 7.10 Coordinate Service Examples
+
+Two new examples document the built-in Soviet coordinate service without mixing in unrelated guidance or dynamics complexity.
+
+### `example_04_coordinate_service_soviet`
+
+Path:
+
+- `user/example_04_coordinate_service_soviet/config/mission.json`
+
+Purpose:
+
+- only the fixed Soviet upper chain
+- `ECI / ECEF / LAUNCH / LAUNCH_INERTIAL`
+- no dynamic `NUE/BODY/TRACK/WIND`
+
+Use this example when you want to verify that the built-in Soviet system is installed correctly and that the launch-site definition is understood.
+
+### `example_05_coordinate_service_local_geographic`
+
+Paths:
+
+- `user/example_05_coordinate_service_local_geographic/components/fixed_geodetic_provider.hpp`
+- `user/example_05_coordinate_service_local_geographic/config/mission.json`
+
+Purpose:
+
+- add only dynamic `NUE`
+- keep the provider semantics honest by supplying `[lat_rad, lon_rad, alt_m]` through a dedicated adapter provider
+
+This example intentionally does not pretend to demonstrate `BODY/TRACK/WIND`. Those dynamic maneuver frames are validated in tests, not in a minimal mission that lacks the right semantic providers.
