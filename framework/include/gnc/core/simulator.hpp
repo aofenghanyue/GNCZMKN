@@ -4,14 +4,14 @@
  */
 #pragma once
 
-#include "auto_data_logger.hpp"
+#include "gnc/infrastructure/auto_data_logger.hpp"
 #include "component_registry.hpp"
-#include "dependency_validator.hpp"
+#include "gnc/infrastructure/dependency_validator.hpp"
 #include "integrators/rk4_integrator.hpp"
 #include "scoped_registry.hpp"
-#include "simulation_summary.hpp"
-#include "gnc/interfaces/dynamics/i_dynamics_model.hpp"
-#include "gnc/interfaces/infrastructure/i_integrator.hpp"
+#include "gnc/infrastructure/simulation_summary.hpp"
+#include "gnc/interfaces/i_continuous_system.hpp"
+#include "gnc/interfaces/i_integrator.hpp"
 #include "gnc/common/logger.hpp"
 
 #include <chrono>
@@ -196,20 +196,20 @@ simulation_end:
                 continue;
             }
 
-            auto* dyn_model = dynamic_cast<interfaces::IDynamicsModel*>(component);
-            if (dyn_model && integrator_) {
-                Eigen::VectorXd x = dyn_model->getState();
+            auto* continuous_system = dynamic_cast<interfaces::IContinuousSystem*>(component);
+            if (continuous_system && integrator_) {
+                Eigen::VectorXd x = continuous_system->getState();
                 integrator_->step(
-                    [dyn_model](double t,
-                                const Eigen::VectorXd& state,
-                                Eigen::VectorXd& dxdt) {
-                        dyn_model->computeDerivatives(t, state, dxdt);
+                    [continuous_system](double t,
+                                        const Eigen::VectorXd& state,
+                                        Eigen::VectorXd& dxdt) {
+                        continuous_system->computeDerivatives(t, state, dxdt);
                     },
                     current_time_,
                     x,
                     config_.dt
                 );
-                dyn_model->setState(x);
+                continuous_system->setState(x);
                 component->update(config_.dt);
             } else {
                 component->update(config_.dt);

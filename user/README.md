@@ -1,17 +1,23 @@
-# 用户工程区
+# User Workspace
 
-`user/` 是统一后的唯一工程区。
+`user/` is the project workspace for mission assembly and project-owned GNC algorithms.
 
-- `user/active_project` 保存当前活跃工程名
-- `user/<project>/components/` 保存该工程的自定义组件
-- `user/<project>/config/mission.json` 保存该工程的默认任务
-- `user/outputs/` 保存仿真输出
-- `user/config/missions/default.json` 作为 legacy 兜底任务保留
+- `user/active_project` selects the active project compiled into `gnc_sim`.
+- `user/<project>/components/` stores project-owned components.
+- `user/<project>/config/mission.json` stores the project mission definition.
+- `user/config/missions/default.json` provides a repository-level fallback mission.
+- `user/outputs/` stores simulation output products.
 
-当前仓库内置的 starter projects：
+## Current Examples
 
-- `user/example_01_minimal`
-- `user/example_02_gravity_turn`
-- `user/example_03_cavh_3dof`
+- `example_01_minimal_pluginized`
+  A minimal `state_3dof.point_mass_cartesian` mission.
+- `example_02_atmospheric_3dof`
+  The primary atmospheric 3DOF plugin chain:
+  `environment + aero + state_3dof + soviet_coord + project guidance`.
+- `example_03_soviet_coord`
+  A service-focused mission that probes the Soviet coordinate transformation chain.
 
-其中 `user/example_02_gravity_turn` 是独立程序式样板，不走 `user/active_project + gnc_sim` 这条统一入口。
+Only the active project selected in `user/active_project` is auto-registered into
+`gnc_sim`. If you switch from `example_02_atmospheric_3dof` to
+`example_03_soviet_coord`, rebuild the binary before running that mission.

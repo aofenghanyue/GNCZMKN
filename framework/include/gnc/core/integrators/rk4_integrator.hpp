@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gnc/interfaces/infrastructure/i_integrator.hpp"
+#include "gnc/interfaces/i_integrator.hpp"
 
 namespace gnc::core {
 

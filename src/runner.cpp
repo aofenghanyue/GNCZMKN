@@ -1,5 +1,5 @@
 #include "gnc/common/logger.hpp"
-#include "gnc/components/_builtin_register.hpp"
+#include "gnc/plugins/_builtin_plugins.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
 #include "active_project_config.hpp"
@@ -220,22 +220,22 @@ void printUsage(const char* program_name) {
 
 void listComponents(bool verbose) {
     const auto infos = ComponentFactory::instance().getRegisteredTypeInfos();
-    std::vector<std::string> starter_types;
-    std::vector<std::string> custom_types;
+    std::vector<std::string> builtin_types;
+    std::vector<std::string> project_types;
 
     for (const auto& info : infos) {
-        if (info.category == ComponentCategory::Starter) {
-            starter_types.push_back(info.type_name);
+        if (info.category == ComponentCategory::Builtin) {
+            builtin_types.push_back(info.type_name);
         } else {
-            custom_types.push_back(info.type_name);
+            project_types.push_back(info.type_name);
         }
     }
 
     std::cout << "Registered component types (" << infos.size() << "):\n";
 
-    std::cout << "  Starter components (" << starter_types.size() << "):\n";
+    std::cout << "  Builtin components (" << builtin_types.size() << "):\n";
     for (const auto& info : infos) {
-        if (info.category != ComponentCategory::Starter) {
+        if (info.category != ComponentCategory::Builtin) {
             continue;
         }
         std::cout << "    - " << info.type_name;
@@ -245,9 +245,9 @@ void listComponents(bool verbose) {
         std::cout << "\n";
     }
 
-    std::cout << "  Custom/example components (" << custom_types.size() << "):\n";
+    std::cout << "  Project/example components (" << project_types.size() << "):\n";
     for (const auto& info : infos) {
-        if (info.category != ComponentCategory::Custom) {
+        if (info.category != ComponentCategory::Project) {
             continue;
         }
         std::cout << "    - " << info.type_name;
@@ -288,7 +288,7 @@ int main(int argc, char* argv[]) {
                       requested_config,
                       describeCandidatePaths(searched_paths));
         } else {
-            LOG_ERROR("Config file '{}' was not found. Checked: {}. You can pass an absolute path, a path relative to the current directory, or a repo-relative path such as --config user/example_03_cavh_3dof/config/mission.json.",
+            LOG_ERROR("Config file '{}' was not found. Checked: {}. You can pass an absolute path, a path relative to the current directory, or a repo-relative path such as --config user/example_02_atmospheric_3dof/config/mission.json.",
                       requested_config,
                       describeCandidatePaths(searched_paths));
         }

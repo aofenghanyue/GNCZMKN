@@ -1,8 +1,8 @@
 #pragma once
 
-#include "component_registry.hpp"
-#include "string_utils.hpp"
 #include "gnc/common/logger.hpp"
+#include "gnc/common/string_utils.hpp"
+#include "component_registry.hpp"
 #include <stdexcept>
 #include <string>
 #include <typeindex>

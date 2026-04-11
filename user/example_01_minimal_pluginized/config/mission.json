@@ -9,14 +9,14 @@
                 "component": "dynamics",
                 "field": "altitude",
                 "value": 0.0,
-                "description": "Terminate below ground"
+                "description": "Cartesian altitude below ground"
             }
         ]
     },
     "outputs": {
         "directory": "user/outputs/{timestamp}",
         "format": "csv",
-        "session_name": "default_pluginized",
+        "session_name": "minimal_pluginized",
         "record": {
             "dynamics": "all"
         }

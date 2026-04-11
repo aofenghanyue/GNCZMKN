@@ -4,14 +4,15 @@
  */
 #pragma once
 
+#include "gnc/core/config_manager.hpp"
+#include "gnc/core/service_context.hpp"
+
 #include <map>
 #include <string>
 
 namespace gnc::core {
 
 class ScopedRegistry;
-class ServiceContext;
-class ConfigNode;
 
 /**
  * @brief 组件基类
@@ -137,7 +138,7 @@ protected:
 private:
     std::string name_;
     std::string type_name_;
-    std::string component_category_ = "custom";
+    std::string component_category_ = "project";
     std::string registration_origin_;
     double freq_hz_ = 0.0;      // 0表示每步执行
     int step_interval_ = 1;      // 执行步长间隔

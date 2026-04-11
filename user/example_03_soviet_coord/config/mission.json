@@ -1,0 +1,94 @@
+{
+    "simulation": {
+        "dt": 0.1,
+        "duration": 5.0,
+        "integrator": "rk4"
+    },
+    "outputs": {
+        "directory": "user/outputs/{timestamp}",
+        "format": "csv",
+        "session_name": "soviet_coord",
+        "record": {
+            "probe": "all",
+            "dynamics": [
+                "velocity_launch.x",
+                "velocity_launch.y",
+                "velocity_launch.z"
+            ]
+        }
+    },
+    "services": {
+        "soviet_coord": {
+            "launch": {
+                "latitude_rad": 0.5235987755982988,
+                "longitude_rad": 1.9198621771937625,
+                "azimuth_rad": 1.5707963267948966,
+                "launch_time_s": 0.0,
+                "earth_rotation_angle_rad": 0.0
+            },
+            "bindings": {
+                "earth": {
+                    "name": "earth"
+                },
+                "velocity_direction": {
+                    "name": "dynamics"
+                }
+            }
+        }
+    },
+    "components": [
+        {
+            "type": "environment.wgs84_earth",
+            "name": "earth",
+            "config": {}
+        },
+        {
+            "type": "environment.standard_atmosphere",
+            "name": "atmosphere",
+            "config": {}
+        },
+        {
+            "type": "environment.spherical_gravity",
+            "name": "gravity",
+            "config": {}
+        },
+        {
+            "type": "example.programmed_aoa",
+            "name": "guidance",
+            "config": {
+                "bank_angle_deg": 0.0,
+                "schedule_altitude_m": [50000, 40000],
+                "schedule_angle_of_attack_deg": [12, 12]
+            }
+        },
+        {
+            "type": "aero.simple_polynomial",
+            "name": "aero",
+            "config": {}
+        },
+        {
+            "type": "state_3dof.point_mass_spherical",
+            "name": "dynamics",
+            "config": {
+                "launch_azimuth_rad": 1.5707963267948966,
+                "mass_kg": 300.0,
+                "initial_state": {
+                    "longitude_rad": 1.9198621771937625,
+                    "latitude_rad": 0.5235987755982988,
+                    "altitude_m": 50000.0,
+                    "speed_mps": 1500.0,
+                    "flight_path_angle_rad": -0.017453292519943295,
+                    "heading_angle_rad": 1.3962634015954636
+                }
+            }
+        },
+        {
+            "type": "example.coordinate_probe",
+            "name": "probe",
+            "config": {
+                "from_frame": "L",
+                "to_frame": "K"
+            }
+        }
+    ]
+}
