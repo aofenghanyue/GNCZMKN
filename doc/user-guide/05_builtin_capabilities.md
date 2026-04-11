@@ -208,3 +208,43 @@
 > - 这意味着即使是 `Dynamics3DOF_SphericalEarth` 这类多依赖 starter 组件，也已经不需要靠重复 declarer 才能获得整组缺依赖诊断。
 > - stop condition 现在优先复用 `IObservable` 字段，但如果目标组件实现了 `IDynamicsModel`，也可以直接读取动力学状态名。
 > - 如果同一个量同时出现在 `IObservable` 和 `snapDebug()` 中，它会同时进入主 CSV 和调试 CSV；这是有意保留两条输出通道，不是冲突。
+## 5.10 Built-in Soviet Coordinate System
+
+The framework now treats the built-in Soviet coordinate system as a finished standard answer, not as a half-generic utility layer.
+
+The single formal entry point is:
+
+- `framework/include/gnc/services/coordinate/soviet_coordinate_system.hpp`
+
+This file owns all of the following in one place:
+
+- public built-in frames `I / E / N / L / LI / B / K / V`
+- physical meanings
+- passive transform convention
+- Euler-angle and sign conventions
+- Soviet-specific transform helpers
+- the relation table and the unified installation entry
+
+Current built-in relation set:
+
+- `ECEF <- ECI`
+- `LAUNCH <- ECEF`
+- `LAUNCH_INERTIAL <- LAUNCH`
+- `NUE <- ECEF`
+- `BODY <- LAUNCH`
+- `TRACK <- LAUNCH`
+- `WIND <- BODY`
+
+The generic tree service remains separate:
+
+- `framework/include/gnc/services/coordinate/coordinate_service.hpp`
+
+It only owns tree topology, registration, path composition, caching, and cycle protection.
+It does not define what the Soviet system means.
+
+The low-level coord library no longer serves as the official Soviet entry:
+
+- `framework/include/gnc/libraries/coord/coord.hpp`
+- `framework/include/gnc/libraries/coord/rotations.hpp`
+
+Those headers now stay at the pure math/helper layer. If a user wants the framework's built-in Soviet definitions, they should directly use `soviet_coordinate_system.hpp`.

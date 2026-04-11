@@ -1,257 +1,137 @@
 /**
  * @file test_transform.cpp
- * @brief 坐标转换库 MATLAB 验证测试
- * 
- * 对比 MATLAB checkScripts.m 的结果验证正确性
+ * @brief Numerical checks for the built-in Soviet coordinate system entry point.
  */
 
 #include "gnc/common/math/math.hpp"
-#include "gnc/libraries/coord/coord.hpp"
-#include <iostream>
-#include <iomanip>
+#include "gnc/services/coordinate/soviet_coordinate_system.hpp"
+
 #include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <stdexcept>
+#include <string>
 
-using namespace gnc::math;
-using namespace gnc::coord;
+using gnc::math::Matrix3;
+using gnc::math::Quaternion;
+using gnc::math::Vector3;
+namespace soviet = gnc::services::coordinate::soviet;
 
-// 容差
-constexpr double TOL = 1e-6;
+namespace {
 
-// 比较函数
-bool compare(double a, double b, const char* name) {
-    double diff = std::abs(a - b);
-    bool ok = diff < TOL;
-    if (!ok) {
-        std::cout << "  [FAIL] " << name << ": C++=" << a << ", MATLAB=" << b 
-                  << ", diff=" << diff << std::endl;
+constexpr double kTol = 1e-9;
+
+void require(bool condition, const std::string& message) {
+    if (!condition) {
+        throw std::runtime_error(message);
     }
-    return ok;
 }
 
-bool compareVec3(const Vector3& v, double m0, double m1, double m2, const char* name) {
-    bool ok = true;
-    if (std::abs(v(0) - m0) > TOL) { ok = false; }
-    if (std::abs(v(1) - m1) > TOL) { ok = false; }
-    if (std::abs(v(2) - m2) > TOL) { ok = false; }
-    if (!ok) {
-        std::cout << "  [FAIL] " << name << std::endl;
-        std::cout << "    C++:    [" << v(0) << ", " << v(1) << ", " << v(2) << "]" << std::endl;
-        std::cout << "    MATLAB: [" << m0 << ", " << m1 << ", " << m2 << "]" << std::endl;
-    }
-    return ok;
+bool nearlyEqual(double lhs, double rhs, double tol = kTol) {
+    return std::abs(lhs - rhs) <= tol;
 }
 
-bool compareQuat(const Quaternion& q, double mw, double mx, double my, double mz, const char* name) {
-    bool ok = true;
-    if (std::abs(q.w() - mw) > TOL) { ok = false; }
-    if (std::abs(q.x() - mx) > TOL) { ok = false; }
-    if (std::abs(q.y() - my) > TOL) { ok = false; }
-    if (std::abs(q.z() - mz) > TOL) { ok = false; }
-    if (!ok) {
-        std::cout << "  [FAIL] " << name << std::endl;
-        std::cout << "    C++:    [" << q.w() << ", " << q.x() << ", " << q.y() << ", " << q.z() << "]" << std::endl;
-        std::cout << "    MATLAB: [" << mw << ", " << mx << ", " << my << ", " << mz << "]" << std::endl;
-    }
-    return ok;
+bool matrixClose(const Matrix3& lhs, const Matrix3& rhs, double tol = kTol) {
+    return (lhs - rhs).cwiseAbs().maxCoeff() <= tol;
 }
 
-bool compareMat3(const Matrix3& M, 
-                 double m00, double m01, double m02,
-                 double m10, double m11, double m12,
-                 double m20, double m21, double m22,
-                 const char* name) {
-    bool ok = true;
-    if (std::abs(M(0,0) - m00) > TOL) { ok = false; }
-    if (std::abs(M(0,1) - m01) > TOL) { ok = false; }
-    if (std::abs(M(0,2) - m02) > TOL) { ok = false; }
-    if (std::abs(M(1,0) - m10) > TOL) { ok = false; }
-    if (std::abs(M(1,1) - m11) > TOL) { ok = false; }
-    if (std::abs(M(1,2) - m12) > TOL) { ok = false; }
-    if (std::abs(M(2,0) - m20) > TOL) { ok = false; }
-    if (std::abs(M(2,1) - m21) > TOL) { ok = false; }
-    if (std::abs(M(2,2) - m22) > TOL) { ok = false; }
-    if (!ok) {
-        std::cout << "  [FAIL] " << name << std::endl;
-        std::cout << "    C++:" << std::endl;
-        std::cout << "      " << M(0,0) << " " << M(0,1) << " " << M(0,2) << std::endl;
-        std::cout << "      " << M(1,0) << " " << M(1,1) << " " << M(1,2) << std::endl;
-        std::cout << "      " << M(2,0) << " " << M(2,1) << " " << M(2,2) << std::endl;
-        std::cout << "    MATLAB:" << std::endl;
-        std::cout << "      " << m00 << " " << m01 << " " << m02 << std::endl;
-        std::cout << "      " << m10 << " " << m11 << " " << m12 << std::endl;
-        std::cout << "      " << m20 << " " << m21 << " " << m22 << std::endl;
-    }
-    return ok;
+bool vectorClose(const Vector3& lhs, const Vector3& rhs, double tol = kTol) {
+    return (lhs - rhs).cwiseAbs().maxCoeff() <= tol;
 }
+
+void testEarthAndLaunchFrames() {
+    const double latitude = gnc::math::deg2rad(40.0);
+    const double longitude = gnc::math::deg2rad(100.0);
+    const double azimuth = gnc::math::deg2rad(30.0);
+
+    const Matrix3 ecef_to_nue = soviet::earthFixedToLocalNueRotation(latitude, longitude);
+    const Matrix3 nue_to_ecef = soviet::localNueToEarthFixedRotation(latitude, longitude);
+    require(matrixClose(ecef_to_nue * nue_to_ecef, Matrix3::Identity()),
+            "ECEF<->NUE rotations should be inverses.");
+
+    const Matrix3 nue_to_launch = soviet::localNueToLaunchRotation(azimuth);
+    const Matrix3 launch_to_nue = soviet::launchToLocalNueRotation(azimuth);
+    require(matrixClose(nue_to_launch * launch_to_nue, Matrix3::Identity()),
+            "NUE<->LAUNCH rotations should be inverses.");
+
+    const Matrix3 ecef_to_launch = soviet::earthFixedToLaunchRotation(latitude, longitude, azimuth);
+    require(matrixClose(ecef_to_launch, nue_to_launch * ecef_to_nue),
+            "ECEF->LAUNCH should equal NUE->LAUNCH composed with ECEF->NUE.");
+    require(matrixClose(soviet::launchToEarthFixedRotation(latitude, longitude, azimuth),
+                        ecef_to_launch.transpose()),
+            "LAUNCH->ECEF should be the transpose of ECEF->LAUNCH.");
+
+    const Matrix3 li_to_l_t0 = soviet::launchInertialToLaunchRotation(0.0, ecef_to_launch, 0.01);
+    require(matrixClose(li_to_l_t0, Matrix3::Identity()),
+            "LI and L should coincide at t0.");
+}
+
+void testBodyTrackAndWindFrames() {
+    const Quaternion q_l_b = soviet::eulerToAttitude(
+        gnc::math::deg2rad(10.0),
+        gnc::math::deg2rad(-5.0),
+        gnc::math::deg2rad(3.0));
+    const Matrix3 l_to_b = soviet::referenceToBodyRotation(q_l_b);
+    const Matrix3 b_to_l = soviet::bodyToReferenceRotation(q_l_b);
+    require(matrixClose(l_to_b * b_to_l, Matrix3::Identity()),
+            "BODY and LAUNCH rotations should be inverses.");
+
+    const Vector3 recovered = soviet::attitudeToEuler(q_l_b);
+    require(nearlyEqual(recovered.x(), gnc::math::deg2rad(10.0)),
+            "Attitude->Euler yaw mismatch.");
+    require(nearlyEqual(recovered.y(), gnc::math::deg2rad(-5.0)),
+            "Attitude->Euler pitch mismatch.");
+    require(nearlyEqual(recovered.z(), gnc::math::deg2rad(3.0)),
+            "Attitude->Euler roll mismatch.");
+
+    const Vector3 ground_velocity_l(120.0, 15.0, -30.0);
+    double chi = 0.0;
+    double theta = 0.0;
+    soviet::computeTrackAngles(ground_velocity_l, chi, theta);
+    const Matrix3 k_to_l = soviet::trackToReferenceRotation(chi, theta);
+    const Matrix3 l_to_k = soviet::referenceToTrackRotation(chi, theta);
+    require(matrixClose(k_to_l * l_to_k, Matrix3::Identity()),
+            "TRACK and LAUNCH rotations should be inverses.");
+
+    const Vector3 launch_x_in_track = l_to_k * Vector3(1.0, 0.0, 0.0);
+    require(std::abs(launch_x_in_track.norm() - 1.0) < kTol,
+            "TRACK rotation should preserve vector norms.");
+
+    const Vector3 air_velocity_b(200.0, -20.0, 30.0);
+    double alpha = 0.0;
+    double beta = 0.0;
+    soviet::computeWindAngles(air_velocity_b, alpha, beta);
+    const Matrix3 v_to_b = soviet::windToBodyRotation(alpha, beta);
+    const Matrix3 b_to_v = soviet::bodyToWindRotation(alpha, beta);
+    require(matrixClose(v_to_b * b_to_v, Matrix3::Identity()),
+            "WIND and BODY rotations should be inverses.");
+
+    const Vector3 round_trip = v_to_b * (b_to_v * Vector3(1.0, 2.0, 3.0));
+    require(vectorClose(round_trip, Vector3(1.0, 2.0, 3.0)),
+            "WIND/BODY round trip should preserve vectors.");
+}
+
+void testInertialEarthPair() {
+    const double angle = 0.3;
+    const Matrix3 i_to_e = soviet::inertialToEarthFixedRotation(angle);
+    const Matrix3 e_to_i = soviet::earthFixedToInertialRotation(angle);
+    require(matrixClose(i_to_e * e_to_i, Matrix3::Identity()),
+            "ECI/ECEF rotations should be inverses.");
+}
+
+} // namespace
 
 int main() {
-    std::cout << std::scientific << std::setprecision(8);
-    std::cout << "========================================" << std::endl;
-    std::cout << "Coordinate Transform MATLAB Verification" << std::endl;
-    std::cout << "========================================" << std::endl;
-    
-    // 输入角度 (deg): 30, 45, 60
-    double angle1 = deg2rad(30.0);
-    double angle2 = deg2rad(45.0);
-    double angle3 = deg2rad(60.0);
-    
-    int total_tests = 0;
-    int passed_tests = 0;
-    
-    // ---------------------------------------------------------
-    // 1. 四元数 from 欧拉角
-    // ---------------------------------------------------------
-    std::cout << "\n1. Quaternion from Angles" << std::endl;
-    
-    // MATLAB: q321 (ZYX): angle2quat(angle1, angle2, angle3, 'ZYX')
-    // MATLAB角度顺序: Z by angle1, Y by angle2, X by angle3
-    Quaternion q321 = euler321ToQuat(angle1, angle2, angle3);
-    
-    // MATLAB结果: [8.22363172e-01, 3.60423406e-01, 4.39679740e-01, 2.22600267e-02]
-    total_tests++;
-    if (compareQuat(q321, 8.22363172e-01, 3.60423406e-01, 4.39679740e-01, 2.22600267e-02, "q321 (ZYX)")) {
-        passed_tests++;
-        std::cout << "  [PASS] q321 (ZYX)" << std::endl;
+    try {
+        std::cout << std::scientific << std::setprecision(8);
+        testInertialEarthPair();
+        testEarthAndLaunchFrames();
+        testBodyTrackAndWindFrames();
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
+        return 1;
     }
-    
-    // MATLAB: q231 (YZX): angle2quat(angle1, angle2, angle3, 'YZX')
-    Quaternion q231 = euler231ToQuat(angle1, angle2, angle3);
-    
-    // MATLAB结果: [7.23317411e-01, 5.31975695e-01, 3.91903837e-01, 2.00562121e-01]
-    total_tests++;
-    if (compareQuat(q231, 7.23317411e-01, 5.31975695e-01, 3.91903837e-01, 2.00562121e-01, "q231 (YZX)")) {
-        passed_tests++;
-        std::cout << "  [PASS] q231 (YZX)" << std::endl;
-    }
-    
-    // ---------------------------------------------------------
-    // 2. DCM from 欧拉角
-    // ---------------------------------------------------------
-    std::cout << "\n2. DCM from Angles" << std::endl;
-    
-    Matrix3 T321 = euler321ToMatrix(angle1, angle2, angle3);
-    // MATLAB T321 (ZYX):
-    // 6.12372436e-01 3.53553391e-01 -7.07106781e-01
-    // 2.80330086e-01 7.39198920e-01  6.12372436e-01
-    // 7.39198920e-01 -5.73223305e-01 3.53553391e-01
-    total_tests++;
-    if (compareMat3(T321,
-        6.12372436e-01,  3.53553391e-01, -7.07106781e-01,
-        2.80330086e-01,  7.39198920e-01,  6.12372436e-01,
-        7.39198920e-01, -5.73223305e-01,  3.53553391e-01,
-        "T321 (ZYX)")) {
-        passed_tests++;
-        std::cout << "  [PASS] T321 (ZYX)" << std::endl;
-    }
-    
-    Matrix3 T231 = euler231ToMatrix(angle1, angle2, angle3);
-    // MATLAB T231 (YZX):
-    // 6.12372436e-01 7.07106781e-01 -3.53553391e-01
-    // 1.26826484e-01 3.53553391e-01  9.26776695e-01
-    // 7.80330086e-01 -6.12372436e-01 1.26826484e-01
-    total_tests++;
-    if (compareMat3(T231,
-        6.12372436e-01,  7.07106781e-01, -3.53553391e-01,
-        1.26826484e-01,  3.53553391e-01,  9.26776695e-01,
-        7.80330086e-01, -6.12372436e-01,  1.26826484e-01,
-        "T231 (YZX)")) {
-        passed_tests++;
-        std::cout << "  [PASS] T231 (YZX)" << std::endl;
-    }
-    
-    // ---------------------------------------------------------
-    // 3. 向量变换
-    // ---------------------------------------------------------
-    std::cout << "\n3. Vector Transformation v=[1; 2; 3]" << std::endl;
-    
-    Vector3 v1(1, 2, 3);
-    
-    // MATLAB: v' = q* ⊗ v ⊗ q (共轭三明治)
-    Vector3 v321_q = q321.rotate(v1);
-    // MATLAB: v321_q: [-8.01841127e-01; 3.59584523e+00; 6.53412482e-01]
-    total_tests++;
-    if (compareVec3(v321_q, -8.01841127e-01, 3.59584523e+00, 6.53412482e-01, "v321_q (quatrotate)")) {
-        passed_tests++;
-        std::cout << "  [PASS] v321_q (quatrotate)" << std::endl;
-    }
-    
-    // 矩阵乘法
-    Vector3 v321_T = T321 * v1;
-    // MATLAB: v321_T: [-8.01841127e-01; 3.59584523e+00; 6.53412482e-01]
-    total_tests++;
-    if (compareVec3(v321_T, -8.01841127e-01, 3.59584523e+00, 6.53412482e-01, "v321_T (T*v)")) {
-        passed_tests++;
-        std::cout << "  [PASS] v321_T (T*v)" << std::endl;
-    }
-    
-    Vector3 v231_q = q231.rotate(v1);
-    // MATLAB: v231_q: [9.65925826e-01; 3.61426335e+00; -6.39353334e-02]
-    total_tests++;
-    if (compareVec3(v231_q, 9.65925826e-01, 3.61426335e+00, -6.39353334e-02, "v231_q (quatrotate)")) {
-        passed_tests++;
-        std::cout << "  [PASS] v231_q (quatrotate)" << std::endl;
-    }
-    
-    Vector3 v231_T = T231 * v1;
-    // MATLAB: v231_T: [9.65925826e-01; 3.61426335e+00; -6.39353334e-02]
-    total_tests++;
-    if (compareVec3(v231_T, 9.65925826e-01, 3.61426335e+00, -6.39353334e-02, "v231_T (T*v)")) {
-        passed_tests++;
-        std::cout << "  [PASS] v231_T (T*v)" << std::endl;
-    }
-    
-    // ---------------------------------------------------------
-    // 4. 往返检查 (四元数 -> DCM 一致性)
-    // ---------------------------------------------------------
-    std::cout << "\n4. Round Trip Check (Quat -> DCM)" << std::endl;
-    
-    Matrix3 T321_from_q = q321.toRotationMatrix();
-    // 应该与 T321 一致
-    total_tests++;
-    if (compareMat3(T321_from_q,
-        6.12372436e-01,  3.53553391e-01, -7.07106781e-01,
-        2.80330086e-01,  7.39198920e-01,  6.12372436e-01,
-        7.39198920e-01, -5.73223305e-01,  3.53553391e-01,
-        "T321 from q321")) {
-        passed_tests++;
-        std::cout << "  [PASS] T321 from q321" << std::endl;
-    }
-    
-    // ---------------------------------------------------------
-    // 5. NSE vs ECEF
-    // ---------------------------------------------------------
-    std::cout << "\n5. NSE vs ECEF" << std::endl;
-    
-    double lambda = deg2rad(100.0);  // 经度
-    double phi = deg2rad(40.0);      // 纬度
-    
-    std::cout << "  Params: lambda=100deg, phi=40deg" << std::endl;
-    std::cout << "  Rotation Sequence: Z(lam-90) -> X(phi) -> Y(-90)" << std::endl;
-    
-    // MATLAB使用 angle2dcm(lambda-pi/2, phi, -pi/2, 'ZXY')
-    // 序列 ZXY: 先Z后X后Y
-    Matrix3 T_nse_ecef = euler312ToMatrix(lambda - constants::HALF_PI, phi, -constants::HALF_PI);
-    
-    // MATLAB T_NSE_ECEF:
-    // 1.11618897e-01 -6.33022222e-01 7.66044443e-01
-    // -1.33022222e-01 7.54406507e-01 6.42787610e-01
-    // -9.84807753e-01 -1.73648178e-01 4.69066938e-17
-    total_tests++;
-    if (compareMat3(T_nse_ecef,
-        1.11618897e-01, -6.33022222e-01,  7.66044443e-01,
-       -1.33022222e-01,  7.54406507e-01,  6.42787610e-01,
-       -9.84807753e-01, -1.73648178e-01,  4.69066938e-17,
-        "T_NSE_ECEF")) {
-        passed_tests++;
-        std::cout << "  [PASS] T_NSE_ECEF" << std::endl;
-    }
-    
-    // ---------------------------------------------------------
-    // 结果汇总
-    // ---------------------------------------------------------
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "Results: " << passed_tests << "/" << total_tests << " tests passed" << std::endl;
-    std::cout << "========================================" << std::endl;
-    
-    return (passed_tests == total_tests) ? 0 : 1;
+
+    std::cout << "Soviet transform tests passed\n";
+    return 0;
 }

@@ -1,11 +1,9 @@
 /**
  * @file coord.hpp
- * @brief 坐标旋转公式库
- * 
- * 设计理念：
- * - 只提供坐标系旋转公式
- * - 不包含具体天体参数（如地球椭球）
- * - 具体坐标转换（如 LLA/ECEF）由相关组件负责
+ * @brief Legacy include point for low-level coordinate math helpers.
+ *
+ * Concrete built-in frame-system definitions are exposed through
+ * `gnc/services/coordinate/soviet_coordinate_system.hpp`.
  */
 #pragma once
 
@@ -13,7 +11,7 @@
 
 namespace gnc::coord {
 
-// 所有旋转公式已在 rotations.hpp 中定义
-// 具体坐标转换（如 LLA/ECEF）请使用 IEarthModel 等组件
+// This namespace intentionally stays small. Use the built-in Soviet system
+// entry point when you need frame definitions or textbook-specific transforms.
 
 } // namespace gnc::coord

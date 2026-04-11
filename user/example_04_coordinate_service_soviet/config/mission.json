@@ -1,0 +1,31 @@
+{
+    "simulation": {
+        "dt": 0.1,
+        "duration": 1.0
+    },
+    "services": {
+        "coordinate": {
+            "enabled": true,
+            "scheme": "soviet",
+            "launch": {
+                "latitude_rad": 0.5235987755982988,
+                "longitude_rad": 1.9198621771937625,
+                "azimuth_rad": 1.5707963267948966,
+                "t0": 0.0,
+                "earth_rotation_angle_rad": 0.0
+            },
+            "bindings": {
+                "earth": {
+                    "name": "earth"
+                }
+            }
+        }
+    },
+    "components": [
+        {
+            "type": "Wgs84Earth",
+            "name": "earth",
+            "config": {}
+        }
+    ]
+}

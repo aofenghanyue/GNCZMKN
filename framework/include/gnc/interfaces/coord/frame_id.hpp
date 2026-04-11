@@ -1,50 +1,92 @@
 /**
  * @file frame_id.hpp
- * @brief 坐标系标识符枚举
+ * @brief Public frame identifiers for the framework's built-in coordinate services.
  */
 #pragma once
 
+#include <algorithm>
+#include <cctype>
 #include <string>
 
 namespace gnc::coord {
 
-/**
- * @brief 坐标系标识枚举
- * 
- * 使用强类型枚举替代字符串，提供编译时类型安全
- */
 enum class FrameId {
-    ECI,        ///< 地心惯性系 (Earth-Centered Inertial)
-    ECEF,       ///< 地心地固系 (Earth-Centered Earth-Fixed)
-    NED,        ///< 北东地系 (North-East-Down)
-    ENU,        ///< 东北天系 (East-North-Up)
-    NSE,        ///< 北天东系 (North-Sky-East，用户自定义)
-    BODY,       ///< 载体系
-    WIND,       ///< 风轴系
-    STABILITY,  ///< 稳定轴系
-    LAUNCH,     ///< 发射系
-    SENSOR,     ///< 传感器系
-    CAMERA,     ///< 相机系
+    ECI,
+    ECEF,
+    NUE,
+    LAUNCH,
+    LAUNCH_INERTIAL,
+    BODY,
+    TRACK,
+    WIND,
 };
 
-/**
- * @brief FrameId 转字符串（用于调试和日志）
- */
 inline const char* frameIdToString(FrameId id) {
     switch (id) {
-        case FrameId::ECI:       return "ECI";
-        case FrameId::ECEF:      return "ECEF";
-        case FrameId::NED:       return "NED";
-        case FrameId::ENU:       return "ENU";
-        case FrameId::NSE:       return "NSE";
-        case FrameId::BODY:      return "BODY";
-        case FrameId::WIND:      return "WIND";
-        case FrameId::STABILITY: return "STABILITY";
-        case FrameId::LAUNCH:    return "LAUNCH";
-        case FrameId::SENSOR:    return "SENSOR";
-        case FrameId::CAMERA:    return "CAMERA";
-        default:                 return "UNKNOWN";
+        case FrameId::ECI:              return "ECI";
+        case FrameId::ECEF:             return "ECEF";
+        case FrameId::NUE:              return "NUE";
+        case FrameId::LAUNCH:           return "LAUNCH";
+        case FrameId::LAUNCH_INERTIAL:  return "LAUNCH_INERTIAL";
+        case FrameId::BODY:             return "BODY";
+        case FrameId::TRACK:            return "TRACK";
+        case FrameId::WIND:             return "WIND";
+        default:                        return "UNKNOWN";
     }
+}
+
+inline const char* frameIdToSymbol(FrameId id) {
+    switch (id) {
+        case FrameId::ECI:              return "I";
+        case FrameId::ECEF:             return "E";
+        case FrameId::NUE:              return "N";
+        case FrameId::LAUNCH:           return "L";
+        case FrameId::LAUNCH_INERTIAL:  return "LI";
+        case FrameId::BODY:             return "B";
+        case FrameId::TRACK:            return "K";
+        case FrameId::WIND:             return "V";
+        default:                        return "?";
+    }
+}
+
+inline bool tryParseFrameId(std::string token, FrameId& out) {
+    std::transform(token.begin(), token.end(), token.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+
+    if (token == "ECI" || token == "I") {
+        out = FrameId::ECI;
+        return true;
+    }
+    if (token == "ECEF" || token == "E") {
+        out = FrameId::ECEF;
+        return true;
+    }
+    if (token == "NUE" || token == "N") {
+        out = FrameId::NUE;
+        return true;
+    }
+    if (token == "LAUNCH" || token == "L") {
+        out = FrameId::LAUNCH;
+        return true;
+    }
+    if (token == "LAUNCH_INERTIAL" || token == "LI") {
+        out = FrameId::LAUNCH_INERTIAL;
+        return true;
+    }
+    if (token == "BODY" || token == "B") {
+        out = FrameId::BODY;
+        return true;
+    }
+    if (token == "TRACK" || token == "K") {
+        out = FrameId::TRACK;
+        return true;
+    }
+    if (token == "WIND" || token == "V") {
+        out = FrameId::WIND;
+        return true;
+    }
+    return false;
 }
 
 } // namespace gnc::coord

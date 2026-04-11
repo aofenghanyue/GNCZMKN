@@ -165,3 +165,23 @@
 - 维护者：优先看 `component_factory`、`component_registry`、`config_manager`、`auto_data_logger`
 
 只要按这个方向阅读，代码规模并不会显得杂乱。
+## 8.10 Soviet Coordinate System Entry
+
+Use these paths as the authoritative map for the coordinate-service redesign:
+
+| Path | Role | Notes |
+| --- | --- | --- |
+| `framework/include/gnc/services/coordinate/coordinate_service.hpp` | Generic rotation-tree service | Pure tree, registration, LCA path composition, caching, cycle protection |
+| `framework/include/gnc/services/coordinate/soviet_coordinate_system.hpp` | Built-in Soviet system formal entry | Public frame definitions, conventions, Soviet transforms, relation table, unified installer |
+| `framework/include/gnc/interfaces/coord/frame_id.hpp` | Public frame ids | Official built-in frame set only: `ECI/ECEF/NUE/LAUNCH/LAUNCH_INERTIAL/BODY/TRACK/WIND` |
+| `framework/include/gnc/libraries/coord/coord.hpp` | Low-level coord include | No longer the official Soviet-system entry |
+| `framework/include/gnc/libraries/coord/rotations.hpp` | Low-level math helpers | Only generic axis-rotation helpers remain here |
+| `tests/test_coordinate_service.cpp` | Coordinate tree + builder install regression | Verifies pure tree behavior and builder-installed Soviet system |
+| `tests/test_transform.cpp` | Soviet public transform regression | Verifies Soviet formulas only through `soviet_coordinate_system.hpp` |
+| `user/example_04_coordinate_service_soviet/config/mission.json` | Fixed upper-chain example | Uses only starter components |
+| `user/example_05_coordinate_service_local_geographic/config/mission.json` | Dynamic NUE example | Uses a small adapter provider for geodetic `[lat, lon, alt]` |
+
+Design boundary:
+
+- If you accept the framework's built-in Soviet definitions, use `soviet_coordinate_system.hpp` directly.
+- If your frame meanings, Euler definitions, or sign conventions differ, create a new coordinate-system implementation instead of modifying the built-in Soviet one.
