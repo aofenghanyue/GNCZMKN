@@ -21,8 +21,8 @@ The repository implementation follows the plugin architecture rethink baseline:
 ## Entry Points
 
 - Builtin plugin aggregator:
-  [framework/include/gnc/plugins/_builtin_plugins.hpp](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/framework/include/gnc/plugins/_builtin_plugins.hpp)
+  [framework/include/gnc/plugins/_builtin_plugins.hpp](../framework/include/gnc/plugins/_builtin_plugins.hpp)
 - Plugin registry:
-  [framework/include/gnc/core/plugin_registry.hpp](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/framework/include/gnc/core/plugin_registry.hpp)
+  [framework/include/gnc/core/plugin_registry.hpp](../framework/include/gnc/core/plugin_registry.hpp)
 - Simulation builder:
-  [framework/include/gnc/core/simulation_builder.hpp](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/framework/include/gnc/core/simulation_builder.hpp)
+  [framework/include/gnc/core/simulation_builder.hpp](../framework/include/gnc/core/simulation_builder.hpp)

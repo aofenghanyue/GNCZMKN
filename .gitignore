@@ -15,6 +15,7 @@ deps
 temp/
 *.tmp
 *.temp
+.ignore
 
 # Log files
 *.log
