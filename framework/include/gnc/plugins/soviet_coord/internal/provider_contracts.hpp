@@ -1,25 +1,13 @@
 #pragma once
 
-#include "gnc/common/math/eigen_types.hpp"
+#include "gnc/plugins/state_3dof/interfaces/i_body_airspeed_provider.hpp"
+#include "gnc/plugins/state_3dof/interfaces/i_body_attitude_provider.hpp"
+#include "gnc/plugins/state_3dof/interfaces/i_velocity_direction_provider.hpp"
 
 namespace gnc::plugins::soviet_coord {
 
-class IBodyAttitudeProvider {
-public:
-    virtual ~IBodyAttitudeProvider() = default;
-    virtual gnc::math::Matrix3 getBodyToLaunchRotation() const = 0;
-};
-
-class IVelocityDirectionProvider {
-public:
-    virtual ~IVelocityDirectionProvider() = default;
-    virtual gnc::math::Vector3 getVelocityInLaunchFrame() const = 0;
-};
-
-class IBodyAirspeedProvider {
-public:
-    virtual ~IBodyAirspeedProvider() = default;
-    virtual gnc::math::Vector3 getAirspeedInBodyFrame() const = 0;
-};
+using IBodyAttitudeProvider = gnc::plugins::state_3dof::IBodyAttitudeProvider;
+using IVelocityDirectionProvider = gnc::plugins::state_3dof::IVelocityDirectionProvider;
+using IBodyAirspeedProvider = gnc::plugins::state_3dof::IBodyAirspeedProvider;
 
 } // namespace gnc::plugins::soviet_coord

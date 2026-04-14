@@ -45,6 +45,9 @@ public:
         build_errors_.clear();
         build_warnings_.clear();
         deferred_service_actions_.clear();
+        global_services_.clear();
+        environment_ = EnvironmentInstance{};
+        vehicles_.clear();
 
         const auto& simulation = config_.simulation();
         SimulatorConfig simulator_config;
@@ -54,12 +57,11 @@ public:
         buildIntegrator();
 
         buildServices(config_.globalServices(), global_services_, "global", "");
-        buildEnvironment();
-
-        if (config_.isMultiVehicle()) {
-            buildMultiVehicle();
+        const auto& entities = config_.entities();
+        if (!entities.isArray()) {
+            addBuildError("Mission configuration must define an 'entities' array.");
         } else {
-            buildSingleVehicle();
+            buildEntities(entities);
         }
 
         runDeferredServiceActions();
@@ -441,60 +443,86 @@ private:
         return success;
     }
 
-    void buildEnvironment() {
-        const auto& environment_config = config_.root()["environment"];
-        if (environment_config.isNull()) {
+    void buildEntities(const ConfigNode& entities) {
+        vehicles_.reserve(entities.size());
+
+        for (size_t i = 0; i < entities.size(); ++i) {
+            const auto& entity_config = entities[i];
+            if (entity_config["role"].asString("vehicle") == "environment") {
+                buildEntity(entity_config, i);
+            }
+        }
+
+        for (size_t i = 0; i < entities.size(); ++i) {
+            const auto& entity_config = entities[i];
+            if (entity_config["role"].asString("vehicle") != "environment") {
+                buildEntity(entity_config, i);
+            }
+        }
+    }
+
+    void buildEntity(const ConfigNode& entity_config, size_t index) {
+        if (!entity_config.isObject()) {
+            addBuildError("Entity at index " + std::to_string(index) +
+                          " must be an object.");
             return;
         }
 
-        environment_.id = "environment";
-        buildServices(environment_config["services"], environment_.services, "environment", "env");
-        registerComponents(environment_config["components"],
-                           "environment configuration",
-                           "env.",
-                           global_services_,
-                           environment_.services,
-                           nullptr,
-                           environment_.components);
-    }
+        const std::string id = entity_config["id"].asString();
+        if (id.empty()) {
+            addBuildError("Entity at index " + std::to_string(index) +
+                          " is missing an id.");
+            return;
+        }
 
-    void buildSingleVehicle() {
-        buildServices(config_.services(), global_services_, "flight_vehicle", "");
-        registerComponents(config_.components(),
-                           "single-vehicle configuration",
-                           "",
-                           global_services_,
-                           environment_.services,
-                           nullptr,
-                           scratch_components_);
-    }
+        const std::string role = entity_config["role"].asString("vehicle");
+        const auto& components = entity_config["components"];
+        if (!components.isArray()) {
+            addBuildError("Entity '" + id + "' must define a 'components' array.");
+            return;
+        }
 
-    void buildMultiVehicle() {
-        const auto& vehicle_configs = config_.vehicles();
-        vehicles_.reserve(vehicle_configs.size());
-        for (size_t i = 0; i < vehicle_configs.size(); ++i) {
-            const auto& vehicle_config = vehicle_configs[i];
-            VehicleInstance vehicle;
-            vehicle.id = vehicle_config["id"].asString();
-            if (vehicle.id.empty()) {
-                addBuildError("Vehicle at index " + std::to_string(i) +
-                              " is missing an id.");
-                continue;
+        if (role == "environment") {
+            if (!environment_.id.empty()) {
+                addBuildError("Multiple environment entities are not supported. Existing id '" +
+                              environment_.id + "', duplicate id '" + id + "'.");
+                return;
             }
 
-            buildServices(vehicle_config["services"],
-                          vehicle.services,
-                          vehicle.id,
-                          vehicle.id);
-            registerComponents(vehicle_config["components"],
-                               "vehicle '" + vehicle.id + "'",
-                               vehicle.id + ".",
+            environment_.id = id;
+            buildServices(entity_config["services"],
+                          environment_.services,
+                          "environment entity '" + id + "'",
+                          "env");
+            registerComponents(components,
+                               "environment entity '" + id + "'",
+                               "env.",
                                global_services_,
                                environment_.services,
-                               &vehicle.services,
-                               vehicle.components);
-            vehicles_.push_back(std::move(vehicle));
+                               nullptr,
+                               environment_.components);
+            return;
         }
+
+        if (role != "vehicle") {
+            addBuildError("Entity '" + id + "' has unsupported role '" + role + "'.");
+            return;
+        }
+
+        VehicleInstance vehicle;
+        vehicle.id = id;
+        buildServices(entity_config["services"],
+                      vehicle.services,
+                      "vehicle entity '" + id + "'",
+                      id);
+        registerComponents(components,
+                           "vehicle entity '" + id + "'",
+                           id + ".",
+                           global_services_,
+                           environment_.services,
+                           &vehicle.services,
+                           vehicle.components);
+        vehicles_.push_back(std::move(vehicle));
     }
 
     void registerComponents(const ConfigNode& components,
@@ -608,7 +636,6 @@ private:
     ServiceContext global_services_;
     EnvironmentInstance environment_;
     std::vector<VehicleInstance> vehicles_;
-    std::vector<ComponentBase*> scratch_components_;
     std::vector<PluginRegistry::DeferredAction> deferred_service_actions_;
     std::vector<std::string> build_errors_;
     std::vector<std::string> build_warnings_;

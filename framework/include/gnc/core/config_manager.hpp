@@ -295,9 +295,24 @@ public:
     
     /// 获取组件配置列表
     const ConfigNode& components() const { return config_["components"]; }
+
+    /// 获取实体配置列表
+    const ConfigNode& entities() const { return config_["entities"]; }
     
     /// 获取指定组件的配置
     const ConfigNode& componentConfig(const std::string& name) const {
+        const auto& entity_list = entities();
+        if (entity_list.isArray()) {
+            for (size_t entity_index = 0; entity_index < entity_list.size(); ++entity_index) {
+                const auto& comps = entity_list[entity_index]["components"];
+                for (size_t i = 0; i < comps.size(); ++i) {
+                    if (comps[i]["name"].asString() == name) {
+                        return comps[i]["config"];
+                    }
+                }
+            }
+        }
+
         const auto& comps = components();
         for (size_t i = 0; i < comps.size(); ++i) {
             if (comps[i]["name"].asString() == name) {
@@ -316,6 +331,8 @@ public:
     
     /// 获取全局服务配置
     const ConfigNode& globalServices() const { return config_["global_services"]; }
+
+    bool hasEntities() const { return config_.has("entities"); }
     
     /// 检查是否为多飞行器模式
     bool isMultiVehicle() const { return config_.has("vehicles"); }

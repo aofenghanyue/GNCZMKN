@@ -27,7 +27,7 @@ public:
         factory.registerType<PointMassSpherical,
                              gnc::interfaces::IContinuousSystem,
                              IStateSolver3DOF,
-                             gnc::plugins::soviet_coord::IVelocityDirectionProvider,
+                             IVelocityDirectionProvider,
                              gnc::interfaces::IObservable>(
             "state_3dof.point_mass_spherical",
             gnc::core::ComponentCategory::Builtin,

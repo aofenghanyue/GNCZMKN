@@ -132,19 +132,19 @@ int main() {
 
         gnc::core::ComponentRegistry registry;
         registry.add<ConstantAtmosphere, gnc::plugins::environment::IAtmosphere>(
-            "atmosphere", std::make_unique<ConstantAtmosphere>());
+            "env.atmosphere", std::make_unique<ConstantAtmosphere>());
         registry.add<ConstantGravity, gnc::plugins::environment::IGravity>(
-            "gravity", std::make_unique<ConstantGravity>());
+            "env.gravity", std::make_unique<ConstantGravity>());
         registry.add<ConstantEarth, gnc::plugins::environment::IEarth>(
-            "earth", std::make_unique<ConstantEarth>());
+            "env.earth", std::make_unique<ConstantEarth>());
         registry.add<ConstantAeroModel, gnc::plugins::aero::IAeroModel>(
-            "aero", std::make_unique<ConstantAeroModel>());
+            "missile.aero", std::make_unique<ConstantAeroModel>());
         registry.add<ConstantGuidance, gnc::plugins::state_3dof::IFlightCommandProvider3DOF>(
-            "guidance", std::make_unique<ConstantGuidance>());
+            "missile.guidance", std::make_unique<ConstantGuidance>());
 
         gnc::plugins::state_3dof::PointMassSpherical spherical;
         spherical.configure(makeSphericalConfig());
-        gnc::core::ScopedRegistry scoped("", registry, "dynamics");
+        gnc::core::ScopedRegistry scoped("missile", registry, "missile.dynamics");
         spherical.injectDependencies(scoped);
 
         Eigen::VectorXd spherical_dx;

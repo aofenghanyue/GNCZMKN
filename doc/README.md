@@ -13,8 +13,12 @@ The repository implementation follows the plugin architecture rethink baseline:
 
 ## Key Rules
 
-- Component configuration uses stable plugin-qualified type names.
-- Service configuration uses `services.<plugin_name>`.
+- Mission configuration uses an `entities[]` array with stable
+  plugin-qualified type names.
+- Environment components are registered as `env.*`; vehicle components are
+  registered as `<entity_id>.*`.
+- Service configuration uses `global_services.<plugin_name>` or
+  `entities[i].services.<plugin_name>`.
 - The Soviet coordinate service owns the `I / E / N / L / LI / B / K / V` coordinate-system chain.
 - The lower coordinate-system chain is activated by provider interfaces, not by hardcoding a specific degree-of-freedom model.
 

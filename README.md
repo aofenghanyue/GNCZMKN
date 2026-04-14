@@ -20,7 +20,8 @@ Core design principles:
 
 - GNC researchers should focus on algorithm modules, not framework plumbing.
 - The framework handles assembly, integration, logging, and dependency management.
-- Components execute in mission JSON declaration order.
+- Environment entities are assembled before vehicle entities.
+- Components execute in entity-local mission JSON declaration order.
 - 3DOF and a future 6DOF stack are independent Layer-1 plugins rather than a
   shared state-interface hierarchy.
 
@@ -29,7 +30,8 @@ This repository now uses a plugin-oriented architecture built around four layers
 1. `common/`, `core/`, `infrastructure/`, and top-level `interfaces/` provide the simulation kernel.
 2. `plugins/environment`, `plugins/aero`, `plugins/state_3dof`, and `plugins/soviet_coord` provide the first production plugin set.
 3. `user/<project>/components` provides project-owned GNC algorithm components.
-4. Mission JSON assembles components and services through stable plugin-qualified type identifiers.
+4. Mission JSON assembles entity-local components and services through stable
+   plugin-qualified type identifiers.
 
 ## Current Baseline
 
@@ -39,7 +41,10 @@ This repository now uses a plugin-oriented architecture built around four layers
   - `environment.wgs84_earth`
   - `aero.simple_polynomial`
   - `state_3dof.point_mass_spherical`
-- Coordinate transformation services are configured through `services.soviet_coord`.
+- Mission configuration is entity-first: environment components are registered
+  as `env.*`, and vehicle components are registered as `<entity_id>.*`.
+- Coordinate transformation services are configured through
+  `global_services.<plugin_name>` or `entities[i].services.<plugin_name>`.
 
 ## Build
 
@@ -76,6 +81,7 @@ To run a mission that depends on another project directory, update
 
 - [doc/README.md](doc/README.md)
 - [doc/adr/ADR-001-four-layer-plugin-model.md](doc/adr/ADR-001-four-layer-plugin-model.md)
+- [doc/adr/ADR-004-fixed-timestep-design.md](doc/adr/ADR-004-fixed-timestep-design.md)
 - [doc/guide-new-component.md](doc/guide-new-component.md)
 - [framework/include/gnc/plugins/_builtin_plugins.hpp](framework/include/gnc/plugins/_builtin_plugins.hpp)
 - [framework/include/gnc/core/plugin_registry.hpp](framework/include/gnc/core/plugin_registry.hpp)

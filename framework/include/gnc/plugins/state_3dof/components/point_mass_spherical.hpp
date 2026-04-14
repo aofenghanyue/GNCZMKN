@@ -11,8 +11,8 @@
 #include "gnc/plugins/environment/interfaces/i_atmosphere.hpp"
 #include "gnc/plugins/environment/interfaces/i_earth.hpp"
 #include "gnc/plugins/environment/interfaces/i_gravity.hpp"
-#include "gnc/plugins/soviet_coord/internal/provider_contracts.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
+#include "gnc/plugins/state_3dof/interfaces/i_velocity_direction_provider.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
 
 #include <algorithm>
@@ -23,7 +23,7 @@ namespace gnc::plugins::state_3dof {
 class PointMassSpherical final : public gnc::core::ComponentBase,
                                  public gnc::interfaces::IContinuousSystem,
                                  public IStateSolver3DOF,
-                                 public gnc::plugins::soviet_coord::IVelocityDirectionProvider,
+                                 public IVelocityDirectionProvider,
                                  public gnc::interfaces::IObservable {
 public:
     PointMassSpherical() : ComponentBase("PointMassSpherical") {
@@ -56,11 +56,11 @@ public:
 
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
         registry.bindAll(
-            gnc::core::bind(atmosphere_, "atmosphere"),
-            gnc::core::bind(gravity_, "gravity"),
+            gnc::core::bind(atmosphere_, "env.atmosphere"),
+            gnc::core::bind(gravity_, "env.gravity"),
             gnc::core::bind(aero_model_, "aero"),
             gnc::core::bind(guidance_, "guidance"),
-            gnc::core::bindIfPresent(earth_, "earth"));
+            gnc::core::bindIfPresent(earth_, "env.earth"));
     }
 
     const gnc::core::StateLayout& getStateLayout() const override { return layout_; }

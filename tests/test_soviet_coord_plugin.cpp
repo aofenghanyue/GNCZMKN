@@ -7,7 +7,7 @@
 #include "gnc/plugins/_builtin_plugins.hpp"
 #include "gnc/plugins/environment/interfaces/i_earth.hpp"
 #include "gnc/plugins/soviet_coord/interfaces/i_soviet_coord_service.hpp"
-#include "gnc/plugins/soviet_coord/internal/provider_contracts.hpp"
+#include "gnc/plugins/state_3dof/interfaces/i_velocity_direction_provider.hpp"
 
 #include <exception>
 #include <iostream>
@@ -35,7 +35,7 @@ public:
 };
 
 class FixedVelocityDirection final : public gnc::core::ComponentBase,
-                                     public gnc::plugins::soviet_coord::IVelocityDirectionProvider {
+                                     public gnc::plugins::state_3dof::IVelocityDirectionProvider {
 public:
     FixedVelocityDirection() : ComponentBase("FixedVelocityDirection") {}
     void update(double) override {}
@@ -71,7 +71,7 @@ int main() {
         gnc::core::ComponentRegistry registry;
         registry.add<FixedEarth, gnc::plugins::environment::IEarth>(
             "earth", std::make_unique<FixedEarth>());
-        registry.add<FixedVelocityDirection, gnc::plugins::soviet_coord::IVelocityDirectionProvider>(
+        registry.add<FixedVelocityDirection, gnc::plugins::state_3dof::IVelocityDirectionProvider>(
             "velocity", std::make_unique<FixedVelocityDirection>());
 
         gnc::core::ServiceContext services;

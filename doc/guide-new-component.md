@@ -39,11 +39,17 @@ Mission entry:
 
 ```json
 {
-  "components": [
+  "entities": [
     {
-      "type": "example.my_component",
-      "name": "my_component",
-      "config": {}
+      "id": "vehicle",
+      "role": "vehicle",
+      "components": [
+        {
+          "type": "example.my_component",
+          "name": "my_component",
+          "config": {}
+        }
+      ]
     }
   ]
 }
@@ -107,11 +113,14 @@ Rules:
 - `bindIfPresent(...)` is for optional dependencies.
 - names are resolved relative to the component scope when no explicit prefix is
   given.
+- cross-entity dependencies should use explicit scoped names such as
+  `env.atmosphere`.
 
 Important:
 
-- components execute in mission JSON declaration order, so keep provider
-  components earlier than the components that depend on them.
+- environment entities are built before vehicle entities.
+- within one entity, keep provider components earlier than the components that
+  depend on them.
 
 ## Services
 
