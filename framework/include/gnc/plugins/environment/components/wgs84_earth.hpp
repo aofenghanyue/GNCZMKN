@@ -40,9 +40,4 @@ public:
     }
 };
 
-GNC_REGISTER_BUILTIN_COMPONENT(
-    "environment.wgs84_earth",
-    Wgs84Earth,
-    gnc::plugins::environment::IEarth)
-
 } // namespace gnc::plugins::environment

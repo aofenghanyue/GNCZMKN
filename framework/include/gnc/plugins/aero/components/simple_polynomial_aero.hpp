@@ -91,10 +91,4 @@ private:
     gnc::plugins::state_3dof::IFlightCommandProvider3DOF* command_provider_ = nullptr;
 };
 
-GNC_REGISTER_BUILTIN_COMPONENT(
-    "aero.simple_polynomial",
-    SimplePolynomialAero,
-    gnc::plugins::aero::IAeroModel,
-    gnc::interfaces::IObservable)
-
 } // namespace gnc::plugins::aero

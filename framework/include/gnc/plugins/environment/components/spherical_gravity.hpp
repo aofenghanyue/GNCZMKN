@@ -50,9 +50,4 @@ private:
     double sea_level_gravity_mps2_ = 9.80665;
 };
 
-GNC_REGISTER_BUILTIN_COMPONENT(
-    "environment.spherical_gravity",
-    SphericalGravity,
-    gnc::plugins::environment::IGravity)
-
 } // namespace gnc::plugins::environment

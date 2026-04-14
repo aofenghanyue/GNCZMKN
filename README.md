@@ -1,5 +1,29 @@
 # GNC Simulation Framework
 
+## Architecture
+
+This repository is a compile-time modular C++ simulation framework for GNC
+research. Components are integrated as header-only modules and builtin plugins
+register their component types through `Plugin::install()`; there is no runtime
+dynamic loading.
+
+The framework follows a four-layer plugin model:
+
+| Layer | Role | Examples |
+| :---: | ---- | -------- |
+| 0 | Simulation kernel | `ComponentBase`, `Simulator`, registries, config, logging |
+| 1 | Hardware / subsystem plugins | `environment`, `aero`, `state_3dof` |
+| 2 | System plugins | `soviet_coord` |
+| 3 | User GNC algorithms | `user/<project>/components/` |
+
+Core design principles:
+
+- GNC researchers should focus on algorithm modules, not framework plumbing.
+- The framework handles assembly, integration, logging, and dependency management.
+- Components execute in mission JSON declaration order.
+- 3DOF and a future 6DOF stack are independent Layer-1 plugins rather than a
+  shared state-interface hierarchy.
+
 This repository now uses a plugin-oriented architecture built around four layers:
 
 1. `common/`, `core/`, `infrastructure/`, and top-level `interfaces/` provide the simulation kernel.
@@ -29,14 +53,14 @@ ctest --test-dir build-mingw --output-on-failure
 
 ## Run
 
-The active project is controlled by [user/active_project](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/user/active_project).
+The active project is controlled by [user/active_project](user/active_project).
 
 - Default pluginized minimal mission:
-  [user/config/missions/default.json](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/user/config/missions/default.json)
+  [user/config/missions/default.json](user/config/missions/default.json)
 - Atmospheric 3DOF mission:
-  [user/example_02_atmospheric_3dof/config/mission.json](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/user/example_02_atmospheric_3dof/config/mission.json)
+  [user/example_02_atmospheric_3dof/config/mission.json](user/example_02_atmospheric_3dof/config/mission.json)
 - Soviet coordinate service probe:
-  [user/example_03_soviet_coord/config/mission.json](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/user/example_03_soviet_coord/config/mission.json)
+  [user/example_03_soviet_coord/config/mission.json](user/example_03_soviet_coord/config/mission.json)
 
 ```powershell
 build-mingw\\bin\\gnc_sim.exe
@@ -50,6 +74,8 @@ To run a mission that depends on another project directory, update
 
 ## Reference
 
-- [doc/README.md](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/doc/README.md)
-- [framework/include/gnc/plugins/_builtin_plugins.hpp](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/framework/include/gnc/plugins/_builtin_plugins.hpp)
-- [framework/include/gnc/core/plugin_registry.hpp](/C:/Users/17721/.codex/worktrees/bc05/GNCZMKN/framework/include/gnc/core/plugin_registry.hpp)
+- [doc/README.md](doc/README.md)
+- [doc/adr/ADR-001-four-layer-plugin-model.md](doc/adr/ADR-001-four-layer-plugin-model.md)
+- [doc/guide-new-component.md](doc/guide-new-component.md)
+- [framework/include/gnc/plugins/_builtin_plugins.hpp](framework/include/gnc/plugins/_builtin_plugins.hpp)
+- [framework/include/gnc/core/plugin_registry.hpp](framework/include/gnc/core/plugin_registry.hpp)

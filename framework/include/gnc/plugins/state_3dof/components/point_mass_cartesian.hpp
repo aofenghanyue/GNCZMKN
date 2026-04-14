@@ -120,11 +120,4 @@ private:
     mutable gnc::math::Vector3 velocity_cache_ = gnc::math::Vector3::Zero();
 };
 
-GNC_REGISTER_BUILTIN_COMPONENT(
-    "state_3dof.point_mass_cartesian",
-    PointMassCartesian,
-    gnc::interfaces::IContinuousSystem,
-    gnc::plugins::state_3dof::IStateSolver3DOF,
-    gnc::interfaces::IObservable)
-
 } // namespace gnc::plugins::state_3dof

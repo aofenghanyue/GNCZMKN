@@ -111,9 +111,4 @@ private:
     Layer layers_[kLayerCount]{};
 };
 
-GNC_REGISTER_BUILTIN_COMPONENT(
-    "environment.standard_atmosphere",
-    StandardAtmosphere,
-    gnc::plugins::environment::IAtmosphere)
-
 } // namespace gnc::plugins::environment

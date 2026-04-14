@@ -208,12 +208,4 @@ private:
     mutable gnc::math::Vector3 velocity_launch_cache_ = gnc::math::Vector3::Zero();
 };
 
-GNC_REGISTER_BUILTIN_COMPONENT(
-    "state_3dof.point_mass_spherical",
-    PointMassSpherical,
-    gnc::interfaces::IContinuousSystem,
-    gnc::plugins::state_3dof::IStateSolver3DOF,
-    gnc::plugins::soviet_coord::IVelocityDirectionProvider,
-    gnc::interfaces::IObservable)
-
 } // namespace gnc::plugins::state_3dof

@@ -42,9 +42,20 @@ public:
         if (plugin_names_.count(plugin_name) > 0) {
             return;
         }
+
+        for (const auto& dependency : plugin.dependencies()) {
+            if (plugin_names_.count(dependency) == 0) {
+                throw std::runtime_error(
+                    "Plugin '" + plugin_name + "' depends on '" + dependency +
+                    "' which has not been registered yet. Check the include order in "
+                    "_builtin_plugins.hpp.");
+            }
+        }
+
         plugin.install(*this);
         plugin_names_.insert(plugin_name);
         ordered_plugins_.push_back(plugin_name);
+        plugin_layers_[plugin_name] = plugin.layer();
     }
 
     void registerServiceInstaller(const std::string& service_name,
@@ -73,6 +84,11 @@ public:
         return ordered_plugins_;
     }
 
+    PluginLayer getPluginLayer(const std::string& plugin_name) const {
+        const auto it = plugin_layers_.find(plugin_name);
+        return it != plugin_layers_.end() ? it->second : PluginLayer::Application;
+    }
+
     std::vector<std::string> getServiceNames() const {
         std::vector<std::string> names;
         names.reserve(service_installers_.size());
@@ -86,6 +102,7 @@ private:
     PluginRegistry() = default;
 
     std::unordered_map<std::string, ServiceInstaller> service_installers_;
+    std::unordered_map<std::string, PluginLayer> plugin_layers_;
     std::unordered_set<std::string> plugin_names_;
     std::vector<std::string> ordered_plugins_;
 };

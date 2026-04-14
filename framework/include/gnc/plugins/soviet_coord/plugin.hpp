@@ -13,6 +13,11 @@ namespace gnc::plugins::soviet_coord {
 class SovietCoordPlugin final : public gnc::core::Plugin {
 public:
     const char* name() const override { return "soviet_coord"; }
+    gnc::core::PluginLayer layer() const override { return gnc::core::PluginLayer::System; }
+
+    std::vector<std::string> dependencies() const override {
+        return {"environment"};
+    }
 
     void install(gnc::core::PluginRegistry& registry) const override {
         registry.registerServiceInstaller(
