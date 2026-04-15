@@ -122,6 +122,42 @@ Important:
 - within one entity, keep provider components earlier than the components that
   depend on them.
 
+## Entity Naming And Scope
+
+Mission assembly now uses explicit entity prefixes:
+
+- environment components are registered as `env.*`,
+- single-vehicle missions should usually use the entity id `vehicle`,
+- multi-vehicle missions should use semantic ids such as `missile` or `target`.
+
+Practical rules:
+
+- use local names such as `guidance` only for same-entity dependency lookup,
+- use fully scoped names such as `env.atmosphere` for cross-entity bindings,
+- use fully scoped names in `simulation.stop_conditions` and `outputs.record`.
+
+Example:
+
+```json
+{
+  "simulation": {
+    "stop_conditions": [
+      {
+        "type": "component_field_below",
+        "component": "vehicle.dynamics",
+        "field": "altitude_m",
+        "value": 0.0
+      }
+    ]
+  },
+  "outputs": {
+    "record": {
+      "vehicle.dynamics": "all"
+    }
+  }
+}
+```
+
 ## Services
 
 Use `injectServices()` for plugin-installed services:
@@ -134,6 +170,12 @@ void injectServices(gnc::core::ServiceContext& services) override {
 
 Use services when the dependency is an infrastructure-style facility provided by
 the plugin system rather than another mission component.
+
+Visibility rule:
+
+- `global_services` are visible everywhere,
+- environment services are visible to all vehicle entities,
+- vehicle-local services stay local to that vehicle.
 
 ## Observable Fields
 

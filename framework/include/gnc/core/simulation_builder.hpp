@@ -1,11 +1,9 @@
 #pragma once
 
-#include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/integrators/euler_integrator.hpp"
 #include "gnc/core/integrators/rk4_integrator.hpp"
-#include "gnc/core/plugin_registry.hpp"
-#include "gnc/core/service_context.hpp"
+#include "gnc/core/mission_assembler.hpp"
 #include "gnc/core/simulator.hpp"
 #include "gnc/infrastructure/dependency_validator.hpp"
 #include "gnc/common/string_utils.hpp"
@@ -13,23 +11,10 @@
 #include "gnc/interfaces/i_observable.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <sstream>
 #include <unordered_set>
 
 namespace gnc::core {
-
-struct EntityInstance {
-    std::string id;
-    ServiceContext services;
-    std::vector<ComponentBase*> components;
-};
-
-struct VehicleInstance : EntityInstance {
-};
-
-struct EnvironmentInstance : EntityInstance {
-};
 
 class SimulationBuilder {
 public:
@@ -44,10 +29,16 @@ public:
     Simulator& build() {
         build_errors_.clear();
         build_warnings_.clear();
-        deferred_service_actions_.clear();
-        global_services_.clear();
-        environment_ = EnvironmentInstance{};
-        vehicles_.clear();
+
+        MissionAssembler assembler(
+            simulator_,
+            global_services_,
+            environment_,
+            vehicles_,
+            deferred_service_actions_,
+            [this](const std::string& message) { addBuildError(message); },
+            [this](const std::string& message) { addBuildWarning(message); });
+        assembler.reset();
 
         const auto& simulation = config_.simulation();
         SimulatorConfig simulator_config;
@@ -56,15 +47,15 @@ public:
         simulator_.configure(simulator_config);
         buildIntegrator();
 
-        buildServices(config_.globalServices(), global_services_, "global", "");
+        assembler.installGlobalServices(config_.globalServices());
         const auto& entities = config_.entities();
         if (!entities.isArray()) {
             addBuildError("Mission configuration must define an 'entities' array.");
         } else {
-            buildEntities(entities);
+            assembler.buildEntities(entities);
         }
 
-        runDeferredServiceActions();
+        assembler.runDeferredServiceActions();
 
         auto validation = DependencyValidator::validate(simulator_.getRegistry());
         for (const auto& error : validation.errors) {
@@ -142,50 +133,6 @@ private:
             return "(none)";
         }
         return joinStrings(continuous_system->getStateLayout().names());
-    }
-
-    static std::string buildUnknownTypeMessage(const std::string& type_name,
-                                               const std::string& component_name,
-                                               const ComponentFactory& factory,
-                                               const std::string& context = "") {
-        std::string message = "Unknown component type: '" + type_name +
-                              "' (component name: '" + component_name + "')";
-        if (!context.empty()) {
-            message += " in " + context;
-        }
-        message += ". Available registered types: " + factory.describeRegisteredTypes();
-
-        const std::string suggestion =
-            common::findClosestMatch(type_name, factory.getRegisteredTypes());
-        if (!suggestion.empty()) {
-            message += ". Did you mean '" + suggestion + "'?";
-        }
-        return message;
-    }
-
-    static std::string buildUnknownServiceMessage(const std::string& service_name) {
-        std::string message = "Unknown service plugin '" + service_name + "'.";
-        const auto available = PluginRegistry::instance().getServiceNames();
-        if (!available.empty()) {
-            message += " Available services: " + joinStrings(available) + ".";
-        }
-        const std::string suggestion =
-            common::findClosestMatch(service_name, available);
-        if (!suggestion.empty()) {
-            message += " Did you mean '" + suggestion + "'?";
-        }
-        return message;
-    }
-
-    void annotateComponentMetadata(ComponentBase* component,
-                                   const std::string& type_name,
-                                   const ComponentFactory& factory) {
-        if (!component) {
-            return;
-        }
-        component->setTypeNameInternal_(type_name);
-        component->setComponentCategoryInternal_(toString(factory.getCategory(type_name)));
-        component->setRegistrationOriginInternal_(factory.getRegistrationOrigin(type_name));
     }
 
     void logComponentInventory() {
@@ -278,17 +225,6 @@ private:
 
     void addBuildWarning(const std::string& message) {
         build_warnings_.push_back(message);
-    }
-
-    void checkUnusedConfigKeys(const std::string& component_name,
-                               const std::string& type_name,
-                               const ConfigNode& config) {
-        auto unused = config.getUnusedKeys();
-        if (unused.empty()) {
-            return;
-        }
-        addBuildWarning("Component '" + component_name + "' (type: " + type_name +
-                        ") has unrecognized config keys: " + joinStrings(unused) + ".");
     }
 
     bool reportBuildDiagnostics() {
@@ -443,193 +379,6 @@ private:
         return success;
     }
 
-    void buildEntities(const ConfigNode& entities) {
-        vehicles_.reserve(entities.size());
-
-        for (size_t i = 0; i < entities.size(); ++i) {
-            const auto& entity_config = entities[i];
-            if (entity_config["role"].asString("vehicle") == "environment") {
-                buildEntity(entity_config, i);
-            }
-        }
-
-        for (size_t i = 0; i < entities.size(); ++i) {
-            const auto& entity_config = entities[i];
-            if (entity_config["role"].asString("vehicle") != "environment") {
-                buildEntity(entity_config, i);
-            }
-        }
-    }
-
-    void buildEntity(const ConfigNode& entity_config, size_t index) {
-        if (!entity_config.isObject()) {
-            addBuildError("Entity at index " + std::to_string(index) +
-                          " must be an object.");
-            return;
-        }
-
-        const std::string id = entity_config["id"].asString();
-        if (id.empty()) {
-            addBuildError("Entity at index " + std::to_string(index) +
-                          " is missing an id.");
-            return;
-        }
-
-        const std::string role = entity_config["role"].asString("vehicle");
-        const auto& components = entity_config["components"];
-        if (!components.isArray()) {
-            addBuildError("Entity '" + id + "' must define a 'components' array.");
-            return;
-        }
-
-        if (role == "environment") {
-            if (!environment_.id.empty()) {
-                addBuildError("Multiple environment entities are not supported. Existing id '" +
-                              environment_.id + "', duplicate id '" + id + "'.");
-                return;
-            }
-
-            environment_.id = id;
-            buildServices(entity_config["services"],
-                          environment_.services,
-                          "environment entity '" + id + "'",
-                          "env");
-            registerComponents(components,
-                               "environment entity '" + id + "'",
-                               "env.",
-                               global_services_,
-                               environment_.services,
-                               nullptr,
-                               environment_.components);
-            return;
-        }
-
-        if (role != "vehicle") {
-            addBuildError("Entity '" + id + "' has unsupported role '" + role + "'.");
-            return;
-        }
-
-        VehicleInstance vehicle;
-        vehicle.id = id;
-        buildServices(entity_config["services"],
-                      vehicle.services,
-                      "vehicle entity '" + id + "'",
-                      id);
-        registerComponents(components,
-                           "vehicle entity '" + id + "'",
-                           id + ".",
-                           global_services_,
-                           environment_.services,
-                           &vehicle.services,
-                           vehicle.components);
-        vehicles_.push_back(std::move(vehicle));
-    }
-
-    void registerComponents(const ConfigNode& components,
-                            const std::string& context,
-                            const std::string& name_prefix,
-                            ServiceContext& global_services,
-                            ServiceContext& environment_services,
-                            ServiceContext* local_services,
-                            std::vector<ComponentBase*>& owner_components) {
-        auto& registry = simulator_.getRegistry();
-        auto& factory = ComponentFactory::instance();
-
-        for (size_t i = 0; i < components.size(); ++i) {
-            const auto& component_config = components[i];
-            const std::string type_name = component_config["type"].asString();
-            const std::string base_name = component_config["name"].asString();
-            const std::string full_name = name_prefix + base_name;
-
-            if (type_name.empty() || base_name.empty()) {
-                addBuildError("Component at index " + std::to_string(i) +
-                              " in " + context + " is missing type or name.");
-                continue;
-            }
-            if (!factory.hasType(type_name)) {
-                addBuildError(buildUnknownTypeMessage(type_name, full_name, factory, context));
-                continue;
-            }
-            if (registry.has(full_name)) {
-                addBuildError("Duplicate component name '" + full_name + "'.");
-                continue;
-            }
-
-            auto component = factory.create(type_name);
-            auto* component_ptr = component.get();
-            annotateComponentMetadata(component_ptr, type_name, factory);
-
-            const auto& config = component_config["config"];
-            config.resetAccessTracking();
-            component_ptr->configure(config);
-            checkUnusedConfigKeys(full_name, type_name, config);
-
-            component_ptr->injectServices(global_services);
-            component_ptr->injectServices(environment_services);
-            if (local_services) {
-                component_ptr->injectServices(*local_services);
-            }
-
-            owner_components.push_back(component_ptr);
-            registry.addDynamic(full_name,
-                                std::move(component),
-                                factory.getInterfaces(type_name));
-        }
-    }
-
-    void buildServices(const ConfigNode& service_config,
-                       ServiceContext& services,
-                       const std::string& service_scope_name,
-                       const std::string& registry_scope) {
-        if (service_config.isNull()) {
-            return;
-        }
-        if (!service_config.isObject()) {
-            addBuildError("Service block for scope '" + service_scope_name +
-                          "' must be an object.");
-            return;
-        }
-
-        for (const auto& [service_name, config] : service_config) {
-            if (!config.isObject()) {
-                addBuildError("Service '" + service_name + "' in scope '" +
-                              service_scope_name + "' must be an object.");
-                continue;
-            }
-            if (config.has("enabled") && !config["enabled"].asBool(true)) {
-                continue;
-            }
-            if (!PluginRegistry::instance().hasServiceInstaller(service_name)) {
-                addBuildError(buildUnknownServiceMessage(service_name));
-                continue;
-            }
-
-            try {
-                PluginRegistry::ServiceInstallRequest request{
-                    config,
-                    services,
-                    service_scope_name,
-                    registry_scope,
-                    deferred_service_actions_};
-                PluginRegistry::instance().installService(service_name, request);
-            } catch (const std::exception& e) {
-                addBuildError("Service '" + service_name + "' in scope '" +
-                              service_scope_name + "' failed to install: " + e.what());
-            }
-        }
-    }
-
-    void runDeferredServiceActions() {
-        auto& registry = simulator_.getRegistry();
-        for (const auto& action : deferred_service_actions_) {
-            try {
-                action(registry);
-            } catch (const std::exception& e) {
-                addBuildError("Deferred service installation failed: " +
-                              std::string(e.what()));
-            }
-        }
-    }
 
     ConfigManager config_;
     Simulator simulator_;

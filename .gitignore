@@ -11,6 +11,7 @@ deps
 # !.vscode/extensions.json
 # *.code-workspace
 .agent/
+AGENT.md
 # Temporary files
 temp/
 *.tmp

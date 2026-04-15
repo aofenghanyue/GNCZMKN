@@ -1,28 +1,38 @@
-# Plugin Architecture Reference
+# Documentation Index
 
-The repository implementation follows the plugin architecture rethink baseline:
+## Quick Start
 
-- The simulation kernel keeps only engine-level mechanisms in `common/`, `core/`, `infrastructure/`, and top-level `interfaces/`.
-- Domain capabilities are implemented as plugins under `framework/include/gnc/plugins/`.
-- The first supported plugin set is:
-  - `environment`
-  - `aero`
-  - `state_3dof`
-  - `soviet_coord`
-- User-owned GNC algorithms remain in `user/<project>/components/`.
+- [How To Add A New Component](guide-new-component.md)
+- [Glossary](glossary.md)
 
-## Key Rules
+## Architecture Decisions
 
-- Mission configuration uses an `entities[]` array with stable
-  plugin-qualified type names.
-- Environment components are registered as `env.*`; vehicle components are
-  registered as `<entity_id>.*`.
-- Service configuration uses `global_services.<plugin_name>` or
-  `entities[i].services.<plugin_name>`.
-- The Soviet coordinate service owns the `I / E / N / L / LI / B / K / V` coordinate-system chain.
-- The lower coordinate-system chain is activated by provider interfaces, not by hardcoding a specific degree-of-freedom model.
+- [ADR-001: Four-Layer Plugin Model](adr/ADR-001-four-layer-plugin-model.md)
+- [ADR-002: Compile-Time Modularity](adr/ADR-002-compile-time-modularity.md)
+- [ADR-003: Entity-First Mission Model](adr/ADR-003-entity-first-mission-model.md)
+- [ADR-004: Fixed-Timestep Simulation Loop](adr/ADR-004-fixed-timestep-design.md)
 
-## Entry Points
+## Diagrams
+
+- [Component Assembly](diagrams/component-assembly.md)
+- [Mission Topologies](diagrams/mission-topologies.md)
+- [Runtime Sequence](diagrams/runtime-sequence.md)
+
+## Current Architecture Baseline
+
+- The simulation kernel stays in `common/`, `core/`, `infrastructure/`, and
+  top-level `interfaces/`.
+- Domain capabilities live under `framework/include/gnc/plugins/`.
+- The current builtin plugin set is `environment`, `aero`, `state_3dof`, and
+  `soviet_coord`.
+- User-owned algorithm components live under `user/<project>/components/`.
+- Mission assembly is entity-first:
+  - environment components are registered as `env.*`,
+  - vehicle components are registered as `<entity_id>.*`,
+  - services are configured through `global_services.<plugin_name>` or
+    `entities[i].services.<plugin_name>`.
+
+## Code Entry Points
 
 - Builtin plugin aggregator:
   [framework/include/gnc/plugins/_builtin_plugins.hpp](../framework/include/gnc/plugins/_builtin_plugins.hpp)
@@ -30,3 +40,5 @@ The repository implementation follows the plugin architecture rethink baseline:
   [framework/include/gnc/core/plugin_registry.hpp](../framework/include/gnc/core/plugin_registry.hpp)
 - Simulation builder:
   [framework/include/gnc/core/simulation_builder.hpp](../framework/include/gnc/core/simulation_builder.hpp)
+- Simulator:
+  [framework/include/gnc/core/simulator.hpp](../framework/include/gnc/core/simulator.hpp)

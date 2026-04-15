@@ -80,8 +80,14 @@ To run a mission that depends on another project directory, update
 ## Reference
 
 - [doc/README.md](doc/README.md)
+- [doc/glossary.md](doc/glossary.md)
 - [doc/adr/ADR-001-four-layer-plugin-model.md](doc/adr/ADR-001-four-layer-plugin-model.md)
+- [doc/adr/ADR-002-compile-time-modularity.md](doc/adr/ADR-002-compile-time-modularity.md)
+- [doc/adr/ADR-003-entity-first-mission-model.md](doc/adr/ADR-003-entity-first-mission-model.md)
 - [doc/adr/ADR-004-fixed-timestep-design.md](doc/adr/ADR-004-fixed-timestep-design.md)
+- [doc/diagrams/component-assembly.md](doc/diagrams/component-assembly.md)
+- [doc/diagrams/mission-topologies.md](doc/diagrams/mission-topologies.md)
+- [doc/diagrams/runtime-sequence.md](doc/diagrams/runtime-sequence.md)
 - [doc/guide-new-component.md](doc/guide-new-component.md)
 - [framework/include/gnc/plugins/_builtin_plugins.hpp](framework/include/gnc/plugins/_builtin_plugins.hpp)
 - [framework/include/gnc/core/plugin_registry.hpp](framework/include/gnc/core/plugin_registry.hpp)
