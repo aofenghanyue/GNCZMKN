@@ -1,44 +1,43 @@
-# Documentation Index
+# 文档首页
 
-## Quick Start
+这套文档面向两类读者：要跑任务、改任务、加组件的使用者，以及要维护框架边界、插件和装配流程的开发者。阅读顺序按“先能用，再能扩展，最后理解内部结构”组织。
 
-- [How To Add A New Component](guide-new-component.md)
-- [Glossary](glossary.md)
+## 推荐阅读顺序
 
-## Architecture Decisions
+| 顺序 | 文档 | 适合解决的问题 |
+| --- | --- | --- |
+| 1 | [快速上手](01-getting-started.md) | 如何构建、运行、定位输出 |
+| 2 | [核心概念](02-core-concepts.md) | 框架里哪些对象负责什么 |
+| 3 | [任务配置](03-mission-configuration.md) | 如何写 `mission.json` |
+| 4 | [扩展指南](04-extension-guide.md) | 如何加项目组件、内置组件或服务 |
+| 5 | [架构说明](05-architecture.md) | 装配流程、运行时循环和模块依赖方向 |
+| 6 | [参考手册](06-reference.md) | 查命令、字段、内置组件和命名规则 |
+| 7 | [设计决策](07-decisions.md) | 为什么当前架构这样划分 |
 
-- [ADR-001: Four-Layer Plugin Model](adr/ADR-001-four-layer-plugin-model.md)
-- [ADR-002: Compile-Time Modularity](adr/ADR-002-compile-time-modularity.md)
-- [ADR-003: Entity-First Mission Model](adr/ADR-003-entity-first-mission-model.md)
-- [ADR-004: Fixed-Timestep Simulation Loop](adr/ADR-004-fixed-timestep-design.md)
+如果只是运行示例任务，读前两篇就够。如果要新增 GNC 算法组件，读到扩展指南。如果要改内核或插件边界，需要读架构说明和设计决策。
 
-## Diagrams
+## 术语约定
 
-- [Component Assembly](diagrams/component-assembly.md)
-- [Mission Topologies](diagrams/mission-topologies.md)
-- [Runtime Sequence](diagrams/runtime-sequence.md)
+| 中文术语 | 代码名 | 含义 |
+| --- | --- | --- |
+| 组件 | `Component` | 仿真中被调度的最小业务单元，继承 `ComponentBase` |
+| 插件 | `Plugin` | 编译期注册的一组内置组件或服务安装器 |
+| 实体 | `Entity` | 任务配置里的顶层装配单元，当前角色为 `environment` 或 `vehicle` |
+| 飞行器实体 | `vehicle` | 一个可独立配置组件和局部服务的飞行器 |
+| 环境实体 | `environment` | 全任务共享的环境组件集合，当前只支持一个 |
+| 服务 | `Service` | 非组件能力，存放在 `ServiceContext`，由插件安装 |
+| 注册表 | `ComponentRegistry` | 保存组件实例和接口映射 |
+| 作用域注册表 | `ScopedRegistry` | 带实体作用域的依赖查找视图 |
+| 可观测字段 | `IObservable` | 自动记录器可以写入 CSV 的稳定字段 |
+| 连续系统 | `IContinuousSystem` | 由积分器推进状态的组件 |
 
-## Current Architecture Baseline
+文档里会保留英文代码标识。比如“组件”对应 `ComponentBase`，但不会把 `ComponentBase` 翻译成“组件基类对象”。配置键也保留英文，比如 `entities`、`global_services`、`outputs.record`。
 
-- The simulation kernel stays in `common/`, `core/`, `infrastructure/`, and
-  top-level `interfaces/`.
-- Domain capabilities live under `framework/include/gnc/plugins/`.
-- The current builtin plugin set is `environment`, `aero`, `state_3dof`, and
-  `soviet_coord`.
-- User-owned algorithm components live under `user/<project>/components/`.
-- Mission assembly is entity-first:
-  - environment components are registered as `env.*`,
-  - vehicle components are registered as `<entity_id>.*`,
-  - services are configured through `global_services.<plugin_name>` or
-    `entities[i].services.<plugin_name>`.
+## 写配置时先记住三件事
 
-## Code Entry Points
+- 所有组件都放在 `entities[]` 里。
+- 环境组件的完整名称是 `env.<component_name>`。
+- 飞行器组件的完整名称是 `<entity_id>.<component_name>`。
 
-- Builtin plugin aggregator:
-  [framework/include/gnc/plugins/_builtin_plugins.hpp](../framework/include/gnc/plugins/_builtin_plugins.hpp)
-- Plugin registry:
-  [framework/include/gnc/core/plugin_registry.hpp](../framework/include/gnc/core/plugin_registry.hpp)
-- Simulation builder:
-  [framework/include/gnc/core/simulation_builder.hpp](../framework/include/gnc/core/simulation_builder.hpp)
-- Simulator:
-  [framework/include/gnc/core/simulator.hpp](../framework/include/gnc/core/simulator.hpp)
+日志、停止条件和跨实体绑定应使用完整名称。组件代码里的同实体依赖可以使用局部名，由 `ScopedRegistry` 自动补作用域。
+

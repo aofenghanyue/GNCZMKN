@@ -1,54 +1,12 @@
-# GNC Simulation Framework
+# GNCZMKN
 
-## Architecture
+GNCZMKN 是一个面向制导、导航与控制仿真的 C++17 框架。它把任务配置、飞行器实体、环境实体、组件、服务和数据记录拆开，让同一套仿真内核可以装配不同任务。
 
-This repository is a compile-time modular C++ simulation framework for GNC
-research. Components are integrated as header-only modules and builtin plugins
-register their component types through `Plugin::install()`; there is no runtime
-dynamic loading.
+当前框架采用编译期组件发现。内置组件由插件注册，项目组件放在 `user/<project>/components/` 下，由 CMake 自动纳入构建。运行时不加载动态库。
 
-The framework follows a four-layer plugin model:
+## 快速开始
 
-| Layer | Role | Examples |
-| :---: | ---- | -------- |
-| 0 | Simulation kernel | `ComponentBase`, `Simulator`, registries, config, logging |
-| 1 | Hardware / subsystem plugins | `environment`, `aero`, `state_3dof` |
-| 2 | System plugins | `soviet_coord` |
-| 3 | User GNC algorithms | `user/<project>/components/` |
-
-Core design principles:
-
-- GNC researchers should focus on algorithm modules, not framework plumbing.
-- The framework handles assembly, integration, logging, and dependency management.
-- Environment entities are assembled before vehicle entities.
-- Components execute in entity-local mission JSON declaration order.
-- 3DOF and a future 6DOF stack are independent Layer-1 plugins rather than a
-  shared state-interface hierarchy.
-
-This repository now uses a plugin-oriented architecture built around four layers:
-
-1. `common/`, `core/`, `infrastructure/`, and top-level `interfaces/` provide the simulation kernel.
-2. `plugins/environment`, `plugins/aero`, `plugins/state_3dof`, and `plugins/soviet_coord` provide the first production plugin set.
-3. `user/<project>/components` provides project-owned GNC algorithm components.
-4. Mission JSON assembles entity-local components and services through stable
-   plugin-qualified type identifiers.
-
-## Current Baseline
-
-- Continuous dynamics use `gnc::interfaces::IContinuousSystem`.
-- Plugin service installation is handled by `gnc::core::PluginRegistry`.
-- Builtin component types use qualified IDs such as:
-  - `environment.wgs84_earth`
-  - `aero.simple_polynomial`
-  - `state_3dof.point_mass_spherical`
-- Mission configuration is entity-first: environment components are registered
-  as `env.*`, and vehicle components are registered as `<entity_id>.*`.
-- Coordinate transformation services are configured through
-  `global_services.<plugin_name>` or `entities[i].services.<plugin_name>`.
-
-## Build
-
-The repository is validated with CMake `MinGW Makefiles`.
+项目在 Windows 下请使用 MinGW CMake 配置：
 
 ```powershell
 cmake -S . -B build-mingw -G "MinGW Makefiles" -DBUILD_TESTS=ON
@@ -56,38 +14,58 @@ cmake --build build-mingw -j 4
 ctest --test-dir build-mingw --output-on-failure
 ```
 
-## Run
-
-The active project is controlled by [user/active_project](user/active_project).
-
-- Default pluginized minimal mission:
-  [user/config/missions/default.json](user/config/missions/default.json)
-- Atmospheric 3DOF mission:
-  [user/example_02_atmospheric_3dof/config/mission.json](user/example_02_atmospheric_3dof/config/mission.json)
-- Soviet coordinate service probe:
-  [user/example_03_soviet_coord/config/mission.json](user/example_03_soviet_coord/config/mission.json)
+运行当前活动项目：
 
 ```powershell
-build-mingw\\bin\\gnc_sim.exe
-build-mingw\\bin\\gnc_sim.exe --list-components
-build-mingw\\bin\\gnc_sim.exe --config user/config/missions/default.json
+build-mingw\bin\gnc_sim.exe
 ```
 
-Project-owned components are still compiled from `user/active_project`.
-To run a mission that depends on another project directory, update
-`user/active_project`, rebuild, and then launch that mission.
+运行指定任务：
 
-## Reference
+```powershell
+build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
+```
 
-- [doc/README.md](doc/README.md)
-- [doc/glossary.md](doc/glossary.md)
-- [doc/adr/ADR-001-four-layer-plugin-model.md](doc/adr/ADR-001-four-layer-plugin-model.md)
-- [doc/adr/ADR-002-compile-time-modularity.md](doc/adr/ADR-002-compile-time-modularity.md)
-- [doc/adr/ADR-003-entity-first-mission-model.md](doc/adr/ADR-003-entity-first-mission-model.md)
-- [doc/adr/ADR-004-fixed-timestep-design.md](doc/adr/ADR-004-fixed-timestep-design.md)
-- [doc/diagrams/component-assembly.md](doc/diagrams/component-assembly.md)
-- [doc/diagrams/mission-topologies.md](doc/diagrams/mission-topologies.md)
-- [doc/diagrams/runtime-sequence.md](doc/diagrams/runtime-sequence.md)
-- [doc/guide-new-component.md](doc/guide-new-component.md)
-- [framework/include/gnc/plugins/_builtin_plugins.hpp](framework/include/gnc/plugins/_builtin_plugins.hpp)
-- [framework/include/gnc/core/plugin_registry.hpp](framework/include/gnc/core/plugin_registry.hpp)
+查看已注册组件：
+
+```powershell
+build-mingw\bin\gnc_sim.exe --list-components
+build-mingw\bin\gnc_sim.exe --list-components-verbose
+```
+
+活动项目由 `user/active_project` 指定。当前默认任务通常来自 `user/<active_project>/config/mission.json`。
+
+## 目录结构
+
+| 路径 | 作用 |
+| --- | --- |
+| `framework/include/gnc/core/` | 仿真内核、组件注册、服务上下文、任务装配 |
+| `framework/include/gnc/plugins/` | 内置插件与内置组件 |
+| `src/runner.cpp` | 命令行入口 |
+| `user/<project>/components/` | 项目自定义组件 |
+| `user/<project>/config/mission.json` | 项目任务配置 |
+| `doc/` | 框架文档 |
+
+## 文档入口
+
+建议从这里开始：
+
+| 文档 | 内容 |
+| --- | --- |
+| [文档首页](doc/README.md) | 阅读顺序和术语约定 |
+| [快速上手](doc/01-getting-started.md) | 构建、运行、输出和常见问题 |
+| [核心概念](doc/02-core-concepts.md) | Component、Plugin、Entity、Service、Registry 等概念 |
+| [任务配置](doc/03-mission-configuration.md) | `entities[]`、单飞行器、多飞行器、服务和输出配置 |
+| [扩展指南](doc/04-extension-guide.md) | 新增项目组件、内置组件和服务安装器 |
+| [架构说明](doc/05-architecture.md) | 四层模型、装配流程和运行时循环 |
+| [参考手册](doc/06-reference.md) | 命令、配置字段、组件类型、命名规则 |
+| [设计决策](doc/07-decisions.md) | 当前架构的关键取舍 |
+
+## 当前基线
+
+- 内置插件：`environment`、`aero`、`state_3dof`、`soviet_coord`。
+- 任务配置使用 entity-first 结构：顶层写 `entities[]`，不再把组件散放在根级字段里。
+- 环境组件统一使用 `env.*` 名称，飞行器组件使用 `<entity_id>.*` 名称。
+- `SimulationBuilder` 负责高层构建流程，`MissionAssembler` 负责实体、服务和组件装配。
+- 仿真主循环使用固定步长，当前支持 `rk4` 和 `euler` 积分器。
+
