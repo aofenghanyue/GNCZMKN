@@ -1,19 +1,19 @@
 # 参考手册
 
-这篇文档用于查细节，不建议作为第一篇阅读材料。
+这篇文档用于查细节，不建议作为第一篇阅读材料。配置写法的解释以 [任务配置](03-mission-configuration.md) 为准，这里只保留速查表。
 
 ## 命令行
 
 | 命令 | 作用 |
 | --- | --- |
-| `gnc_sim.exe` | 运行活动项目默认任务 |
-| `gnc_sim.exe <config.json>` | 运行指定任务 |
-| `gnc_sim.exe --config <config.json>` | 运行指定任务 |
+| `gnc_sim.exe` | 运行活动项目默认 mission |
+| `gnc_sim.exe <config.json>` | 运行指定 mission |
+| `gnc_sim.exe --config <config.json>` | 运行指定 mission |
 | `gnc_sim.exe --list-components` | 列出已注册组件 type id |
-| `gnc_sim.exe --list-components-verbose` | 列出 type id 和注册来源 |
+| `gnc_sim.exe --list-components-verbose` | 列出 type id、接口列表和注册来源 |
 | `gnc_sim.exe --help` | 打印帮助 |
 
-任务路径可以是绝对路径、当前目录相对路径，也可以是仓库相对路径。runner 会从当前目录和可执行文件目录向上搜索。
+任务路径可以是绝对路径、当前目录相对路径或仓库相对路径。runner 会从当前目录和可执行文件目录向上搜索。
 
 ## CMake 选项
 
@@ -22,14 +22,7 @@
 | `BUILD_TESTS` | `OFF` | 是否构建测试 |
 | `GNC_ACTIVE_PROJECT` | 空 | 指定 `user/` 下的活动项目名 |
 
-如果没有显式设置 `GNC_ACTIVE_PROJECT`，CMake 会读取 `user/active_project`。
-
-推荐 Windows 构建命令：
-
-```powershell
-cmake -S . -B build-mingw -G "MinGW Makefiles" -DBUILD_TESTS=ON
-cmake --build build-mingw -j 4
-```
+若未显式设置 `GNC_ACTIVE_PROJECT`，CMake 会读取 `user/active_project`。
 
 ## Mission 字段
 
@@ -38,16 +31,21 @@ cmake --build build-mingw -j 4
 | `simulation.dt` | number | 固定步长，单位秒 |
 | `simulation.duration` | number | 最大仿真时长，单位秒 |
 | `simulation.integrator` | string | `rk4` 或 `euler` |
-| `simulation.stop_conditions` | array | 停止条件 |
+| `simulation.stop_conditions` | array | 停机条件 |
 | `outputs.enabled` | bool | 是否启用自动记录器 |
 | `outputs.directory` | string | 输出目录，支持 `{timestamp}` |
 | `outputs.format` | string | 当前只支持 `csv` |
 | `outputs.session_name` | string | 输出文件名前缀 |
-| `outputs.record` | string / array / object | 字段记录规则 |
-| `outputs.exclude` | array | 排除字段 |
-| `outputs.debug_snapshots` | bool / object | 调试快照配置 |
+| `outputs.record` | string / array / object | 稳定字段记录规则 |
+| `outputs.exclude` | array | 排除字段。支持完整字段名和 `*.suffix` |
+| `outputs.debug_snapshots` | bool / object | 调试快照配置。对象写法支持 `components`、`session_name`、`precision`、`flush_every_step` |
 | `global_services` | object | 全局服务 |
 | `entities` | array | 实体列表 |
+
+补充约束：
+
+- 顶层必须使用 `entities[]`
+- 旧式根级 `components` / `services` / `vehicles` 已不支持
 
 ## Entity 字段
 
@@ -68,9 +66,9 @@ cmake --build build-mingw -j 4
 | `environment.wgs84_earth` | `environment` | `IEarth` |
 | `environment.standard_atmosphere` | `environment` | `IAtmosphere` |
 | `environment.spherical_gravity` | `environment` | `IGravity` |
-| `aero.simple_polynomial` | `aero` | `IAeroModel`、`IObservable` |
-| `state_3dof.point_mass_cartesian` | `state_3dof` | `IContinuousSystem`、`IStateSolver3DOF`、`IObservable` |
-| `state_3dof.point_mass_spherical` | `state_3dof` | `IContinuousSystem`、`IStateSolver3DOF`、`IVelocityDirectionProvider`、`IObservable` |
+| `aero.simple_polynomial` | `aero` | `IAeroModel`, `IObservable` |
+| `state_3dof.point_mass_cartesian` | `state_3dof` | `IContinuousSystem`, `IStateSolver3DOF`, `IObservable` |
+| `state_3dof.point_mass_spherical` | `state_3dof` | `IContinuousSystem`, `IStateSolver3DOF`, `IVelocityDirectionProvider`, `IObservable` |
 
 项目示例组件：
 
@@ -85,7 +83,7 @@ cmake --build build-mingw -j 4
 | --- | --- | --- |
 | `soviet_coord` | `soviet_coord` | 安装 `ISovietCoordService`，提供坐标系转换 |
 
-`soviet_coord` 的配置字段：
+`soviet_coord` 配置字段：
 
 | 路径 | 说明 |
 | --- | --- |
@@ -101,7 +99,7 @@ cmake --build build-mingw -j 4
 
 ## 常用组件配置
 
-`aero.simple_polynomial`：
+`aero.simple_polynomial`
 
 | 字段 | 说明 |
 | --- | --- |
@@ -112,7 +110,7 @@ cmake --build build-mingw -j 4
 | `reference_area_m2` | 参考面积 |
 | `reference_length_m` | 参考长度 |
 
-`state_3dof.point_mass_spherical`：
+`state_3dof.point_mass_spherical`
 
 | 字段 | 说明 |
 | --- | --- |
@@ -126,13 +124,13 @@ cmake --build build-mingw -j 4
 | `initial_state.flight_path_angle_rad` | 初始航迹倾角 |
 | `initial_state.heading_angle_rad` | 初始航向角 |
 
-`state_3dof.point_mass_cartesian`：
+`state_3dof.point_mass_cartesian`
 
 | 字段 | 说明 |
 | --- | --- |
-| `initial_position` | 三元素数组，初始位置 |
-| `initial_velocity` | 三元素数组，初始速度 |
-| `constant_acceleration` | 三元素数组，常加速度 |
+| `initial_position` | 三元数组，初始位置 |
+| `initial_velocity` | 三元数组，初始速度 |
+| `constant_acceleration` | 三元数组，常加速度 |
 | `mass_kg` | 质量 |
 
 ## 命名规则
@@ -143,6 +141,4 @@ cmake --build build-mingw -j 4
 | 飞行器组件完整名 | `<entity_id>.<component_name>` | `missile.dynamics` |
 | 同实体依赖 | 可在组件代码里写局部名 | `dynamics` |
 | 跨实体依赖 | 使用完整名 | `env.gravity` |
-| 日志和停止条件 | 使用完整名 | `missile.dynamics.altitude_m` |
-
-不要在文档、配置或诊断里使用车辆类缩写。统一写“单飞行器”“多飞行器”。
+| 日志和停机条件 | 使用完整名 | `missile.dynamics.altitude_m` |

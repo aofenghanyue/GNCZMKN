@@ -48,17 +48,17 @@ public:
     
     // --- 配置 ---
     
-    /// 从JSON配置节点加载组件参数（由SimulationBuilder在注册后调用）
+    /// 从JSON配置节点加载组件参数（由MissionAssembler在构建期调用，先于注册完成）
     virtual void configure(const ConfigNode& config) { (void)config; }
     
     // --- 依赖注入 ---
     
-    /// 注入组件依赖（由Simulator在initialize前调用）
+    /// 注入组件依赖（构建期会先做一次预检；若尚未成功，Simulator会在initialize前再次尝试）
     // Dependency injection should stay side-effect free. The framework may preflight
     // required bindings during build and skip reinjection later if it already succeeded.
     virtual void injectDependencies(ScopedRegistry& registry) { (void)registry; }
-    
-    /// 注入服务依赖（由Simulator在injectDependencies后调用）
+
+    /// 注入服务依赖（由MissionAssembler在构建期调用，顺序为 global -> environment -> vehicle）
     virtual void injectServices(ServiceContext& services) { (void)services; }
     
     // --- 元数据 ---

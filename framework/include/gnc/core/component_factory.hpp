@@ -8,6 +8,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <typeindex>
 #include <unordered_map>
 #include <vector>
@@ -35,11 +36,63 @@ inline std::string normalizeRegistrationOrigin(std::string path) {
     return path;
 }
 
+inline void stripTypePrefix(std::string_view& value) {
+    constexpr std::string_view class_prefix = "class ";
+    constexpr std::string_view struct_prefix = "struct ";
+    while (value.substr(0, class_prefix.size()) == class_prefix ||
+           value.substr(0, struct_prefix.size()) == struct_prefix) {
+        if (value.substr(0, class_prefix.size()) == class_prefix) {
+            value.remove_prefix(class_prefix.size());
+            continue;
+        }
+        value.remove_prefix(struct_prefix.size());
+    }
+}
+
+template<typename T>
+std::string readableTypeName() {
+#if defined(__clang__) || defined(__GNUC__)
+    std::string_view function = __PRETTY_FUNCTION__;
+    constexpr std::string_view marker = "T = ";
+    const auto start = function.find(marker);
+    if (start == std::string_view::npos) {
+        return typeid(T).name();
+    }
+    std::string_view value = function.substr(start + marker.size());
+    const auto end = value.find_first_of(";]");
+    if (end != std::string_view::npos) {
+        value = value.substr(0, end);
+    }
+#elif defined(_MSC_VER)
+    std::string_view function = __FUNCSIG__;
+    constexpr std::string_view prefix = "readableTypeName<";
+    const auto start = function.find(prefix);
+    if (start == std::string_view::npos) {
+        return typeid(T).name();
+    }
+    std::string_view value = function.substr(start + prefix.size());
+    const auto end = value.find(">(void)");
+    if (end != std::string_view::npos) {
+        value = value.substr(0, end);
+    }
+#else
+    return typeid(T).name();
+#endif
+
+    stripTypePrefix(value);
+    const auto namespace_pos = value.rfind("::");
+    if (namespace_pos != std::string_view::npos) {
+        value.remove_prefix(namespace_pos + 2);
+    }
+    return std::string(value);
+}
+
 class ComponentCreatorBase {
 public:
     virtual ~ComponentCreatorBase() = default;
     virtual std::unique_ptr<ComponentBase> create() const = 0;
     virtual std::vector<std::type_index> getInterfaces() const = 0;
+    virtual std::vector<std::string> getInterfaceNames() const = 0;
 };
 
 template<typename T, typename... Interfaces>
@@ -52,6 +105,10 @@ public:
     std::vector<std::type_index> getInterfaces() const override {
         return {std::type_index(typeid(Interfaces))...};
     }
+
+    std::vector<std::string> getInterfaceNames() const override {
+        return {readableTypeName<Interfaces>()...};
+    }
 };
 
 class ComponentFactory {
@@ -61,6 +118,7 @@ public:
         ComponentCategory category = ComponentCategory::Project;
         std::string registration_origin;
         std::vector<std::type_index> interfaces;
+        std::vector<std::string> interface_names;
     };
 
     static ComponentFactory& instance() {
@@ -103,6 +161,14 @@ public:
         return it->second.creator->getInterfaces();
     }
 
+    std::vector<std::string> getInterfaceNames(const std::string& type_name) const {
+        const auto it = creators_.find(type_name);
+        if (it == creators_.end()) {
+            return {};
+        }
+        return it->second.creator->getInterfaceNames();
+    }
+
     bool hasType(const std::string& type_name) const {
         return creators_.count(type_name) > 0;
     }
@@ -127,6 +193,8 @@ public:
             info.category = entry.category;
             info.registration_origin = entry.registration_origin;
             info.interfaces = entry.creator->getInterfaces();
+            info.interface_names = entry.creator->getInterfaceNames();
+            std::sort(info.interface_names.begin(), info.interface_names.end());
             infos.push_back(std::move(info));
         }
 

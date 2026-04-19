@@ -5,14 +5,11 @@
 #include "gnc/core/integrators/rk4_integrator.hpp"
 #include "gnc/core/mission_assembler.hpp"
 #include "gnc/core/simulator.hpp"
-#include "gnc/infrastructure/dependency_validator.hpp"
-#include "gnc/common/string_utils.hpp"
-#include "gnc/interfaces/i_continuous_system.hpp"
-#include "gnc/interfaces/i_observable.hpp"
+#include "gnc/core/stop_condition_builder.hpp"
+#include "gnc/core/validation_pipeline.hpp"
 
 #include <algorithm>
 #include <sstream>
-#include <unordered_set>
 
 namespace gnc::core {
 
@@ -48,16 +45,10 @@ public:
         buildIntegrator();
 
         assembler.installGlobalServices(config_.globalServices());
-        const auto& entities = config_.entities();
-        if (!entities.isArray()) {
-            addBuildError("Mission configuration must define an 'entities' array.");
-        } else {
-            assembler.buildEntities(entities);
-        }
-
+        buildMissionEntities(assembler);
         assembler.runDeferredServiceActions();
 
-        auto validation = DependencyValidator::validate(simulator_.getRegistry());
+        const auto validation = ValidationPipeline::run(simulator_.getRegistry());
         for (const auto& error : validation.errors) {
             addBuildError(error);
         }
@@ -65,8 +56,9 @@ public:
             addBuildWarning(warning);
         }
 
-        preflightDependencyBindings(validation.failed_components);
-        buildStopConditions();
+        StopConditionBuilder stop_conditions(
+            simulator_, [this](const std::string& message) { addBuildWarning(message); });
+        stop_conditions.build(simulation["stop_conditions"]);
 
         if (!simulator_.initializeAutoDataLogger(config_.root()["outputs"])) {
             addBuildError("AutoDataLogger initialization failed during simulation build.");
@@ -87,16 +79,10 @@ public:
     ServiceContext& getGlobalServices() { return global_services_; }
     EnvironmentInstance& getEnvironment() { return environment_; }
     std::vector<VehicleInstance>& getVehicles() { return vehicles_; }
+    const std::vector<std::string>& getBuildErrors() const { return build_errors_; }
+    const std::vector<std::string>& getBuildWarnings() const { return build_warnings_; }
 
 private:
-    static std::string extractScope(const std::string& full_name) {
-        const auto pos = full_name.find('.');
-        if (pos == std::string::npos) {
-            return "";
-        }
-        return full_name.substr(0, pos + 1);
-    }
-
     static std::string joinStrings(const std::vector<std::string>& values) {
         std::string result;
         for (size_t i = 0; i < values.size(); ++i) {
@@ -106,33 +92,6 @@ private:
             result += values[i];
         }
         return result.empty() ? "(none)" : result;
-    }
-
-    static std::string joinDiagnosticLines(const std::vector<std::string>& values) {
-        std::string result;
-        for (size_t i = 0; i < values.size(); ++i) {
-            result += (i == 0 ? "  - " : "\n  - ");
-            result += values[i];
-        }
-        return result.empty() ? "  - (none)" : result;
-    }
-
-    static std::string listFieldNames(
-        const std::vector<interfaces::ObservableField>& fields) {
-        std::vector<std::string> names;
-        names.reserve(fields.size());
-        for (const auto& field : fields) {
-            names.push_back(field.name);
-        }
-        return joinStrings(names);
-    }
-
-    static std::string listStateFieldNames(
-        const interfaces::IContinuousSystem* continuous_system) {
-        if (!continuous_system) {
-            return "(none)";
-        }
-        return joinStrings(continuous_system->getStateLayout().names());
     }
 
     void logComponentInventory() {
@@ -163,43 +122,31 @@ private:
                  unique_join(std::move(project_types)));
     }
 
-    void preflightDependencyBindings(
-        const std::unordered_set<std::string>& validation_failed_components) {
-        auto& registry = simulator_.getRegistry();
-        for (auto* component : registry.getAllComponents()) {
-            if (validation_failed_components.count(component->getName()) > 0) {
-                continue;
-            }
-
-            ScopedRegistry::BindingDiagnostics diagnostics;
-            try {
-                ScopedRegistry scoped(extractScope(component->getName()),
-                                      registry,
-                                      component->getName(),
-                                      &diagnostics);
-                component->injectDependencies(scoped);
-            } catch (const std::exception& e) {
-                addBuildError("Component '" + component->getName() +
-                              "' failed dependency preflight: " + e.what());
-                continue;
-            }
-
-            if (!diagnostics.errors.empty()) {
-                addBuildError("Component '" + component->getName() +
-                              "' failed dependency preflight with " +
-                              std::to_string(diagnostics.errors.size()) +
-                              " required binding issue(s):\n" +
-                              joinDiagnosticLines(diagnostics.errors));
-                continue;
-            }
-
-            for (const auto& warning : diagnostics.warnings) {
-                addBuildWarning("Component '" + component->getName() +
-                                "' optional dependency warning: " + warning);
-            }
-
-            component->markDependenciesInjectedInternal_();
+    void buildMissionEntities(MissionAssembler& assembler) {
+        const auto& entities = config_.entities();
+        if (entities.isArray()) {
+            assembler.buildEntities(entities);
+            return;
         }
+
+        const auto& root = config_.root();
+        if (root.has("components") || root.has("services") || root.has("vehicles")) {
+            addBuildError(
+                "Legacy root-level mission format ('components' / 'services' / "
+                "'vehicles') is no longer supported. Migrate the mission to "
+                "top-level 'entities[]'.");
+            return;
+        }
+
+        if (config_.hasEntities()) {
+            addBuildError("Mission configuration field 'entities' must be an array.");
+            return;
+        }
+
+        addBuildError(
+            "Mission configuration must define a top-level 'entities' array. "
+            "Legacy root-level mission format ('components' / 'services' / "
+            "'vehicles') is no longer supported.");
     }
 
     void buildIntegrator() {
@@ -258,127 +205,6 @@ private:
         LOG_WARNING("{}", report.str());
         return true;
     }
-
-    bool buildStopConditions() {
-        const auto& conditions = config_.simulation()["stop_conditions"];
-        if (conditions.isNull()) {
-            return true;
-        }
-        if (!conditions.isArray()) {
-            addBuildWarning("simulation.stop_conditions must be an array.");
-            return false;
-        }
-
-        auto& registry = simulator_.getRegistry();
-        bool success = true;
-
-        for (size_t i = 0; i < conditions.size(); ++i) {
-            const auto& condition = conditions[i];
-            const std::string type = condition["type"].asString();
-            const std::string component_name = condition["component"].asString();
-            const std::string field_name = condition["field"].asString();
-            const double threshold = condition["value"].asDouble(0.0);
-            const std::string description = condition["description"].asString(
-                type + "(" + component_name + "." + field_name + ", " +
-                std::to_string(threshold) + ")");
-
-            if (type.empty() || component_name.empty() || field_name.empty()) {
-                addBuildWarning("Stop condition at index " + std::to_string(i) +
-                                " is missing required fields.");
-                success = false;
-                continue;
-            }
-
-            auto* component = registry.get<ComponentBase>(component_name);
-            if (!component) {
-                std::string message = "Stop condition references unknown component '" +
-                                      component_name + "'.";
-                const std::string suggestion =
-                    common::findClosestMatch(component_name, registry.getComponentNames());
-                if (!suggestion.empty()) {
-                    message += " Did you mean '" + suggestion + "'?";
-                }
-                addBuildWarning(message);
-                success = false;
-                continue;
-            }
-
-            auto* observable = dynamic_cast<interfaces::IObservable*>(component);
-            auto* continuous_system =
-                dynamic_cast<interfaces::IContinuousSystem*>(component);
-
-            std::function<double()> getter;
-            std::vector<std::string> candidate_fields;
-
-            if (observable) {
-                const auto fields = observable->getObservableFields();
-                candidate_fields.reserve(fields.size());
-                for (const auto& field : fields) {
-                    candidate_fields.push_back(field.name);
-                    if (!getter && field.name == field_name) {
-                        getter = field.getter;
-                    }
-                }
-            }
-
-            if (!getter && continuous_system &&
-                continuous_system->getStateLayout().has(field_name)) {
-                getter = [continuous_system, field_name]() {
-                    return continuous_system->getStateValue(field_name);
-                };
-            }
-
-            if (!getter && continuous_system) {
-                const auto& state_names = continuous_system->getStateLayout().names();
-                candidate_fields.insert(candidate_fields.end(),
-                                        state_names.begin(),
-                                        state_names.end());
-            }
-
-            if (!getter) {
-                std::sort(candidate_fields.begin(), candidate_fields.end());
-                candidate_fields.erase(std::unique(candidate_fields.begin(),
-                                                  candidate_fields.end()),
-                                       candidate_fields.end());
-
-                std::string message = "Stop condition references field '" + field_name +
-                                      "' not found in component '" +
-                                      component_name + "'.";
-                if (observable) {
-                    message += " Available observable fields: " +
-                               listFieldNames(observable->getObservableFields()) + ".";
-                }
-                if (continuous_system) {
-                    message += " Available state fields: " +
-                               listStateFieldNames(continuous_system) + ".";
-                }
-                const std::string suggestion =
-                    common::findClosestMatch(field_name, candidate_fields);
-                if (!suggestion.empty()) {
-                    message += " Did you mean '" + suggestion + "'?";
-                }
-                addBuildWarning(message);
-                success = false;
-                continue;
-            }
-
-            if (type == "component_field_below") {
-                simulator_.addTerminationCondition(
-                    description,
-                    [getter, threshold](int, double) { return getter() < threshold; });
-            } else if (type == "component_field_above") {
-                simulator_.addTerminationCondition(
-                    description,
-                    [getter, threshold](int, double) { return getter() > threshold; });
-            } else {
-                addBuildWarning("Unknown stop condition type '" + type + "'.");
-                success = false;
-            }
-        }
-
-        return success;
-    }
-
 
     ConfigManager config_;
     Simulator simulator_;

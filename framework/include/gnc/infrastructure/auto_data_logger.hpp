@@ -159,6 +159,14 @@ public:
         return output_dir_;
     }
 
+    bool isDebugSnapshotsEnabled() const {
+        return debug_snapshots_enabled_;
+    }
+
+    const std::string& getDebugSnapshotPath() const {
+        return debug_snapshot_path_;
+    }
+
 private:
     struct ActiveField {
         std::string column_name;

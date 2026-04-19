@@ -17,7 +17,8 @@ public:
     /// Execute one fixed simulation step.
     /// @note The current framework assumes a fixed timestep (`simulation.dt`).
     ///       Supporting variable-step integrators requires a simulator-loop
-    ///       refactor in addition to any interface change. See ADR-004.
+    ///       refactor in addition to any interface change. See
+    ///       `doc/07-decisions.md`, fixed-step simulation loop.
     virtual void step(const DerivativeFunc& f,
                       double t,
                       Eigen::VectorXd& x,

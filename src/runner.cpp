@@ -83,6 +83,21 @@ std::string describeCandidatePaths(const std::vector<fs::path>& candidates) {
     return result;
 }
 
+std::string joinStrings(const std::vector<std::string>& values) {
+    if (values.empty()) {
+        return "(none)";
+    }
+
+    std::string result;
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i > 0) {
+            result += ", ";
+        }
+        result += values[i];
+    }
+    return result;
+}
+
 bool resolveConfigPath(const std::string& requested_path,
                        const char* program_name,
                        ConfigResolution& resolution,
@@ -239,8 +254,12 @@ void listComponents(bool verbose) {
             continue;
         }
         std::cout << "    - " << info.type_name;
-        if (verbose && !info.registration_origin.empty()) {
-            std::cout << " [" << info.registration_origin << "]";
+        if (verbose) {
+            std::cout << " [interfaces: " << joinStrings(info.interface_names);
+            if (!info.registration_origin.empty()) {
+                std::cout << "; origin: " << info.registration_origin;
+            }
+            std::cout << "]";
         }
         std::cout << "\n";
     }
@@ -251,8 +270,12 @@ void listComponents(bool verbose) {
             continue;
         }
         std::cout << "    - " << info.type_name;
-        if (verbose && !info.registration_origin.empty()) {
-            std::cout << " [" << info.registration_origin << "]";
+        if (verbose) {
+            std::cout << " [interfaces: " << joinStrings(info.interface_names);
+            if (!info.registration_origin.empty()) {
+                std::cout << "; origin: " << info.registration_origin;
+            }
+            std::cout << "]";
         }
         std::cout << "\n";
     }
