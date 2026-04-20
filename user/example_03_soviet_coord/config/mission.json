@@ -51,23 +51,34 @@
                     }
                 },
                 {
+                    "type": "cavh.constant_mass",
+                    "name": "mass",
+                    "config": {
+                        "mass_kg": 300.0
+                    }
+                },
+                {
                     "type": "aero.simple_polynomial",
                     "name": "aero",
                     "config": {}
                 },
                 {
-                    "type": "state_3dof.point_mass_spherical",
+                    "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
+                    "name": "bridge",
+                    "config": {}
+                },
+                {
+                    "type": "state_3dof.point_mass_spherical_soviet",
                     "name": "dynamics",
                     "config": {
                         "launch_azimuth_rad": 1.5707963267948966,
-                        "mass_kg": 300.0,
                         "initial_state": {
                             "longitude_rad": 1.9198621771937625,
                             "latitude_rad": 0.5235987755982988,
                             "altitude_m": 50000.0,
                             "speed_mps": 1500.0,
                             "flight_path_angle_rad": -0.017453292519943295,
-                            "heading_angle_rad": 1.3962634015954636
+                            "heading_angle_rad": -1.3962634015954636
                         }
                     }
                 },
@@ -86,7 +97,7 @@
             "role": "environment",
             "components": [
                 {
-                    "type": "environment.wgs84_earth",
+                    "type": "environment.spherical_earth",
                     "name": "earth",
                     "config": {}
                 },

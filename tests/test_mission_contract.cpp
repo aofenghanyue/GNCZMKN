@@ -37,8 +37,7 @@ int main() {
       "config": {
         "initial_position": [0.0, 0.0, 1000.0],
         "initial_velocity": [250.0, 0.0, 40.0],
-        "constant_acceleration": [0.0, 0.0, -9.81],
-        "mass_kg": 50.0
+        "constant_acceleration": [0.0, 0.0, -9.81]
       }
     }
   ]
@@ -87,8 +86,7 @@ int main() {
           "config": {
             "initial_position": [0.0, 0.0, 1000.0],
             "initial_velocity": [250.0, 0.0, 40.0],
-            "constant_acceleration": [0.0, 0.0, -9.81],
-            "mass_kg": 50.0
+            "constant_acceleration": [0.0, 0.0, -9.81]
           }
         }
       ]

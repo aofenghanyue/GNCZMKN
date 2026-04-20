@@ -16,36 +16,19 @@
     "outputs": {
         "directory": "user/outputs/{timestamp}",
         "format": "csv",
-        "session_name": "atmospheric_3dof",
+        "session_name": "cavh_3dof",
         "record": {
             "missile.dynamics": "all",
             "missile.guidance": "all",
-            "missile.aero": "all"
+            "missile.aero": "all",
+            "missile.mass": "all",
+            "missile.flight_state": "all"
         }
     },
     "entities": [
         {
             "id": "missile",
             "role": "vehicle",
-            "services": {
-                "soviet_coord": {
-                    "launch": {
-                        "latitude_rad": 0.5235987755982988,
-                        "longitude_rad": 1.9198621771937625,
-                        "azimuth_rad": 1.5707963267948966,
-                        "launch_time_s": 0.0,
-                        "earth_rotation_angle_rad": 0.0
-                    },
-                    "bindings": {
-                        "earth": {
-                            "name": "env.earth"
-                        },
-                        "velocity_direction": {
-                            "name": "missile.dynamics"
-                        }
-                    }
-                }
-            },
             "components": [
                 {
                     "type": "example.programmed_aoa",
@@ -57,31 +40,41 @@
                     }
                 },
                 {
-                    "type": "aero.simple_polynomial",
-                    "name": "aero",
+                    "type": "cavh.constant_mass",
+                    "name": "mass",
                     "config": {
-                        "lift_slope_per_rad": 1.8,
-                        "drag_zero": 0.09,
-                        "drag_quadratic": 1.35,
-                        "reference_area_m2": 0.48,
-                        "reference_length_m": 2.5
+                        "mass_kg": 900.0
                     }
                 },
                 {
-                    "type": "state_3dof.point_mass_spherical",
+                    "type": "cavh.aero_table",
+                    "name": "aero",
+                    "config": {}
+                },
+                {
+                    "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
+                    "name": "bridge",
+                    "config": {}
+                },
+                {
+                    "type": "state_3dof.point_mass_spherical_soviet",
                     "name": "dynamics",
                     "config": {
                         "launch_azimuth_rad": 1.5707963267948966,
-                        "mass_kg": 900.0,
                         "initial_state": {
                             "longitude_rad": 1.9198621771937625,
                             "latitude_rad": 0.5235987755982988,
                             "altitude_m": 60000.0,
                             "speed_mps": 3200.0,
                             "flight_path_angle_rad": -0.1047197551196598,
-                            "heading_angle_rad": 1.5707963267948966
+                            "heading_angle_rad": -1.5707963267948966
                         }
                     }
+                },
+                {
+                    "type": "flight_state_3dof.soviet_observer",
+                    "name": "flight_state",
+                    "config": {}
                 }
             ]
         },
@@ -90,7 +83,7 @@
             "role": "environment",
             "components": [
                 {
-                    "type": "environment.wgs84_earth",
+                    "type": "environment.spherical_earth",
                     "name": "earth",
                     "config": {}
                 },

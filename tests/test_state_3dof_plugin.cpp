@@ -2,13 +2,19 @@
 
 #include "gnc/core/component_registry.hpp"
 #include "gnc/core/scoped_registry.hpp"
-#include "gnc/plugins/aero/interfaces/i_aero_model.hpp"
-#include "gnc/plugins/environment/interfaces/i_atmosphere.hpp"
-#include "gnc/plugins/environment/interfaces/i_earth.hpp"
-#include "gnc/plugins/environment/interfaces/i_gravity.hpp"
+#include "gnc/plugins/cavh/components/aero_table.hpp"
+#include "gnc/plugins/cavh/components/constant_mass.hpp"
+#include "gnc/plugins/environment/components/spherical_earth.hpp"
+#include "gnc/plugins/environment/components/spherical_gravity.hpp"
+#include "gnc/plugins/environment/components/standard_atmosphere.hpp"
+#include "gnc/plugins/flight_state_3dof/components/soviet_observer.hpp"
+#include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
+#include "gnc/plugins/mass/components/continuous_constant_rate_mass.hpp"
 #include "gnc/plugins/state_3dof/components/point_mass_cartesian.hpp"
-#include "gnc/plugins/state_3dof/components/point_mass_spherical.hpp"
+#include "gnc/plugins/state_3dof/components/point_mass_spherical_soviet.hpp"
+#include "gnc/plugins/state_3dof/interfaces/i_acceleration_provider_3dof.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
+#include "gnc/plugins/state_3dof_bridge/components/force_to_local_acceleration_soviet.hpp"
 
 #include <exception>
 #include <iostream>
@@ -16,73 +22,24 @@
 
 namespace {
 
-class ConstantAtmosphere final : public gnc::core::ComponentBase,
-                                 public gnc::plugins::environment::IAtmosphere {
-public:
-    ConstantAtmosphere() : ComponentBase("ConstantAtmosphere") {}
-    void update(double) override {}
-    double getDensity(double) const override { return 0.02; }
-    double getPressure(double) const override { return 1200.0; }
-    double getTemperature(double) const override { return 240.0; }
-    double getSpeedOfSound(double) const override { return 300.0; }
-};
-
-class ConstantGravity final : public gnc::core::ComponentBase,
-                              public gnc::plugins::environment::IGravity {
-public:
-    ConstantGravity() : ComponentBase("ConstantGravity") {}
-    void update(double) override {}
-    double getSeaLevelGravity() const override { return 9.81; }
-    double getGravityMagnitude(double) const override { return 9.81; }
-    gnc::math::Vector3 getGravityVector(const gnc::math::Vector3& position_ecef) const override {
-        return -9.81 * position_ecef.normalized();
-    }
-};
-
-class ConstantEarth final : public gnc::core::ComponentBase,
-                            public gnc::plugins::environment::IEarth {
-public:
-    ConstantEarth() : ComponentBase("ConstantEarth") {}
-    void update(double) override {}
-    double getEquatorialRadius() const override { return 6378137.0; }
-    double getFlattening() const override { return 1.0 / 298.257223563; }
-    double getRotationRate() const override { return 7.292115e-5; }
-    gnc::math::Vector3 geodeticToEcef(double latitude_rad,
-                                      double longitude_rad,
-                                      double altitude_m) const override {
-        const double radius = getEquatorialRadius() + altitude_m;
-        return gnc::math::Vector3(radius * std::cos(latitude_rad) * std::cos(longitude_rad),
-                                  radius * std::cos(latitude_rad) * std::sin(longitude_rad),
-                                  radius * std::sin(latitude_rad));
-    }
-};
-
-class ConstantAeroModel final : public gnc::core::ComponentBase,
-                                public gnc::plugins::aero::IAeroModel {
-public:
-    ConstantAeroModel() : ComponentBase("ConstantAeroModel") {}
-    void update(double) override {}
-    gnc::plugins::aero::AeroCoefficients computeCoefficients(double,
-                                                             double,
-                                                             double) const override {
-        return {0.35, 0.18};
-    }
-    double getReferenceArea() const override { return 0.48; }
-    double getReferenceLength() const override { return 2.5; }
-};
-
 class ConstantGuidance final : public gnc::core::ComponentBase,
                                public gnc::plugins::state_3dof::IFlightCommandProvider3DOF {
 public:
-    ConstantGuidance() : ComponentBase("ConstantGuidance") {}
+    ConstantGuidance() : ComponentBase("ConstantGuidance") {
+        command_.angle_of_attack_rad = 15.0 * gnc::math::constants::DEG_TO_RAD;
+        command_.bank_angle_rad = 0.0;
+    }
+
     void update(double) override {}
+
     const gnc::plugins::state_3dof::FlightCommand3DOF& getFlightCommand() const override {
         return command_;
     }
+
     bool isActive() const override { return true; }
 
 private:
-    gnc::plugins::state_3dof::FlightCommand3DOF command_{0.08, 0.0, 0.0};
+    gnc::plugins::state_3dof::FlightCommand3DOF command_{};
 };
 
 gnc::core::ConfigNode makeCartesianConfig() {
@@ -91,7 +48,21 @@ gnc::core::ConfigNode makeCartesianConfig() {
         field("initial_position", array({number(0.0), number(0.0), number(1000.0)})),
         field("initial_velocity", array({number(250.0), number(0.0), number(40.0)})),
         field("constant_acceleration", array({number(0.0), number(0.0), number(-9.81)})),
-        field("mass_kg", number(50.0)),
+    });
+}
+
+gnc::core::ConfigNode makeContinuousMassConfig() {
+    using namespace test_support;
+    return object({
+        field("initial_mass_kg", number(100.0)),
+        field("mass_rate_kg_per_s", number(-2.0)),
+    });
+}
+
+gnc::core::ConfigNode makeCavhMassConfig() {
+    using namespace test_support;
+    return object({
+        field("mass_kg", number(900.0)),
     });
 }
 
@@ -99,7 +70,6 @@ gnc::core::ConfigNode makeSphericalConfig() {
     using namespace test_support;
     return object({
         field("launch_azimuth_rad", number(1.5707963267948966)),
-        field("mass_kg", number(900.0)),
         field("initial_state",
               object({
                   field("longitude_rad", number(1.9198621771937625)),
@@ -107,7 +77,7 @@ gnc::core::ConfigNode makeSphericalConfig() {
                   field("altitude_m", number(60000.0)),
                   field("speed_mps", number(3200.0)),
                   field("flight_path_angle_rad", number(-0.10)),
-                  field("heading_angle_rad", number(1.5707963267948966)),
+                  field("heading_angle_rad", number(-1.5707963267948966)),
               })),
     });
 }
@@ -130,33 +100,125 @@ int main() {
         test_support::requireNear(cartesian.getAltitude(), 1000.0, 1e-9,
                                   "Cartesian altitude accessor returned an unexpected value.");
 
-        gnc::core::ComponentRegistry registry;
-        registry.add<ConstantAtmosphere, gnc::plugins::environment::IAtmosphere>(
-            "env.atmosphere", std::make_unique<ConstantAtmosphere>());
-        registry.add<ConstantGravity, gnc::plugins::environment::IGravity>(
-            "env.gravity", std::make_unique<ConstantGravity>());
-        registry.add<ConstantEarth, gnc::plugins::environment::IEarth>(
-            "env.earth", std::make_unique<ConstantEarth>());
-        registry.add<ConstantAeroModel, gnc::plugins::aero::IAeroModel>(
-            "missile.aero", std::make_unique<ConstantAeroModel>());
-        registry.add<ConstantGuidance, gnc::plugins::state_3dof::IFlightCommandProvider3DOF>(
-            "missile.guidance", std::make_unique<ConstantGuidance>());
+        gnc::plugins::mass::ContinuousConstantRateMass continuous_mass;
+        continuous_mass.configure(makeContinuousMassConfig());
+        Eigen::VectorXd mass_dx;
+        continuous_mass.computeDerivatives(0.0, continuous_mass.getState(), mass_dx);
+        test_support::requireNear(continuous_mass.getMassKg(), 100.0, 1e-9,
+                                  "Continuous mass initial value is wrong.");
+        test_support::requireNear(continuous_mass.getMassRateKgPerSec(), -2.0, 1e-9,
+                                  "Continuous mass rate accessor is wrong.");
+        test_support::requireNear(mass_dx[0], -2.0, 1e-9,
+                                  "Continuous mass derivative must equal the configured rate.");
 
-        gnc::plugins::state_3dof::PointMassSpherical spherical;
-        spherical.configure(makeSphericalConfig());
-        gnc::core::ScopedRegistry scoped("missile", registry, "missile.dynamics");
-        spherical.injectDependencies(scoped);
+        gnc::core::ComponentRegistry registry;
+        registry.add<gnc::plugins::environment::StandardAtmosphere,
+                     gnc::plugins::environment::IAtmosphere>(
+            "env.atmosphere",
+            std::make_unique<gnc::plugins::environment::StandardAtmosphere>());
+        registry.add<gnc::plugins::environment::SphericalGravity,
+                     gnc::plugins::environment::IGravity>(
+            "env.gravity",
+            std::make_unique<gnc::plugins::environment::SphericalGravity>());
+        registry.add<gnc::plugins::environment::SphericalEarth,
+                     gnc::plugins::environment::IEarth>(
+            "env.earth",
+            std::make_unique<gnc::plugins::environment::SphericalEarth>());
+        registry.add<ConstantGuidance,
+                     gnc::plugins::state_3dof::IFlightCommandProvider3DOF>(
+            "missile.guidance",
+            std::make_unique<ConstantGuidance>());
+
+        auto mass = std::make_unique<gnc::plugins::cavh::ConstantMass>();
+        auto* mass_ptr = mass.get();
+        mass_ptr->configure(makeCavhMassConfig());
+        registry.add<gnc::plugins::cavh::ConstantMass,
+                     gnc::plugins::mass::IConstantMass,
+                     gnc::interfaces::IObservable>("missile.mass", std::move(mass));
+
+        registry.add<gnc::plugins::cavh::AeroTable,
+                     gnc::plugins::aero::IAeroModel,
+                     gnc::interfaces::IObservable>(
+            "missile.aero",
+            std::make_unique<gnc::plugins::cavh::AeroTable>());
+
+        auto bridge =
+            std::make_unique<gnc::plugins::state_3dof_bridge::ForceToLocalAccelerationSoviet>();
+        auto* bridge_ptr = bridge.get();
+        registry.add<gnc::plugins::state_3dof_bridge::ForceToLocalAccelerationSoviet,
+                     gnc::plugins::state_3dof::IAccelerationProvider3DOF>(
+            "missile.bridge",
+            std::move(bridge));
+
+        auto dynamics =
+            std::make_unique<gnc::plugins::state_3dof::PointMassSphericalSoviet>();
+        auto* dynamics_ptr = dynamics.get();
+        dynamics_ptr->configure(makeSphericalConfig());
+        registry.add<gnc::plugins::state_3dof::PointMassSphericalSoviet,
+                     gnc::interfaces::IContinuousSystem,
+                     gnc::plugins::state_3dof::IStateSolver3DOF,
+                     gnc::plugins::state_3dof::ISovietSphericalState3DOF,
+                     gnc::plugins::state_3dof::IVelocityDirectionProvider,
+                     gnc::interfaces::IObservable>("missile.dynamics", std::move(dynamics));
+
+        auto observer =
+            std::make_unique<gnc::plugins::flight_state_3dof::SovietObserver>();
+        auto* observer_ptr = observer.get();
+        registry.add<gnc::plugins::flight_state_3dof::SovietObserver,
+                     gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver,
+                     gnc::interfaces::IObservable>(
+            "missile.flight_state",
+            std::move(observer));
+
+        gnc::core::ScopedRegistry bridge_scoped("missile", registry, "missile.bridge");
+        bridge_ptr->injectDependencies(bridge_scoped);
+
+        gnc::core::ScopedRegistry dynamics_scoped("missile", registry, "missile.dynamics");
+        dynamics_ptr->injectDependencies(dynamics_scoped);
+
+        gnc::core::ScopedRegistry observer_scoped("missile", registry, "missile.flight_state");
+        observer_ptr->injectDependencies(observer_scoped);
+
+        const auto spherical_state = dynamics_ptr->getSovietSphericalState();
+        const auto bridge_acceleration =
+            bridge_ptr->computeLocalAccelerationNue(spherical_state, 0.0);
 
         Eigen::VectorXd spherical_dx;
-        spherical.computeDerivatives(0.0, spherical.getState(), spherical_dx);
-        test_support::require(spherical.getStateLayout().dimension() == 6,
-                              "Spherical 3DOF state dimension must remain 6.");
+        dynamics_ptr->computeDerivatives(0.0, dynamics_ptr->getState(), spherical_dx);
+        test_support::require(dynamics_ptr->getStateLayout().dimension() == 6,
+                              "Soviet spherical 3DOF state dimension must remain 6.");
         test_support::require(spherical_dx[2] < 0.0,
                               "Descending initial condition should reduce altitude.");
-        test_support::require(spherical.getVelocityInLaunchFrame().x() > 0.0,
-                              "Launch-frame velocity should point downrange for the configured heading.");
-        test_support::require(spherical.getPosition().norm() > 6.3e6,
-                              "ECEF position magnitude is inconsistent with the configured altitude.");
+        test_support::require(dynamics_ptr->getVelocityInLaunchFrame().x() > 0.0,
+                              "Launch-frame velocity should point downrange.");
+        test_support::require(dynamics_ptr->getPosition().norm() > 6.3e6,
+                              "ECEF position magnitude is inconsistent with altitude.");
+        test_support::require(bridge_acceleration.norm() > 1.0,
+                              "Bridge acceleration should include gravity and aerodynamic terms.");
+
+        observer_ptr->update(0.0);
+        const auto& flight_state = observer_ptr->getFlightState3DOFSoviet();
+        test_support::requireNear(flight_state.angle_of_attack_rad,
+                                  15.0 * gnc::math::constants::DEG_TO_RAD,
+                                  1e-9,
+                                  "Observer lost the commanded angle of attack.");
+        test_support::require(flight_state.mach_number > 5.0,
+                              "Observer Mach number is inconsistent with the initial state.");
+        test_support::require(flight_state.dynamic_pressure_pa > 0.0,
+                              "Observer dynamic pressure must be positive.");
+        test_support::requireNear(flight_state.local_velocity_nue_mps.norm(),
+                                  spherical_state.speed_mps,
+                                  1e-6,
+                                  "Observer local velocity norm drifted from speed.");
+        test_support::requireVectorNear(
+            flight_state.local_acceleration_nue_mps2,
+            bridge_acceleration,
+            1e-6,
+            "Observer-reconstructed local acceleration disagrees with the bridge output.");
+        test_support::requireNear(mass_ptr->getMassKg(),
+                                  900.0,
+                                  1e-9,
+                                  "CAV-H constant mass no longer returns its configured value.");
 
         std::cout << "state_3dof plugin checks passed\n";
         return 0;

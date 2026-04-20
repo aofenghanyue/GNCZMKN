@@ -25,20 +25,23 @@ int main() {
             infos.begin(),
             infos.end(),
             [](const ComponentFactory::RegisteredTypeInfo& info) {
-                return info.type_name == "state_3dof.point_mass_cartesian";
+                return info.type_name == "state_3dof.point_mass_spherical_soviet";
             });
 
         test_support::require(it != infos.end(),
-                              "Builtin point_mass_cartesian type was not registered.");
+                              "Builtin Soviet spherical 3DOF type was not registered.");
         test_support::require(
             containsValue(it->interface_names, "IContinuousSystem"),
-            "point_mass_cartesian should advertise IContinuousSystem in verbose listings.");
+            "point_mass_spherical_soviet should advertise IContinuousSystem.");
         test_support::require(
             containsValue(it->interface_names, "IStateSolver3DOF"),
-            "point_mass_cartesian should advertise IStateSolver3DOF in verbose listings.");
+            "point_mass_spherical_soviet should advertise IStateSolver3DOF.");
+        test_support::require(
+            containsValue(it->interface_names, "ISovietSphericalState3DOF"),
+            "point_mass_spherical_soviet should advertise ISovietSphericalState3DOF.");
         test_support::require(
             containsValue(it->interface_names, "IObservable"),
-            "point_mass_cartesian should advertise IObservable in verbose listings.");
+            "point_mass_spherical_soviet should advertise IObservable.");
 
         std::cout << "component listing checks passed\n";
         return 0;

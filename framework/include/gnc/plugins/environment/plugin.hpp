@@ -2,6 +2,7 @@
 
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/plugin_registry.hpp"
+#include "gnc/plugins/environment/components/spherical_earth.hpp"
 #include "gnc/plugins/environment/components/wgs84_earth.hpp"
 #include "gnc/plugins/environment/components/standard_atmosphere.hpp"
 #include "gnc/plugins/environment/components/spherical_gravity.hpp"
@@ -18,6 +19,10 @@ public:
     void install(gnc::core::PluginRegistry&) const override {
         auto& factory = gnc::core::ComponentFactory::instance();
 
+        factory.registerType<SphericalEarth, IEarth>(
+            "environment.spherical_earth",
+            gnc::core::ComponentCategory::Builtin,
+            __FILE__);
         factory.registerType<Wgs84Earth, IEarth>(
             "environment.wgs84_earth",
             gnc::core::ComponentCategory::Builtin,

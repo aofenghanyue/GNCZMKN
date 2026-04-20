@@ -65,6 +65,82 @@ endif()
 set(GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${GENERATED_DIR}")
 
+set(GNC_ATMOSPHERE_DATA_FILE
+    "${CMAKE_SOURCE_DIR}/framework/data/atmosphere/ussa1976_si_merged.csv")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${GNC_ATMOSPHERE_DATA_FILE}")
+
+function(generate_ussa1976_atmosphere_header input_file output_file)
+    file(STRINGS "${input_file}" atmosphere_lines)
+
+    set(altitude_values "")
+    set(temperature_values "")
+    set(pressure_values "")
+    set(density_values "")
+    set(sound_speed_values "")
+
+    foreach(line IN LISTS atmosphere_lines)
+        if(line STREQUAL "" OR line MATCHES "^[ \t]*#")
+            continue()
+        endif()
+
+        string(REPLACE "," ";" fields "${line}")
+        list(LENGTH fields field_count)
+        if(NOT field_count EQUAL 5)
+            message(FATAL_ERROR
+                "Atmosphere data line must contain exactly 5 comma-separated fields: '${line}'")
+        endif()
+
+        list(GET fields 0 altitude_km)
+        list(GET fields 1 temperature_k)
+        list(GET fields 2 pressure_pa)
+        list(GET fields 3 density_kgpm3)
+        list(GET fields 4 sound_speed_mps)
+
+        list(APPEND altitude_values "${altitude_km}")
+        list(APPEND temperature_values "${temperature_k}")
+        list(APPEND pressure_values "${pressure_pa}")
+        list(APPEND density_values "${density_kgpm3}")
+        list(APPEND sound_speed_values "${sound_speed_mps}")
+    endforeach()
+
+    list(LENGTH altitude_values atmosphere_table_size)
+    if(atmosphere_table_size LESS 2)
+        message(FATAL_ERROR "Atmosphere data must contain at least 2 rows.")
+    endif()
+
+    string(JOIN ", " altitude_joined ${altitude_values})
+    string(JOIN ", " temperature_joined ${temperature_values})
+    string(JOIN ", " pressure_joined ${pressure_values})
+    string(JOIN ", " density_joined ${density_values})
+    string(JOIN ", " sound_speed_joined ${sound_speed_values})
+
+    set(header_content
+"#pragma once
+
+#include <array>
+#include <cstddef>
+
+namespace gnc::generated {
+
+inline constexpr std::size_t kUssa1976TableSize = ${atmosphere_table_size};
+inline constexpr std::array<double, kUssa1976TableSize> kUssa1976AltitudeKm = {${altitude_joined}};
+inline constexpr std::array<double, kUssa1976TableSize> kUssa1976TemperatureK = {${temperature_joined}};
+inline constexpr std::array<double, kUssa1976TableSize> kUssa1976PressurePa = {${pressure_joined}};
+inline constexpr std::array<double, kUssa1976TableSize> kUssa1976DensityKgPerM3 = {${density_joined}};
+inline constexpr std::array<double, kUssa1976TableSize> kUssa1976SpeedOfSoundMps = {${sound_speed_joined}};
+
+} // namespace gnc::generated
+")
+
+    file(WRITE "${output_file}" "${header_content}")
+endfunction()
+
+set(GNC_ATMOSPHERE_HEADER_FILE "${GENERATED_DIR}/gnc_generated_ussa1976_atmosphere.hpp")
+generate_ussa1976_atmosphere_header(
+    "${GNC_ATMOSPHERE_DATA_FILE}"
+    "${GNC_ATMOSPHERE_HEADER_FILE}")
+
 set(AUTO_REGISTER_FILE "${GENERATED_DIR}/auto_registered_components.hpp")
 file(WRITE "${AUTO_REGISTER_FILE}" "#pragma once\n\n")
 

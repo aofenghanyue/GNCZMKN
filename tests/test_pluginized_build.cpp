@@ -2,7 +2,7 @@
 
 #include "gnc/core/simulation_builder.hpp"
 #include "gnc/plugins/_builtin_plugins.hpp"
-#include "gnc/plugins/soviet_coord/interfaces/i_soviet_coord_service.hpp"
+#include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
 #include "user/example_02_atmospheric_3dof/components/programmed_aoa_guidance.hpp"
 
@@ -34,28 +34,15 @@ int main() {
     "record": {
       "missile.dynamics": "all",
       "missile.guidance": "all",
-      "missile.aero": "all"
+      "missile.aero": "all",
+      "missile.mass": "all",
+      "missile.flight_state": "all"
     }
   },
   "entities": [
     {
       "id": "missile",
       "role": "vehicle",
-      "services": {
-        "soviet_coord": {
-          "launch": {
-            "latitude_rad": 0.5235987755982988,
-            "longitude_rad": 1.9198621771937625,
-            "azimuth_rad": 1.5707963267948966,
-            "launch_time_s": 0.0,
-            "earth_rotation_angle_rad": 0.0
-          },
-          "bindings": {
-            "earth": { "name": "env.earth" },
-            "velocity_direction": { "name": "missile.dynamics" }
-          }
-        }
-      },
       "components": [
         {
           "type": "example.programmed_aoa",
@@ -67,31 +54,41 @@ int main() {
           }
         },
         {
-          "type": "aero.simple_polynomial",
-          "name": "aero",
+          "type": "cavh.constant_mass",
+          "name": "mass",
           "config": {
-            "lift_slope_per_rad": 1.8,
-            "drag_zero": 0.09,
-            "drag_quadratic": 1.35,
-            "reference_area_m2": 0.48,
-            "reference_length_m": 2.5
+            "mass_kg": 900.0
           }
         },
         {
-          "type": "state_3dof.point_mass_spherical",
+          "type": "cavh.aero_table",
+          "name": "aero",
+          "config": {}
+        },
+        {
+          "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
+          "name": "bridge",
+          "config": {}
+        },
+        {
+          "type": "state_3dof.point_mass_spherical_soviet",
           "name": "dynamics",
           "config": {
             "launch_azimuth_rad": 1.5707963267948966,
-            "mass_kg": 900.0,
             "initial_state": {
               "longitude_rad": 1.9198621771937625,
               "latitude_rad": 0.5235987755982988,
               "altitude_m": 60000.0,
               "speed_mps": 3200.0,
               "flight_path_angle_rad": -0.1047197551196598,
-              "heading_angle_rad": 1.5707963267948966
+              "heading_angle_rad": -1.5707963267948966
             }
           }
+        },
+        {
+          "type": "flight_state_3dof.soviet_observer",
+          "name": "flight_state",
+          "config": {}
         }
       ]
     },
@@ -99,7 +96,7 @@ int main() {
       "id": "environment",
       "role": "environment",
       "components": [
-        { "type": "environment.wgs84_earth", "name": "earth", "config": {} },
+        { "type": "environment.spherical_earth", "name": "earth", "config": {} },
         { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} },
         { "type": "environment.spherical_gravity", "name": "gravity", "config": {} }
       ]
@@ -113,27 +110,26 @@ int main() {
                               "Pluginized mission JSON could not be parsed.");
 
         auto& simulator = builder.build();
-        test_support::require(builder.getVehicles().size() == 1,
-                              "Entity-first mission should produce exactly one vehicle.");
-        auto* coord = builder.getVehicles().front().services.get<
-            gnc::plugins::soviet_coord::ISovietCoordService>();
-        test_support::require(coord != nullptr,
-                              "Vehicle-local soviet_coord service was not installed.");
-        test_support::require(coord->hasEdge("K", "L"),
-                              "Velocity-driven K->L edge is missing in the end-to-end build.");
-
         auto* dynamics = simulator.getRegistry().get<gnc::plugins::state_3dof::IStateSolver3DOF>(
             "missile.dynamics");
         test_support::require(dynamics != nullptr,
                               "Dynamics component did not expose IStateSolver3DOF.");
+        auto* flight_state = simulator.getRegistry().get<
+            gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver>(
+            "missile.flight_state");
+        test_support::require(flight_state != nullptr,
+                              "Flight-state observer component is missing.");
         const double initial_altitude = dynamics->getAltitude();
 
         simulator.run();
 
         test_support::require(simulator.getTerminationReason() == "completed",
-                              "Short atmospheric mission should complete without early termination.");
+                              "Short CAV-H mission should complete without early termination.");
         test_support::require(dynamics->getAltitude() < initial_altitude,
-                              "Atmospheric mission did not descend during propagation.");
+                              "CAV-H mission did not descend during propagation.");
+        test_support::require(
+            flight_state->getFlightState3DOFSoviet().mach_number > 1.0,
+            "Flight-state observer returned an unexpected Mach number after the run.");
 
         std::cout << "pluginized build checks passed\n";
         return 0;

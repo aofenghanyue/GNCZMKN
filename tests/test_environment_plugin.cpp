@@ -1,5 +1,6 @@
 #include "test_support.hpp"
 
+#include "gnc/plugins/environment/components/spherical_earth.hpp"
 #include "gnc/plugins/environment/components/spherical_gravity.hpp"
 #include "gnc/plugins/environment/components/standard_atmosphere.hpp"
 #include "gnc/plugins/environment/components/wgs84_earth.hpp"
@@ -9,26 +10,39 @@
 
 int main() {
     try {
-        gnc::plugins::environment::Wgs84Earth earth;
+        gnc::plugins::environment::Wgs84Earth wgs84_earth;
+        gnc::plugins::environment::SphericalEarth spherical_earth;
         gnc::plugins::environment::StandardAtmosphere atmosphere;
         gnc::plugins::environment::SphericalGravity gravity;
 
-        test_support::requireNear(earth.getEquatorialRadius(),
+        test_support::requireNear(wgs84_earth.getEquatorialRadius(),
                                   6378137.0,
                                   1e-6,
                                   "Unexpected WGS84 equatorial radius.");
+        test_support::requireNear(spherical_earth.getFlattening(),
+                                  0.0,
+                                  1e-12,
+                                  "Spherical Earth flattening must be zero.");
 
-        const auto ecef_origin = earth.geodeticToEcef(0.0, 0.0, 0.0);
+        const auto ecef_origin = wgs84_earth.geodeticToEcef(0.0, 0.0, 0.0);
         test_support::requireVectorNear(
             ecef_origin,
-            gnc::math::Vector3(earth.getEquatorialRadius(), 0.0, 0.0),
+            gnc::math::Vector3(wgs84_earth.getEquatorialRadius(), 0.0, 0.0),
             1e-6,
             "Equatorial geodetic-to-ECEF conversion drifted.");
 
-        const double rho0 = atmosphere.getDensity(0.0);
-        const double rho10 = atmosphere.getDensity(10000.0);
-        test_support::require(rho0 > rho10,
+        const auto sea_level = atmosphere.sample(0.0);
+        const auto ten_km = atmosphere.sample(10000.0);
+        test_support::require(sea_level.density_kg_per_m3 > ten_km.density_kg_per_m3,
                               "Atmospheric density should decrease with altitude.");
+        test_support::requireNear(atmosphere.getSeaLevelPressure(),
+                                  sea_level.pressure_pa,
+                                  1e-9,
+                                  "Sea-level pressure accessor drifted from the sample table.");
+        test_support::requireNear(atmosphere.getSeaLevelTemperature(),
+                                  sea_level.temperature_k,
+                                  1e-9,
+                                  "Sea-level temperature accessor drifted from the sample table.");
 
         const auto gravity_vector =
             gravity.getGravityVector(gnc::math::Vector3(6371000.0, 0.0, 0.0));

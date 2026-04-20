@@ -17,12 +17,18 @@ int main() {
         auto& plugins = PluginRegistry::instance();
 
         const std::vector<std::string> required_component_types = {
+            "environment.spherical_earth",
             "environment.wgs84_earth",
             "environment.standard_atmosphere",
             "environment.spherical_gravity",
             "aero.simple_polynomial",
+            "mass.continuous_constant_rate",
+            "cavh.constant_mass",
+            "cavh.aero_table",
             "state_3dof.point_mass_cartesian",
-            "state_3dof.point_mass_spherical"};
+            "state_3dof.point_mass_spherical_soviet",
+            "state_3dof_bridge.force_to_local_acceleration_soviet",
+            "flight_state_3dof.soviet_observer"};
 
         for (const auto& type_name : required_component_types) {
             test_support::require(factory.hasType(type_name),
@@ -31,7 +37,14 @@ int main() {
 
         const auto registered_plugins = plugins.getPluginNames();
         for (const auto& plugin_name :
-             {"environment", "aero", "state_3dof", "soviet_coord"}) {
+             {"environment",
+              "aero",
+              "mass",
+              "cavh",
+              "state_3dof",
+              "state_3dof_bridge",
+              "flight_state_3dof",
+              "soviet_coord"}) {
             test_support::require(
                 std::find(registered_plugins.begin(), registered_plugins.end(), plugin_name) !=
                     registered_plugins.end(),

@@ -49,7 +49,6 @@ public:
                 constant_acceleration[2].asDouble(0.0));
         }
 
-        mass_kg_ = config["mass_kg"].asDouble(mass_kg_);
         state_ = initial_state_;
     }
 
@@ -84,7 +83,6 @@ public:
                                   state_[velocity_z_index_]);
     }
 
-    double getMass() const override { return mass_kg_; }
     double getSpeed() const override { return getVelocity().norm(); }
     double getAltitude() const override { return getPosition().z(); }
 
@@ -100,7 +98,6 @@ public:
         });
         builder.addScalar("speed", [this]() { return getSpeed(); });
         builder.addScalar("altitude", [this]() { return getAltitude(); });
-        builder.addScalar("mass", [this]() { return getMass(); });
         return builder.build();
     }
 
@@ -109,7 +106,6 @@ private:
     Eigen::VectorXd state_;
     Eigen::VectorXd initial_state_;
     gnc::math::Vector3 constant_acceleration_ = gnc::math::Vector3::Zero();
-    double mass_kg_ = 100.0;
     int position_x_index_ = -1;
     int position_y_index_ = -1;
     int position_z_index_ = -1;

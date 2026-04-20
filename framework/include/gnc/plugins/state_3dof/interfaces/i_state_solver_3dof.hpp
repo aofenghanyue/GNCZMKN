@@ -10,7 +10,6 @@ public:
 
     virtual gnc::math::Vector3 getPosition() const = 0;
     virtual gnc::math::Vector3 getVelocity() const = 0;
-    virtual double getMass() const = 0;
     virtual double getSpeed() const = 0;
     virtual double getAltitude() const = 0;
 };
