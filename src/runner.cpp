@@ -1,9 +1,9 @@
 #include "gnc/common/logger.hpp"
-#include "gnc/plugins/_builtin_plugins.hpp"
+#include "auto_registered_components.hpp"
+#include "gnc/bootstrap/register_builtin_packages.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
 #include "active_project_config.hpp"
-#include "auto_registered_components.hpp"
 
 #include <filesystem>
 #include <iostream>
@@ -256,6 +256,11 @@ void listComponents(bool verbose) {
         std::cout << "    - " << info.type_name;
         if (verbose) {
             std::cout << " [interfaces: " << joinStrings(info.interface_names);
+            std::cout << "; role: " << toString(info.package_role);
+            std::cout << "; stage: " << toString(info.execution_stage);
+            if (!info.form_family.empty()) {
+                std::cout << "; form-family: " << info.form_family;
+            }
             if (!info.registration_origin.empty()) {
                 std::cout << "; origin: " << info.registration_origin;
             }
@@ -272,6 +277,11 @@ void listComponents(bool verbose) {
         std::cout << "    - " << info.type_name;
         if (verbose) {
             std::cout << " [interfaces: " << joinStrings(info.interface_names);
+            std::cout << "; role: " << toString(info.package_role);
+            std::cout << "; stage: " << toString(info.execution_stage);
+            if (!info.form_family.empty()) {
+                std::cout << "; form-family: " << info.form_family;
+            }
             if (!info.registration_origin.empty()) {
                 std::cout << "; origin: " << info.registration_origin;
             }
@@ -284,6 +294,10 @@ void listComponents(bool verbose) {
 }
 
 int main(int argc, char* argv[]) {
+    auto& factory = ComponentFactory::instance();
+    gnc::bootstrap::registerBuiltinPackages(factory);
+    gnc::build::registerAutoRegisteredProjectComponents(factory);
+
     RunnerOptions options;
     std::string parse_error;
     if (!parseArgs(argc, argv, options, parse_error)) {

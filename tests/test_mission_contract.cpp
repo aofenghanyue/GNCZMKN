@@ -1,7 +1,6 @@
 #include "test_support.hpp"
 
 #include "gnc/core/simulation_builder.hpp"
-#include "gnc/plugins/_builtin_plugins.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -21,6 +20,8 @@ bool containsSubstring(const std::vector<std::string>& lines, const std::string&
 
 int main() {
     try {
+        test_support::registerAvailableComponentTypes();
+
         const char* legacy_mission = R"json(
 {
   "simulation": {

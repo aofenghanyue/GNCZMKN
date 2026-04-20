@@ -1,7 +1,6 @@
 #include "test_support.hpp"
 
 #include "gnc/core/component_factory.hpp"
-#include "gnc/plugins/_builtin_plugins.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -18,6 +17,8 @@ bool containsValue(const std::vector<std::string>& values, const std::string& ex
 
 int main() {
     try {
+        test_support::registerAvailableComponentTypes();
+
         using gnc::core::ComponentFactory;
 
         const auto infos = ComponentFactory::instance().getRegisteredTypeInfos();
@@ -42,6 +43,15 @@ int main() {
         test_support::require(
             containsValue(it->interface_names, "IObservable"),
             "point_mass_spherical_soviet should advertise IObservable.");
+        test_support::require(
+            it->package_role == gnc::core::ComponentPackageRole::Form,
+            "point_mass_spherical_soviet should be labeled as a form package.");
+        test_support::require(
+            it->execution_stage == gnc::core::ExecutionStage::Form,
+            "point_mass_spherical_soviet should be labeled for the form execution stage.");
+        test_support::require(
+            it->form_family == "local_spherical_3dof",
+            "point_mass_spherical_soviet should advertise the local_spherical_3dof family.");
 
         std::cout << "component listing checks passed\n";
         return 0;

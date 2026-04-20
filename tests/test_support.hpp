@@ -1,6 +1,9 @@
 #pragma once
 
+#include "auto_registered_components.hpp"
+#include "gnc/bootstrap/register_builtin_packages.hpp"
 #include "gnc/common/math/eigen_types.hpp"
+#include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
 
 #include <cmath>
@@ -77,6 +80,12 @@ inline gnc::core::ConfigNode array(
         node.push(value);
     }
     return node;
+}
+
+inline void registerAvailableComponentTypes() {
+    auto& factory = gnc::core::ComponentFactory::instance();
+    gnc::bootstrap::registerBuiltinPackages(factory);
+    gnc::build::registerAutoRegisteredProjectComponents(factory);
 }
 
 } // namespace test_support

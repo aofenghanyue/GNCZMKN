@@ -1,8 +1,7 @@
 #include "test_support.hpp"
 
+#include "gnc/bootstrap/install_builtin_services.hpp"
 #include "gnc/core/component_factory.hpp"
-#include "gnc/core/plugin_registry.hpp"
-#include "gnc/plugins/_builtin_plugins.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -13,8 +12,9 @@ int main() {
     try {
         using namespace gnc::core;
 
+        test_support::registerAvailableComponentTypes();
+
         auto& factory = ComponentFactory::instance();
-        auto& plugins = PluginRegistry::instance();
 
         const std::vector<std::string> required_component_types = {
             "environment.spherical_earth",
@@ -35,25 +35,13 @@ int main() {
                                   "Missing registered builtin component type: " + type_name);
         }
 
-        const auto registered_plugins = plugins.getPluginNames();
-        for (const auto& plugin_name :
-             {"environment",
-              "aero",
-              "mass",
-              "cavh",
-              "state_3dof",
-              "state_3dof_bridge",
-              "flight_state_3dof",
-              "soviet_coord"}) {
-            test_support::require(
-                std::find(registered_plugins.begin(), registered_plugins.end(), plugin_name) !=
-                    registered_plugins.end(),
-                "Missing registered plugin: " + std::string(plugin_name));
-        }
+        const auto service_names = gnc::bootstrap::getBuiltinServiceNames();
+        test_support::require(std::find(service_names.begin(),
+                                        service_names.end(),
+                                        "soviet_coord") != service_names.end(),
+                              "Builtin services should advertise soviet_coord.");
 
-        test_support::require(plugins.hasServiceInstaller("soviet_coord"),
-                              "soviet_coord service installer was not registered.");
-        std::cout << "plugin registry checks passed\n";
+        std::cout << "builtin bootstrap checks passed\n";
         return 0;
     } catch (const std::exception& ex) {
         std::cerr << ex.what() << '\n';

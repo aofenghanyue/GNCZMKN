@@ -1,10 +1,11 @@
 #pragma once
 
+#include "gnc/bootstrap/install_builtin_services.hpp"
 #include "gnc/common/string_utils.hpp"
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
-#include "gnc/core/plugin_registry.hpp"
+#include "gnc/core/deferred_registry_action.hpp"
 #include "gnc/core/service_context.hpp"
 #include "gnc/core/simulator.hpp"
 
@@ -37,7 +38,7 @@ public:
                      ServiceContext& global_services,
                      EnvironmentInstance& environment,
                      std::vector<VehicleInstance>& vehicles,
-                     std::vector<PluginRegistry::DeferredAction>& deferred_service_actions,
+                     std::vector<DeferredRegistryAction>& deferred_service_actions,
                      DiagnosticReporter add_error,
                      DiagnosticReporter add_warning)
         : simulator_(simulator),
@@ -121,8 +122,8 @@ private:
     }
 
     static std::string buildUnknownServiceMessage(const std::string& service_name) {
-        std::string message = "Unknown service plugin '" + service_name + "'.";
-        const auto available = PluginRegistry::instance().getServiceNames();
+        std::string message = "Unknown builtin service '" + service_name + "'.";
+        const auto available = gnc::bootstrap::getBuiltinServiceNames();
         if (!available.empty()) {
             message += " Available services: " + joinStrings(available) + ".";
         }
@@ -294,22 +295,22 @@ private:
             if (config.has("enabled") && !config["enabled"].asBool(true)) {
                 continue;
             }
-            if (!PluginRegistry::instance().hasServiceInstaller(service_name)) {
-                add_error_(buildUnknownServiceMessage(service_name));
-                continue;
-            }
-
             try {
-                PluginRegistry::ServiceInstallRequest request{
+                gnc::bootstrap::installBuiltinService(
+                    service_name,
                     config,
                     services,
-                    service_scope_name,
                     registry_scope,
-                    deferred_service_actions_};
-                PluginRegistry::instance().installService(service_name, request);
+                    deferred_service_actions_);
             } catch (const std::exception& e) {
-                add_error_("Service '" + service_name + "' in scope '" +
-                           service_scope_name + "' failed to install: " + e.what());
+                const auto available = gnc::bootstrap::getBuiltinServiceNames();
+                if (std::find(available.begin(), available.end(), service_name) ==
+                    available.end()) {
+                    add_error_(buildUnknownServiceMessage(service_name));
+                    continue;
+                }
+                add_error_("Service '" + service_name + "' in scope '" + service_scope_name +
+                           "' failed to install: " + e.what());
             }
         }
     }
@@ -318,7 +319,7 @@ private:
     ServiceContext& global_services_;
     EnvironmentInstance& environment_;
     std::vector<VehicleInstance>& vehicles_;
-    std::vector<PluginRegistry::DeferredAction>& deferred_service_actions_;
+    std::vector<DeferredRegistryAction>& deferred_service_actions_;
     DiagnosticReporter add_error_;
     DiagnosticReporter add_warning_;
 };

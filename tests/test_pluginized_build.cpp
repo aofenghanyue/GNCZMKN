@@ -1,16 +1,16 @@
 #include "test_support.hpp"
 
 #include "gnc/core/simulation_builder.hpp"
-#include "gnc/plugins/_builtin_plugins.hpp"
 #include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
-#include "user/example_02_atmospheric_3dof/components/programmed_aoa_guidance.hpp"
 
 #include <exception>
 #include <iostream>
 
 int main() {
     try {
+        test_support::registerAvailableComponentTypes();
+
         const char* mission = R"json(
 {
   "simulation": {

@@ -1,10 +1,9 @@
 #include "test_support.hpp"
 
+#include "gnc/bootstrap/install_builtin_services.hpp"
 #include "gnc/core/component_registry.hpp"
-#include "gnc/core/plugin_registry.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/core/service_context.hpp"
-#include "gnc/plugins/_builtin_plugins.hpp"
 #include "gnc/plugins/environment/interfaces/i_earth.hpp"
 #include "gnc/plugins/soviet_coord/interfaces/i_soviet_coord_service.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_velocity_direction_provider.hpp"
@@ -75,17 +74,11 @@ int main() {
             "velocity", std::make_unique<FixedVelocityDirection>());
 
         gnc::core::ServiceContext services;
-        std::vector<gnc::core::PluginRegistry::DeferredAction> deferred_actions;
+        std::vector<gnc::core::DeferredRegistryAction> deferred_actions;
         const auto config = makeServiceConfig();
 
-        const gnc::core::PluginRegistry::ServiceInstallRequest request{
-            config,
-            services,
-            "global",
-            "",
-            deferred_actions};
-
-        gnc::core::PluginRegistry::instance().installService("soviet_coord", request);
+        gnc::bootstrap::installBuiltinService(
+            "soviet_coord", config, services, "", deferred_actions);
         test_support::require(services.get<gnc::plugins::soviet_coord::ISovietCoordService>() != nullptr,
                               "Service installer did not register ISovietCoordService.");
 

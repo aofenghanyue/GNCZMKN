@@ -20,6 +20,27 @@ enum class ComponentCategory {
     Project
 };
 
+enum class ComponentPackageRole {
+    Unknown,
+    Form,
+    Environment,
+    VehicleCommon,
+    VehicleInput,
+    VehicleProcess,
+    VehicleOutput,
+    Interaction
+};
+
+enum class ExecutionStage {
+    None,
+    Environment,
+    VehicleInput,
+    VehicleProcess,
+    VehicleOutput,
+    Interaction,
+    Form
+};
+
 inline const char* toString(ComponentCategory category) {
     switch (category) {
     case ComponentCategory::Builtin:
@@ -28,6 +49,50 @@ inline const char* toString(ComponentCategory category) {
         return "project";
     default:
         return "unknown";
+    }
+}
+
+inline const char* toString(ComponentPackageRole role) {
+    switch (role) {
+    case ComponentPackageRole::Unknown:
+        return "unknown";
+    case ComponentPackageRole::Form:
+        return "form";
+    case ComponentPackageRole::Environment:
+        return "environment";
+    case ComponentPackageRole::VehicleCommon:
+        return "vehicle_common";
+    case ComponentPackageRole::VehicleInput:
+        return "vehicle_input";
+    case ComponentPackageRole::VehicleProcess:
+        return "vehicle_process";
+    case ComponentPackageRole::VehicleOutput:
+        return "vehicle_output";
+    case ComponentPackageRole::Interaction:
+        return "interaction";
+    default:
+        return "unknown";
+    }
+}
+
+inline const char* toString(ExecutionStage stage) {
+    switch (stage) {
+    case ExecutionStage::None:
+        return "none";
+    case ExecutionStage::Environment:
+        return "environment";
+    case ExecutionStage::VehicleInput:
+        return "vehicle_input";
+    case ExecutionStage::VehicleProcess:
+        return "vehicle_process";
+    case ExecutionStage::VehicleOutput:
+        return "vehicle_output";
+    case ExecutionStage::Interaction:
+        return "interaction";
+    case ExecutionStage::Form:
+        return "form";
+    default:
+        return "none";
     }
 }
 
@@ -117,6 +182,9 @@ public:
         std::string type_name;
         ComponentCategory category = ComponentCategory::Project;
         std::string registration_origin;
+        ComponentPackageRole package_role = ComponentPackageRole::Unknown;
+        ExecutionStage execution_stage = ExecutionStage::None;
+        std::string form_family;
         std::vector<std::type_index> interfaces;
         std::vector<std::string> interface_names;
     };
@@ -129,7 +197,10 @@ public:
     template<typename T, typename... Interfaces>
     void registerType(const std::string& type_name,
                       ComponentCategory category = ComponentCategory::Project,
-                      const std::string& registration_origin = "") {
+                      const std::string& registration_origin = "",
+                      ComponentPackageRole package_role = ComponentPackageRole::Unknown,
+                      ExecutionStage execution_stage = ExecutionStage::None,
+                      const std::string& form_family = "") {
         if (creators_.count(type_name) > 0) {
             LOG_WARNING("Component type already registered: {}", type_name);
             return;
@@ -139,6 +210,9 @@ public:
         entry.creator = std::make_unique<ComponentCreator<T, Interfaces...>>();
         entry.category = category;
         entry.registration_origin = normalizeRegistrationOrigin(registration_origin);
+        entry.package_role = package_role;
+        entry.execution_stage = execution_stage;
+        entry.form_family = form_family;
         creators_[type_name] = std::move(entry);
         LOG_INFO("Factory registered {} type: {}", toString(category), type_name);
     }
@@ -192,6 +266,9 @@ public:
             info.type_name = name;
             info.category = entry.category;
             info.registration_origin = entry.registration_origin;
+            info.package_role = entry.package_role;
+            info.execution_stage = entry.execution_stage;
+            info.form_family = entry.form_family;
             info.interfaces = entry.creator->getInterfaces();
             info.interface_names = entry.creator->getInterfaceNames();
             std::sort(info.interface_names.begin(), info.interface_names.end());
@@ -260,35 +337,41 @@ private:
         std::unique_ptr<ComponentCreatorBase> creator;
         ComponentCategory category = ComponentCategory::Project;
         std::string registration_origin;
+        ComponentPackageRole package_role = ComponentPackageRole::Unknown;
+        ExecutionStage execution_stage = ExecutionStage::None;
+        std::string form_family;
     };
 
     std::unordered_map<std::string, RegisteredTypeEntry> creators_;
 };
 
-#define GNC_REGISTER_COMPONENT_TYPE(TypeId, ComponentType, ...) \
+#ifdef GNC_COMPONENT_REGISTRATION_FN
+#define GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, Category, ...) \
+    inline void GNC_COMPONENT_REGISTRATION_FN(::gnc::core::ComponentFactory& factory) { \
+        factory.registerType<ComponentType, __VA_ARGS__>( \
+            TypeId, \
+            Category, \
+            __FILE__); \
+    }
+#else
+#define GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, Category, ...) \
     namespace { \
         struct ComponentType##_Registrar { \
             ComponentType##_Registrar() { \
                 ::gnc::core::ComponentFactory::instance() \
                     .registerType<ComponentType, __VA_ARGS__>( \
                         TypeId, \
-                        ::gnc::core::ComponentCategory::Project, \
+                        Category, \
                         __FILE__); \
             } \
         } ComponentType##_registrar_instance; \
     }
+#endif
+
+#define GNC_REGISTER_COMPONENT_TYPE(TypeId, ComponentType, ...) \
+    GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, ::gnc::core::ComponentCategory::Project, __VA_ARGS__)
 
 #define GNC_REGISTER_BUILTIN_COMPONENT(TypeId, ComponentType, ...) \
-    namespace { \
-        struct ComponentType##_BuiltinRegistrar { \
-            ComponentType##_BuiltinRegistrar() { \
-                ::gnc::core::ComponentFactory::instance() \
-                    .registerType<ComponentType, __VA_ARGS__>( \
-                        TypeId, \
-                        ::gnc::core::ComponentCategory::Builtin, \
-                        __FILE__); \
-            } \
-        } ComponentType##_builtin_registrar_instance; \
-    }
+    GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, ::gnc::core::ComponentCategory::Builtin, __VA_ARGS__)
 
 } // namespace gnc::core

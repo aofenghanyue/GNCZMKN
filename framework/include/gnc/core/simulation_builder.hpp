@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gnc/core/config_manager.hpp"
+#include "gnc/core/deferred_registry_action.hpp"
 #include "gnc/core/integrators/euler_integrator.hpp"
 #include "gnc/core/integrators/rk4_integrator.hpp"
 #include "gnc/core/mission_assembler.hpp"
@@ -211,7 +212,7 @@ private:
     ServiceContext global_services_;
     EnvironmentInstance environment_;
     std::vector<VehicleInstance> vehicles_;
-    std::vector<PluginRegistry::DeferredAction> deferred_service_actions_;
+    std::vector<DeferredRegistryAction> deferred_service_actions_;
     std::vector<std::string> build_errors_;
     std::vector<std::string> build_warnings_;
 };

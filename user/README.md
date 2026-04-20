@@ -13,7 +13,7 @@
 - `example_01_minimal_pluginized`
   A minimal `state_3dof.point_mass_cartesian` mission.
 - `example_02_atmospheric_3dof`
-  The primary atmospheric 3DOF plugin chain:
+  The primary atmospheric 3DOF builtin chain:
   `environment + aero + state_3dof + soviet_coord + project guidance`.
 - `example_03_soviet_coord`
   A service-focused mission that probes the Soviet coordinate transformation chain.

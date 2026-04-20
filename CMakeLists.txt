@@ -17,7 +17,7 @@ set(GNC_ACTIVE_PROJECT "" CACHE STRING
     "Active project name under user/ with components/ and config/mission.json")
 set(GNC_ACTIVE_PROJECT_FILE "${CMAKE_SOURCE_DIR}/user/active_project")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${GNC_ACTIVE_PROJECT_FILE}")
-set(GNC_COMPONENT_DISCOVERY_MODE "builtin plugins only")
+set(GNC_COMPONENT_DISCOVERY_MODE "explicit builtin bootstrap")
 
 if(GNC_ACTIVE_PROJECT STREQUAL "" AND EXISTS "${GNC_ACTIVE_PROJECT_FILE}")
     configure_file("${GNC_ACTIVE_PROJECT_FILE}"
@@ -144,13 +144,26 @@ generate_ussa1976_atmosphere_header(
 set(AUTO_REGISTER_FILE "${GENERATED_DIR}/auto_registered_components.hpp")
 file(WRITE "${AUTO_REGISTER_FILE}" "#pragma once\n\n")
 
+set(AUTO_REGISTER_CALLS "")
 if(USER_COMPONENT_FILES)
+    set(COMP_INDEX 0)
     foreach(COMP_FILE IN LISTS USER_COMPONENT_FILES)
+        file(APPEND "${AUTO_REGISTER_FILE}" "#define GNC_COMPONENT_REGISTRATION_FN gnc_register_project_component_${COMP_INDEX}\n")
         file(APPEND "${AUTO_REGISTER_FILE}" "#include \"${COMP_FILE}\"\n")
+        file(APPEND "${AUTO_REGISTER_FILE}" "#undef GNC_COMPONENT_REGISTRATION_FN\n\n")
+        string(APPEND AUTO_REGISTER_CALLS "    ::gnc_register_project_component_${COMP_INDEX}(factory);\n")
+        math(EXPR COMP_INDEX "${COMP_INDEX} + 1")
     endforeach()
-else()
-    file(APPEND "${AUTO_REGISTER_FILE}" "\n")
 endif()
+
+file(APPEND "${AUTO_REGISTER_FILE}" "#include \"gnc/core/component_factory.hpp\"\n\n")
+file(APPEND "${AUTO_REGISTER_FILE}" "namespace gnc::build {\n")
+file(APPEND "${AUTO_REGISTER_FILE}" "inline void registerAutoRegisteredProjectComponents(::gnc::core::ComponentFactory& factory) {\n")
+if(AUTO_REGISTER_CALLS)
+    file(APPEND "${AUTO_REGISTER_FILE}" "${AUTO_REGISTER_CALLS}")
+endif()
+file(APPEND "${AUTO_REGISTER_FILE}" "}\n")
+file(APPEND "${AUTO_REGISTER_FILE}" "} // namespace gnc::build\n")
 
 set(ACTIVE_PROJECT_CONFIG_FILE "${GENERATED_DIR}/active_project_config.hpp")
 file(WRITE "${ACTIVE_PROJECT_CONFIG_FILE}" "#pragma once\n\n")
