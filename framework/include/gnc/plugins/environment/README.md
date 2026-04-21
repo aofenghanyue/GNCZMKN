@@ -1,9 +1,18 @@
-# environment plugin
+# environment compatibility layer
 
-Provides builtin Earth, atmosphere, and gravity models for pluginized mission assembly.
+Canonical environment code now lives under:
 
-- Interfaces: `IEarth`, `IAtmosphere`, `IGravity`
-- Builtin types:
-  - `environment.wgs84_earth`
-  - `environment.standard_atmosphere`
-  - `environment.spherical_gravity`
+- `gnc/environment/components/`
+- `gnc/environment/interfaces/`
+
+This `gnc/plugins/environment/` path is retained only as a compatibility layer
+for older include paths and namespace aliases.
+
+Current builtin environment types are still:
+
+- `environment.spherical_earth`
+- `environment.wgs84_earth`
+- `environment.standard_atmosphere`
+- `environment.spherical_gravity`
+
+But the active architecture is no longer "pluginized mission assembly".

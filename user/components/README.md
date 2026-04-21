@@ -1,14 +1,21 @@
-# legacy 组件目录
+# Legacy User Components Directory
 
-`user/components/` 已降级为过渡目录。
+`user/components/` is now a legacy transition directory.
 
-推荐结构：
+Preferred layout:
 
 - `user/<project>/components/`
 - `user/<project>/config/mission.json`
 - `user/active_project`
 
-当前构建流程只会扫描活跃工程的 `components/` 目录。
-如果某个组件已经成为跨项目复用、语义稳定的仓库公共组件，应考虑沉淀到 `framework/include/gnc/components/`，而不是继续堆在这个 legacy 目录里。
+The current build flow only scans the active project's `components/` directory.
 
-这个目录只建议用于尚未迁移进具体工程目录的过渡文件。
+If a component becomes stable, reusable, and repository-wide, it should usually
+move into a canonical framework package such as:
+
+- `framework/include/gnc/forms/`
+- `framework/include/gnc/environment/`
+- `framework/include/gnc/vehicle/`
+- `framework/include/gnc/interactions/`
+
+Do not treat this directory as the long-term extension model.
