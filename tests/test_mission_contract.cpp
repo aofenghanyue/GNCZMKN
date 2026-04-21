@@ -2,6 +2,8 @@
 
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
+#include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
+#include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -350,6 +352,91 @@ int main() {
         test_support::require(
             containsSubstring(incompatible_builder.getBuildErrors(), "targets form family"),
             "Incompatible family failure did not explain the form-family mismatch.");
+
+        const char* direct_accel_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.5,
+    "integrator": "rk4"
+  },
+  "form": {
+    "components": [
+      {
+        "type": "form.local_spherical_3dof.point_mass",
+        "name": "dynamics",
+        "config": {
+          "launch_azimuth_rad": 1.5707963267948966,
+          "initial_state": {
+            "longitude_rad": 1.9198621771937625,
+            "latitude_rad": 0.5235987755982988,
+            "altitude_m": 10000.0,
+            "speed_mps": 500.0,
+            "flight_path_angle_rad": -0.05,
+            "heading_angle_rad": -1.5707963267948966
+          }
+        }
+      },
+      {
+        "type": "form.local_spherical_3dof.flight_state_view",
+        "name": "flight_state",
+        "config": {}
+      }
+    ]
+  },
+  "environment": {
+    "components": [
+      { "type": "environment.spherical_earth", "name": "earth", "config": {} },
+      { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} }
+    ]
+  },
+  "vehicle": {
+    "common": [],
+    "input": [],
+    "process": [],
+    "output": []
+  },
+  "interaction": {
+    "components": [
+      {
+        "type": "interaction.local_spherical_3dof.direct_accel",
+        "name": "interaction",
+        "config": {
+          "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
+        }
+      }
+    ]
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder direct_builder;
+        test_support::require(direct_builder.loadConfigString(direct_accel_mission),
+                              "Direct-accel local_spherical_3dof mission could not be parsed.");
+
+        auto& direct_simulator = direct_builder.build();
+        auto* direct_dynamics =
+            direct_simulator.getRegistry().get<gnc::plugins::state_3dof::IStateSolver3DOF>(
+                "vehicle.dynamics");
+        auto* direct_flight_state = direct_simulator.getRegistry().get<
+            gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver>(
+            "vehicle.flight_state");
+        test_support::require(direct_dynamics != nullptr,
+                              "Direct-accel mission did not expose IStateSolver3DOF.");
+        test_support::require(direct_flight_state != nullptr,
+                              "Direct-accel mission did not expose flight-state view.");
+
+        const double initial_direct_altitude = direct_dynamics->getAltitude();
+        direct_simulator.run();
+
+        test_support::require(direct_dynamics->getAltitude() < initial_direct_altitude,
+                              "Direct-accel local_spherical_3dof mission did not descend.");
+        test_support::require(
+            direct_flight_state->getFlightState3DOFSoviet().dynamic_pressure_pa > 0.0,
+            "Direct-accel local_spherical_3dof mission returned a non-physical flight state.");
 
         std::cout << "mission contract checks passed\n";
         return 0;

@@ -19,9 +19,9 @@ int main() {
     "integrator": "rk4"
   },
   "form": {
-    "components": [
+      "components": [
       {
-        "type": "state_3dof.point_mass_spherical_soviet",
+        "type": "form.local_spherical_3dof.point_mass",
         "name": "dynamics",
         "config": {
           "launch_azimuth_rad": 1.5707963267948966,
@@ -36,7 +36,7 @@ int main() {
         }
       },
       {
-        "type": "flight_state_3dof.soviet_observer",
+        "type": "form.local_spherical_3dof.flight_state_view",
         "name": "flight_state",
         "config": {}
       }
@@ -81,8 +81,8 @@ int main() {
   "interaction": {
     "components": [
       {
-        "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
-        "name": "bridge",
+        "type": "interaction.local_spherical_3dof.aero_propulsive",
+        "name": "interaction",
         "config": {}
       }
     ]

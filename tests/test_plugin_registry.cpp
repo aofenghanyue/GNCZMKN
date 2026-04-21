@@ -28,6 +28,10 @@ int main() {
             "vehicle.process.programmed_aoa",
             "vehicle.process.coordinate_probe",
             "state_3dof.point_mass_cartesian",
+            "form.local_spherical_3dof.point_mass",
+            "form.local_spherical_3dof.flight_state_view",
+            "interaction.local_spherical_3dof.direct_accel",
+            "interaction.local_spherical_3dof.aero_propulsive",
             "state_3dof.point_mass_spherical_soviet",
             "state_3dof_bridge.force_to_local_acceleration_soviet",
             "flight_state_3dof.soviet_observer"};

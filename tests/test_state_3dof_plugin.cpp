@@ -5,13 +5,15 @@
 #include "gnc/environment/components/spherical_earth.hpp"
 #include "gnc/environment/components/spherical_gravity.hpp"
 #include "gnc/environment/components/standard_atmosphere.hpp"
-#include "gnc/plugins/flight_state_3dof/components/soviet_observer.hpp"
+#include "gnc/forms/local_spherical_3dof/components/flight_state_view.hpp"
+#include "gnc/forms/local_spherical_3dof/components/point_mass.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
 #include "gnc/plugins/state_3dof/components/point_mass_cartesian.hpp"
-#include "gnc/plugins/state_3dof/components/point_mass_spherical_soviet.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_acceleration_provider_3dof.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
-#include "gnc/plugins/state_3dof_bridge/components/force_to_local_acceleration_soviet.hpp"
+#include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/vehicle/common/components/cavh_aero_table.hpp"
 #include "gnc/vehicle/common/components/cavh_constant_mass.hpp"
 #include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
@@ -142,46 +144,49 @@ int main() {
             "missile.aero",
             std::make_unique<gnc::vehicle::common::CavhAeroTable>());
 
-        auto bridge =
-            std::make_unique<gnc::plugins::state_3dof_bridge::ForceToLocalAccelerationSoviet>();
-        auto* bridge_ptr = bridge.get();
-        registry.add<gnc::plugins::state_3dof_bridge::ForceToLocalAccelerationSoviet,
+        auto interaction =
+            std::make_unique<gnc::interactions::local_spherical_3dof::AeroPropulsive>();
+        auto* interaction_ptr = interaction.get();
+        registry.add<gnc::interactions::local_spherical_3dof::AeroPropulsive,
+                     gnc::forms::local_spherical_3dof::IInputProvider,
                      gnc::plugins::state_3dof::IAccelerationProvider3DOF>(
-            "missile.bridge",
-            std::move(bridge));
+            "missile.interaction",
+            std::move(interaction));
 
-        auto dynamics =
-            std::make_unique<gnc::plugins::state_3dof::PointMassSphericalSoviet>();
+        auto dynamics = std::make_unique<gnc::forms::local_spherical_3dof::PointMass>();
         auto* dynamics_ptr = dynamics.get();
         dynamics_ptr->configure(makeSphericalConfig());
-        registry.add<gnc::plugins::state_3dof::PointMassSphericalSoviet,
+        registry.add<gnc::forms::local_spherical_3dof::PointMass,
                      gnc::interfaces::IContinuousSystem,
                      gnc::plugins::state_3dof::IStateSolver3DOF,
                      gnc::plugins::state_3dof::ISovietSphericalState3DOF,
                      gnc::plugins::state_3dof::IVelocityDirectionProvider,
+                     gnc::forms::local_spherical_3dof::ITruthView,
                      gnc::interfaces::IObservable>("missile.dynamics", std::move(dynamics));
 
         auto observer =
-            std::make_unique<gnc::plugins::flight_state_3dof::SovietObserver>();
+            std::make_unique<gnc::forms::local_spherical_3dof::FlightStateView>();
         auto* observer_ptr = observer.get();
-        registry.add<gnc::plugins::flight_state_3dof::SovietObserver,
+        registry.add<gnc::forms::local_spherical_3dof::FlightStateView,
                      gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver,
                      gnc::interfaces::IObservable>(
             "missile.flight_state",
             std::move(observer));
 
-        gnc::core::ScopedRegistry bridge_scoped("missile", registry, "missile.bridge");
-        bridge_ptr->injectDependencies(bridge_scoped);
+        gnc::core::ScopedRegistry interaction_scoped("missile", registry, "missile.interaction");
+        interaction_ptr->injectDependencies(interaction_scoped);
 
         gnc::core::ScopedRegistry dynamics_scoped("missile", registry, "missile.dynamics");
         dynamics_ptr->injectDependencies(dynamics_scoped);
 
         gnc::core::ScopedRegistry observer_scoped("missile", registry, "missile.flight_state");
         observer_ptr->injectDependencies(observer_scoped);
+        dynamics_ptr->initialize();
+        observer_ptr->initialize();
 
         const auto spherical_state = dynamics_ptr->getSovietSphericalState();
-        const auto bridge_acceleration =
-            bridge_ptr->computeLocalAccelerationNue(spherical_state, 0.0);
+        const auto interaction_acceleration =
+            interaction_ptr->computeLocalAccelerationNue(spherical_state, 0.0);
 
         Eigen::VectorXd spherical_dx;
         dynamics_ptr->computeDerivatives(0.0, dynamics_ptr->getState(), spherical_dx);
@@ -193,8 +198,8 @@ int main() {
                               "Launch-frame velocity should point downrange.");
         test_support::require(dynamics_ptr->getPosition().norm() > 6.3e6,
                               "ECEF position magnitude is inconsistent with altitude.");
-        test_support::require(bridge_acceleration.norm() > 1.0,
-                              "Bridge acceleration should include gravity and aerodynamic terms.");
+        test_support::require(interaction_acceleration.norm() > 1.0,
+                              "Interaction acceleration should include gravity and aerodynamic terms.");
 
         observer_ptr->update(0.0);
         const auto& flight_state = observer_ptr->getFlightState3DOFSoviet();
@@ -212,9 +217,9 @@ int main() {
                                   "Observer local velocity norm drifted from speed.");
         test_support::requireVectorNear(
             flight_state.local_acceleration_nue_mps2,
-            bridge_acceleration,
+            interaction_acceleration,
             1e-6,
-            "Observer-reconstructed local acceleration disagrees with the bridge output.");
+            "Flight-state view local acceleration disagrees with the interaction output.");
         test_support::requireNear(mass_ptr->getMassKg(),
                                   900.0,
                                   1e-9,

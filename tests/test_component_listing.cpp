@@ -26,32 +26,35 @@ int main() {
             infos.begin(),
             infos.end(),
             [](const ComponentFactory::RegisteredTypeInfo& info) {
-                return info.type_name == "state_3dof.point_mass_spherical_soviet";
+                return info.type_name == "form.local_spherical_3dof.point_mass";
             });
 
         test_support::require(it != infos.end(),
-                              "Builtin Soviet spherical 3DOF type was not registered.");
+                              "Canonical local_spherical_3dof form type was not registered.");
         test_support::require(
             containsValue(it->interface_names, "IContinuousSystem"),
-            "point_mass_spherical_soviet should advertise IContinuousSystem.");
+            "form.local_spherical_3dof.point_mass should advertise IContinuousSystem.");
         test_support::require(
             containsValue(it->interface_names, "IStateSolver3DOF"),
-            "point_mass_spherical_soviet should advertise IStateSolver3DOF.");
+            "form.local_spherical_3dof.point_mass should advertise IStateSolver3DOF.");
         test_support::require(
             containsValue(it->interface_names, "ISovietSphericalState3DOF"),
-            "point_mass_spherical_soviet should advertise ISovietSphericalState3DOF.");
+            "form.local_spherical_3dof.point_mass should advertise ISovietSphericalState3DOF.");
+        test_support::require(
+            containsValue(it->interface_names, "ITruthView"),
+            "form.local_spherical_3dof.point_mass should advertise ITruthView.");
         test_support::require(
             containsValue(it->interface_names, "IObservable"),
-            "point_mass_spherical_soviet should advertise IObservable.");
+            "form.local_spherical_3dof.point_mass should advertise IObservable.");
         test_support::require(
             it->package_role == gnc::core::ComponentPackageRole::Form,
-            "point_mass_spherical_soviet should be labeled as a form package.");
+            "form.local_spherical_3dof.point_mass should be labeled as a form package.");
         test_support::require(
             it->execution_stage == gnc::core::ExecutionStage::Form,
-            "point_mass_spherical_soviet should be labeled for the form execution stage.");
+            "form.local_spherical_3dof.point_mass should be labeled for the form execution stage.");
         test_support::require(
             it->form_family == "local_spherical_3dof",
-            "point_mass_spherical_soviet should advertise the local_spherical_3dof family.");
+            "form.local_spherical_3dof.point_mass should advertise the local_spherical_3dof family.");
 
         std::cout << "component listing checks passed\n";
         return 0;

@@ -8,12 +8,15 @@
 #include "gnc/environment/interfaces/i_atmosphere.hpp"
 #include "gnc/environment/interfaces/i_earth.hpp"
 #include "gnc/environment/interfaces/i_gravity.hpp"
+#include "gnc/forms/local_spherical_3dof/components/flight_state_view.hpp"
+#include "gnc/forms/local_spherical_3dof/components/point_mass.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/plugins/flight_state_3dof/components/soviet_observer.hpp"
+#include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
+#include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
 #include "gnc/plugins/state_3dof/components/point_mass_cartesian.hpp"
-#include "gnc/plugins/state_3dof/components/point_mass_spherical_soviet.hpp"
-#include "gnc/plugins/state_3dof_bridge/components/force_to_local_acceleration_soviet.hpp"
 #include "gnc/vehicle/common/components/cavh_aero_table.hpp"
 #include "gnc/vehicle/common/components/cavh_constant_mass.hpp"
 #include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
@@ -128,11 +131,27 @@ inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
         ComponentPackageRole::Form,
         ExecutionStage::Form,
         "cartesian_3dof");
-    factory.registerType<gnc::plugins::state_3dof::PointMassSphericalSoviet,
+
+    factory.registerType<gnc::forms::local_spherical_3dof::PointMass,
                          gnc::interfaces::IContinuousSystem,
                          gnc::plugins::state_3dof::IStateSolver3DOF,
                          gnc::plugins::state_3dof::ISovietSphericalState3DOF,
                          gnc::plugins::state_3dof::IVelocityDirectionProvider,
+                         gnc::forms::local_spherical_3dof::ITruthView,
+                         gnc::interfaces::IObservable>(
+        "form.local_spherical_3dof.point_mass",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Form,
+        ExecutionStage::Form,
+        "local_spherical_3dof");
+
+    factory.registerType<gnc::forms::local_spherical_3dof::PointMass,
+                         gnc::interfaces::IContinuousSystem,
+                         gnc::plugins::state_3dof::IStateSolver3DOF,
+                         gnc::plugins::state_3dof::ISovietSphericalState3DOF,
+                         gnc::plugins::state_3dof::IVelocityDirectionProvider,
+                         gnc::forms::local_spherical_3dof::ITruthView,
                          gnc::interfaces::IObservable>(
         "state_3dof.point_mass_spherical_soviet",
         ComponentCategory::Builtin,
@@ -144,7 +163,27 @@ inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
 
 inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
     using namespace gnc::core;
-    factory.registerType<gnc::plugins::state_3dof_bridge::ForceToLocalAccelerationSoviet,
+    factory.registerType<gnc::interactions::local_spherical_3dof::DirectAccel,
+                         gnc::forms::local_spherical_3dof::IInputProvider>(
+        "interaction.local_spherical_3dof.direct_accel",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Interaction,
+        ExecutionStage::Interaction,
+        "local_spherical_3dof");
+
+    factory.registerType<gnc::interactions::local_spherical_3dof::AeroPropulsive,
+                         gnc::forms::local_spherical_3dof::IInputProvider,
+                         gnc::plugins::state_3dof::IAccelerationProvider3DOF>(
+        "interaction.local_spherical_3dof.aero_propulsive",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Interaction,
+        ExecutionStage::Interaction,
+        "local_spherical_3dof");
+
+    factory.registerType<gnc::interactions::local_spherical_3dof::AeroPropulsive,
+                         gnc::forms::local_spherical_3dof::IInputProvider,
                          gnc::plugins::state_3dof::IAccelerationProvider3DOF>(
         "state_3dof_bridge.force_to_local_acceleration_soviet",
         ComponentCategory::Builtin,
@@ -156,7 +195,17 @@ inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
 
 inline void registerFormViewPackages(gnc::core::ComponentFactory& factory) {
     using namespace gnc::core;
-    factory.registerType<gnc::plugins::flight_state_3dof::SovietObserver,
+    factory.registerType<gnc::forms::local_spherical_3dof::FlightStateView,
+                         gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver,
+                         gnc::interfaces::IObservable>(
+        "form.local_spherical_3dof.flight_state_view",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Form,
+        ExecutionStage::Form,
+        "local_spherical_3dof");
+
+    factory.registerType<gnc::forms::local_spherical_3dof::FlightStateView,
                          gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver,
                          gnc::interfaces::IObservable>(
         "flight_state_3dof.soviet_observer",
