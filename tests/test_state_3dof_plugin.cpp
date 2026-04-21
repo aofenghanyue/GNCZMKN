@@ -5,12 +5,15 @@
 #include "gnc/environment/components/spherical_earth.hpp"
 #include "gnc/environment/components/spherical_gravity.hpp"
 #include "gnc/environment/components/standard_atmosphere.hpp"
+#include "gnc/forms/cartesian_3dof/components/point_mass.hpp"
+#include "gnc/forms/cartesian_3dof/interfaces/i_input_provider.hpp"
+#include "gnc/forms/cartesian_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/forms/local_spherical_3dof/components/flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/components/point_mass.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
+#include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
-#include "gnc/plugins/state_3dof/components/point_mass_cartesian.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_acceleration_provider_3dof.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
@@ -49,7 +52,13 @@ gnc::core::ConfigNode makeCartesianConfig() {
     return object({
         field("initial_position", array({number(0.0), number(0.0), number(1000.0)})),
         field("initial_velocity", array({number(250.0), number(0.0), number(40.0)})),
-        field("constant_acceleration", array({number(0.0), number(0.0), number(-9.81)})),
+    });
+}
+
+gnc::core::ConfigNode makeCartesianInteractionConfig() {
+    using namespace test_support;
+    return object({
+        field("acceleration_mps2", array({number(0.0), number(0.0), number(-9.81)})),
     });
 }
 
@@ -88,19 +97,47 @@ gnc::core::ConfigNode makeSphericalConfig() {
 
 int main() {
     try {
-        gnc::plugins::state_3dof::PointMassCartesian cartesian;
-        cartesian.configure(makeCartesianConfig());
+        gnc::core::ComponentRegistry cartesian_registry;
+        auto cartesian_interaction =
+            std::make_unique<gnc::interactions::cartesian_3dof::DirectAccel>();
+        cartesian_interaction->configure(makeCartesianInteractionConfig());
+        cartesian_registry.add<gnc::interactions::cartesian_3dof::DirectAccel,
+                               gnc::forms::cartesian_3dof::IInputProvider>(
+            "cartesian.interaction",
+            std::move(cartesian_interaction));
+
+        auto cartesian_component = std::make_unique<gnc::forms::cartesian_3dof::PointMass>();
+        auto* cartesian_ptr = cartesian_component.get();
+        cartesian_ptr->configure(makeCartesianConfig());
+        cartesian_registry.add<gnc::forms::cartesian_3dof::PointMass,
+                               gnc::interfaces::IContinuousSystem,
+                               gnc::plugins::state_3dof::IStateSolver3DOF,
+                               gnc::forms::cartesian_3dof::ITruthView,
+                               gnc::interfaces::IObservable>(
+            "cartesian.dynamics",
+            std::move(cartesian_component));
+
+        gnc::core::ScopedRegistry cartesian_scoped("cartesian",
+                                                   cartesian_registry,
+                                                   "cartesian.dynamics");
+        cartesian_ptr->injectDependencies(cartesian_scoped);
+        cartesian_ptr->initialize();
 
         Eigen::VectorXd cartesian_dx;
-        cartesian.computeDerivatives(0.0, cartesian.getState(), cartesian_dx);
-        test_support::require(cartesian.getStateLayout().dimension() == 6,
+        cartesian_ptr->computeDerivatives(0.0, cartesian_ptr->getState(), cartesian_dx);
+        test_support::require(cartesian_ptr->getStateLayout().dimension() == 6,
                               "Cartesian 3DOF state dimension must remain 6.");
         test_support::requireNear(cartesian_dx[0], 250.0, 1e-9,
                                   "Cartesian position derivative no longer matches velocity.");
         test_support::requireNear(cartesian_dx[5], -9.81, 1e-9,
                                   "Cartesian acceleration derivative drifted.");
-        test_support::requireNear(cartesian.getAltitude(), 1000.0, 1e-9,
+        test_support::requireNear(cartesian_ptr->getAltitude(), 1000.0, 1e-9,
                                   "Cartesian altitude accessor returned an unexpected value.");
+        test_support::requireVectorNear(
+            cartesian_ptr->getCartesian3DoFTruth().acceleration_mps2,
+            gnc::math::Vector3(0.0, 0.0, -9.81),
+            1e-9,
+            "Cartesian truth view lost the interaction acceleration.");
 
         gnc::vehicle::common::ContinuousConstantRateMass continuous_mass;
         continuous_mass.configure(makeContinuousMassConfig());

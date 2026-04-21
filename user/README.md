@@ -11,12 +11,15 @@
 ## Current Examples
 
 - `example_01_minimal_pluginized`
-  A minimal `state_3dof.point_mass_cartesian` mission.
+  A minimal `form.cartesian_3dof.point_mass + interaction.cartesian_3dof.direct_accel`
+  mission.
 - `example_02_atmospheric_3dof`
-  The primary atmospheric 3DOF builtin chain:
-  `environment + aero + state_3dof + soviet_coord + project guidance`.
+  The primary atmospheric local-spherical 3DoF chain:
+  `environment + vehicle common/process + form.local_spherical_3dof +
+  interaction.local_spherical_3dof.aero_propulsive`.
 - `example_03_soviet_coord`
-  A service-focused mission that probes the Soviet coordinate transformation chain.
+  A service-focused local-spherical 3DoF mission that probes the Soviet coordinate
+  transformation chain.
 
 Only the active project selected in `user/active_project` is auto-registered into
 `gnc_sim`. If you switch from `example_02_atmospheric_3dof` to

@@ -8,15 +8,18 @@
 #include "gnc/environment/interfaces/i_atmosphere.hpp"
 #include "gnc/environment/interfaces/i_earth.hpp"
 #include "gnc/environment/interfaces/i_gravity.hpp"
+#include "gnc/forms/cartesian_3dof/components/point_mass.hpp"
+#include "gnc/forms/cartesian_3dof/interfaces/i_input_provider.hpp"
+#include "gnc/forms/cartesian_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/forms/local_spherical_3dof/components/flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/components/point_mass.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
+#include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
-#include "gnc/plugins/state_3dof/components/point_mass_cartesian.hpp"
 #include "gnc/vehicle/common/components/cavh_aero_table.hpp"
 #include "gnc/vehicle/common/components/cavh_constant_mass.hpp"
 #include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
@@ -121,9 +124,22 @@ inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory)
 
 inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
     using namespace gnc::core;
-    factory.registerType<gnc::plugins::state_3dof::PointMassCartesian,
+    factory.registerType<gnc::forms::cartesian_3dof::PointMass,
                          gnc::interfaces::IContinuousSystem,
                          gnc::plugins::state_3dof::IStateSolver3DOF,
+                         gnc::forms::cartesian_3dof::ITruthView,
+                         gnc::interfaces::IObservable>(
+        "form.cartesian_3dof.point_mass",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Form,
+        ExecutionStage::Form,
+        "cartesian_3dof");
+
+    factory.registerType<gnc::forms::cartesian_3dof::PointMass,
+                         gnc::interfaces::IContinuousSystem,
+                         gnc::plugins::state_3dof::IStateSolver3DOF,
+                         gnc::forms::cartesian_3dof::ITruthView,
                          gnc::interfaces::IObservable>(
         "state_3dof.point_mass_cartesian",
         ComponentCategory::Builtin,
@@ -163,6 +179,15 @@ inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
 
 inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
     using namespace gnc::core;
+    factory.registerType<gnc::interactions::cartesian_3dof::DirectAccel,
+                         gnc::forms::cartesian_3dof::IInputProvider>(
+        "interaction.cartesian_3dof.direct_accel",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Interaction,
+        ExecutionStage::Interaction,
+        "cartesian_3dof");
+
     factory.registerType<gnc::interactions::local_spherical_3dof::DirectAccel,
                          gnc::forms::local_spherical_3dof::IInputProvider>(
         "interaction.local_spherical_3dof.direct_accel",

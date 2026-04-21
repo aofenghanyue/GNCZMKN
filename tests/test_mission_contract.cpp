@@ -180,12 +180,11 @@ int main() {
   "form": {
     "components": [
       {
-        "type": "state_3dof.point_mass_cartesian",
+        "type": "form.cartesian_3dof.point_mass",
         "name": "dynamics",
         "config": {
           "initial_position": [0.0, 0.0, 1000.0],
-          "initial_velocity": [250.0, 0.0, 40.0],
-          "constant_acceleration": [0.0, 0.0, -9.81]
+          "initial_velocity": [250.0, 0.0, 0.0]
         }
       }
     ]
@@ -198,7 +197,15 @@ int main() {
     "output": []
   },
   "interaction": {
-    "components": []
+    "components": [
+      {
+        "type": "interaction.cartesian_3dof.direct_accel",
+        "name": "interaction",
+        "config": {
+          "acceleration_mps2": [0.0, 0.0, -9.81]
+        }
+      }
+    ]
   },
   "outputs": {
     "enabled": false
@@ -353,6 +360,67 @@ int main() {
             containsSubstring(incompatible_builder.getBuildErrors(), "targets form family"),
             "Incompatible family failure did not explain the form-family mismatch.");
 
+        const char* real_family_mismatch_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "form": {
+    "components": [
+      {
+        "type": "form.cartesian_3dof.point_mass",
+        "name": "dynamics",
+        "config": {
+          "initial_position": [0.0, 0.0, 1000.0],
+          "initial_velocity": [250.0, 0.0, 0.0]
+        }
+      }
+    ]
+  },
+  "environment": {},
+  "vehicle": {
+    "common": [],
+    "input": [],
+    "process": [],
+    "output": []
+  },
+  "interaction": {
+    "components": [
+      {
+        "type": "interaction.local_spherical_3dof.direct_accel",
+        "name": "interaction",
+        "config": {
+          "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
+        }
+      }
+    ]
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder real_family_mismatch_builder;
+        test_support::require(
+            real_family_mismatch_builder.loadConfigString(real_family_mismatch_mission),
+            "Real form-family mismatch mission JSON could not be parsed.");
+
+        bool real_family_mismatch_failed = false;
+        try {
+            real_family_mismatch_builder.build();
+        } catch (const std::exception&) {
+            real_family_mismatch_failed = true;
+        }
+
+        test_support::require(
+            real_family_mismatch_failed,
+            "Cartesian form should reject a local_spherical_3dof interaction.");
+        test_support::require(
+            containsSubstring(real_family_mismatch_builder.getBuildErrors(), "cartesian_3dof"),
+            "Real form-family mismatch did not mention the selected cartesian_3dof family.");
+
         const char* direct_accel_mission = R"json(
 {
   "simulation": {
@@ -437,6 +505,76 @@ int main() {
         test_support::require(
             direct_flight_state->getFlightState3DOFSoviet().dynamic_pressure_pa > 0.0,
             "Direct-accel local_spherical_3dof mission returned a non-physical flight state.");
+
+        const char* cartesian_direct_accel_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.5,
+    "integrator": "rk4"
+  },
+  "form": {
+    "components": [
+      {
+        "type": "form.cartesian_3dof.point_mass",
+        "name": "dynamics",
+        "config": {
+          "initial_position": [0.0, 0.0, 1000.0],
+          "initial_velocity": [250.0, 0.0, 0.0]
+        }
+      }
+    ]
+  },
+  "environment": {},
+  "vehicle": {
+    "common": [],
+    "input": [],
+    "process": [],
+    "output": []
+  },
+  "interaction": {
+    "components": [
+      {
+        "type": "interaction.cartesian_3dof.direct_accel",
+        "name": "interaction",
+        "config": {
+          "acceleration_mps2": [0.0, 0.0, -9.81]
+        }
+      }
+    ]
+  },
+  "outputs": {
+    "enabled": false
+  },
+  "stop_conditions": [
+    {
+      "type": "component_field_below",
+      "component": "vehicle.dynamics",
+      "field": "altitude",
+      "value": 999.0,
+      "description": "Cartesian direct-accel descent threshold"
+    }
+  ]
+}
+)json";
+
+        gnc::core::SimulationBuilder cartesian_builder;
+        test_support::require(cartesian_builder.loadConfigString(cartesian_direct_accel_mission),
+                              "Cartesian direct-accel mission could not be parsed.");
+
+        auto& cartesian_simulator = cartesian_builder.build();
+        auto* cartesian_dynamics =
+            cartesian_simulator.getRegistry().get<gnc::plugins::state_3dof::IStateSolver3DOF>(
+                "vehicle.dynamics");
+        test_support::require(cartesian_dynamics != nullptr,
+                              "Cartesian direct-accel mission did not expose IStateSolver3DOF.");
+
+        cartesian_simulator.run();
+
+        test_support::require(
+            cartesian_simulator.getTerminationReason() ==
+                "Cartesian direct-accel descent threshold",
+            "Cartesian direct-accel mission did not trigger the expected descent stop condition.");
 
         std::cout << "mission contract checks passed\n";
         return 0;

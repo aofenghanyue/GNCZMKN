@@ -27,6 +27,8 @@ int main() {
             "cavh.aero_table",
             "vehicle.process.programmed_aoa",
             "vehicle.process.coordinate_probe",
+            "form.cartesian_3dof.point_mass",
+            "interaction.cartesian_3dof.direct_accel",
             "state_3dof.point_mass_cartesian",
             "form.local_spherical_3dof.point_mass",
             "form.local_spherical_3dof.flight_state_view",

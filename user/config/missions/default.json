@@ -7,12 +7,11 @@
     "form": {
         "components": [
             {
-                "type": "state_3dof.point_mass_cartesian",
+                "type": "form.cartesian_3dof.point_mass",
                 "name": "dynamics",
                 "config": {
                     "initial_position": [0.0, 0.0, 1000.0],
-                    "initial_velocity": [250.0, 0.0, 40.0],
-                    "constant_acceleration": [0.0, 0.0, -9.81]
+                    "initial_velocity": [250.0, 0.0, 40.0]
                 }
             }
         ]
@@ -25,12 +24,20 @@
         "output": []
     },
     "interaction": {
-        "components": []
+        "components": [
+            {
+                "type": "interaction.cartesian_3dof.direct_accel",
+                "name": "interaction",
+                "config": {
+                    "acceleration_mps2": [0.0, 0.0, -9.81]
+                }
+            }
+        ]
     },
     "outputs": {
         "directory": "user/outputs/{timestamp}",
         "format": "csv",
-        "session_name": "default_pluginized",
+        "session_name": "default_cartesian_3dof",
         "record": {
             "vehicle.dynamics": "all"
         }
