@@ -142,3 +142,6 @@
 | 同实体依赖 | 可在组件代码里写局部名 | `dynamics` |
 | 跨实体依赖 | 使用完整名 | `env.gravity` |
 | 日志和停机条件 | 使用完整名 | `missile.dynamics.altitude_m` |
+> Archived note: entries in this file include removed plugin-era type ids and
+> service names. Do not use them for new code or mission authoring; use
+> [00-current-architecture.md](00-current-architecture.md) instead.

@@ -99,9 +99,9 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 | `framework/include/gnc/core/` | runtime shell, assembly, validation, logging, stop conditions |
 | `framework/include/gnc/forms/` | canonical form packages |
 | `framework/include/gnc/environment/` | world-query packages |
+| `framework/include/gnc/services/` | assembly-owned services and service-side contracts |
 | `framework/include/gnc/vehicle/` | vehicle common/input/process/output packages |
 | `framework/include/gnc/interactions/` | form-aware closure packages |
-| `framework/include/gnc/plugins/` | compatibility headers and legacy namespaces only |
 | `user/` | missions, active-project code, and outputs |
 | `doc/` | current documentation entrypoint and archived reference docs |
 

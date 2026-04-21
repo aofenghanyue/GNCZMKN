@@ -112,3 +112,6 @@ global -> environment -> vehicle
 
 - 不再支持旧式根级 mission
 - 不再保留单飞行器空前缀命名
+> Archived note: this decision log belongs to the older plugin-era design.
+> It is kept for history only. The current architecture is described in
+> [00-current-architecture.md](00-current-architecture.md).

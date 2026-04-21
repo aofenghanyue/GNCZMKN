@@ -323,3 +323,6 @@ void install(gnc::core::PluginRegistry&) const override {
 - 可复用的物理模型或基础能力再提升为内置插件
 - 组件之间通过接口通信，不要直接包含对方具体类
 - 配置、日志和诊断里的名字要保持稳定，因为这些名字会被停机条件、脚本和用户操作直接引用
+> Archived note: this guide targets the removed plugin-era extension model.
+> For current package boundaries and runtime assembly, use
+> [00-current-architecture.md](00-current-architecture.md).

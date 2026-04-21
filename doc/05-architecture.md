@@ -133,3 +133,6 @@ sequenceDiagram
 - mission 仍使用已废弃的旧根级结构
 
 这些问题应该在仿真正式运行前暴露，而不是留到运行时才排查。
+> Archived note: this document describes the removed plugin-based layering.
+> The active architecture is the `Form + Environment + Vehicle + Interaction`
+> model in [00-current-architecture.md](00-current-architecture.md).

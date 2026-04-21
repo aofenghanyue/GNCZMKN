@@ -336,3 +336,6 @@ time,component,field,value
 - `outputs.record`、`simulation.stop_conditions` 和服务 `bindings` 建议始终使用完整名。
 - 组件代码里的同实体依赖可以使用局部名，例如 `"dynamics"`。
 - 跨实体依赖应使用完整名，例如 `"env.atmosphere"`。
+> Archived note: this document uses the removed `entities[]` mission shape and
+> plugin-era type ids. For the active mission schema, use
+> [00-current-architecture.md](00-current-architecture.md).

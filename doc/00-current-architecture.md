@@ -137,7 +137,7 @@ There is no active compatibility layer for the removed plugin architecture.
 
 Do not author new code against:
 
-1. old include paths under `framework/include/gnc/plugins/`
+1. removed include paths formerly located under `framework/include/gnc/plugins/`
 2. old plugin-era type ids
 
 Historical plugin-era material may still appear in archived documents, but it

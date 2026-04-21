@@ -78,4 +78,7 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 | 没有生成 CSV | 检查 `outputs.enabled`、`outputs.record`，并确认目标组件实现了 `IObservable` |
 
 下一步建议阅读 [核心概念](02-core-concepts.md)。
+> Archived note: this document describes the removed plugin-era repository layout.
+> For the current architecture and active mission shape, use
+> [00-current-architecture.md](00-current-architecture.md).
 

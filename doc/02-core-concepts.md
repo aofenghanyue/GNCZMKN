@@ -114,4 +114,7 @@ registry.bindAll(gnc::core::bind(atmosphere_, "env.atmosphere"));
 `mission.json` 是任务装配说明，不是脚本。它声明仿真步长、输出、服务和实体图。框架按配置创建对象，后续运行由 `Simulator` 负责。
 
 任务配置的详细写法见 [任务配置](03-mission-configuration.md)。
+> Archived note: this document is historical plugin-era reference material.
+> The active architecture is documented in
+> [00-current-architecture.md](00-current-architecture.md).
 
