@@ -2,16 +2,30 @@
     "simulation": {
         "dt": 0.1,
         "duration": 20.0,
-        "integrator": "rk4",
-        "stop_conditions": [
+        "integrator": "rk4"
+    },
+    "form": {
+        "components": [
             {
-                "type": "component_field_below",
-                "component": "vehicle.dynamics",
-                "field": "altitude",
-                "value": 0.0,
-                "description": "Terminate below ground"
+                "type": "state_3dof.point_mass_cartesian",
+                "name": "dynamics",
+                "config": {
+                    "initial_position": [0.0, 0.0, 1000.0],
+                    "initial_velocity": [250.0, 0.0, 40.0],
+                    "constant_acceleration": [0.0, 0.0, -9.81]
+                }
             }
         ]
+    },
+    "environment": {},
+    "vehicle": {
+        "common": [],
+        "input": [],
+        "process": [],
+        "output": []
+    },
+    "interaction": {
+        "components": []
     },
     "outputs": {
         "directory": "user/outputs/{timestamp}",
@@ -21,21 +35,13 @@
             "vehicle.dynamics": "all"
         }
     },
-    "entities": [
+    "stop_conditions": [
         {
-            "id": "vehicle",
-            "role": "vehicle",
-            "components": [
-                {
-                    "type": "state_3dof.point_mass_cartesian",
-                    "name": "dynamics",
-                    "config": {
-                        "initial_position": [0.0, 0.0, 1000.0],
-                        "initial_velocity": [250.0, 0.0, 40.0],
-                        "constant_acceleration": [0.0, 0.0, -9.81]
-                    }
-                }
-            ]
+            "type": "component_field_below",
+            "component": "vehicle.dynamics",
+            "field": "altitude",
+            "value": 0.0,
+            "description": "Terminate below ground"
         }
     ]
 }

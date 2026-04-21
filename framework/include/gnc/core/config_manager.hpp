@@ -292,6 +292,23 @@ public:
     
     /// 获取仿真配置
     const ConfigNode& simulation() const { return config_["simulation"]; }
+
+    const ConfigNode& form() const { return config_["form"]; }
+
+    const ConfigNode& environment() const { return config_["environment"]; }
+
+    const ConfigNode& vehicle() const { return config_["vehicle"]; }
+
+    const ConfigNode& interaction() const { return config_["interaction"]; }
+
+    const ConfigNode& outputs() const { return config_["outputs"]; }
+
+    const ConfigNode& stopConditions() const {
+        if (config_.has("stop_conditions")) {
+            return config_["stop_conditions"];
+        }
+        return config_["simulation"]["stop_conditions"];
+    }
     
     /// 获取组件配置列表
     const ConfigNode& components() const { return config_["components"]; }
@@ -333,6 +350,11 @@ public:
     const ConfigNode& globalServices() const { return config_["global_services"]; }
 
     bool hasEntities() const { return config_.has("entities"); }
+
+    bool hasModernMissionLayout() const {
+        return config_.has("form") || config_.has("environment") ||
+               config_.has("vehicle") || config_.has("interaction");
+    }
     
     /// 检查是否为多飞行器模式
     bool isMultiVehicle() const { return config_.has("vehicles"); }

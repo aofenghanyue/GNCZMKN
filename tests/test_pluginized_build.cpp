@@ -16,14 +16,74 @@ int main() {
   "simulation": {
     "dt": 0.1,
     "duration": 1.0,
-    "integrator": "rk4",
-    "stop_conditions": [
+    "integrator": "rk4"
+  },
+  "form": {
+    "components": [
       {
-        "type": "component_field_below",
-        "component": "missile.dynamics",
-        "field": "altitude_m",
-        "value": 1000.0,
-        "description": "Terminate below 1 km altitude"
+        "type": "state_3dof.point_mass_spherical_soviet",
+        "name": "dynamics",
+        "config": {
+          "launch_azimuth_rad": 1.5707963267948966,
+          "initial_state": {
+            "longitude_rad": 1.9198621771937625,
+            "latitude_rad": 0.5235987755982988,
+            "altitude_m": 60000.0,
+            "speed_mps": 3200.0,
+            "flight_path_angle_rad": -0.1047197551196598,
+            "heading_angle_rad": -1.5707963267948966
+          }
+        }
+      },
+      {
+        "type": "flight_state_3dof.soviet_observer",
+        "name": "flight_state",
+        "config": {}
+      }
+    ]
+  },
+  "environment": {
+    "components": [
+      { "type": "environment.spherical_earth", "name": "earth", "config": {} },
+      { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} },
+      { "type": "environment.spherical_gravity", "name": "gravity", "config": {} }
+    ]
+  },
+  "vehicle": {
+    "common": [
+      {
+        "type": "cavh.constant_mass",
+        "name": "mass",
+        "config": {
+          "mass_kg": 900.0
+        }
+      },
+      {
+        "type": "cavh.aero_table",
+        "name": "aero",
+        "config": {}
+      }
+    ],
+    "input": [],
+    "process": [
+      {
+        "type": "example.programmed_aoa",
+        "name": "guidance",
+        "config": {
+          "bank_angle_deg": 0.0,
+          "schedule_altitude_m": [60000, 45000, 30000, 15000],
+          "schedule_angle_of_attack_deg": [20, 12, 10, 8]
+        }
+      }
+    ],
+    "output": []
+  },
+  "interaction": {
+    "components": [
+      {
+        "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
+        "name": "bridge",
+        "config": {}
       }
     ]
   },
@@ -32,74 +92,20 @@ int main() {
     "format": "csv",
     "session_name": "test_pluginized_build",
     "record": {
-      "missile.dynamics": "all",
-      "missile.guidance": "all",
-      "missile.aero": "all",
-      "missile.mass": "all",
-      "missile.flight_state": "all"
+      "vehicle.dynamics": "all",
+      "vehicle.guidance": "all",
+      "vehicle.aero": "all",
+      "vehicle.mass": "all",
+      "vehicle.flight_state": "all"
     }
   },
-  "entities": [
+  "stop_conditions": [
     {
-      "id": "missile",
-      "role": "vehicle",
-      "components": [
-        {
-          "type": "example.programmed_aoa",
-          "name": "guidance",
-          "config": {
-            "bank_angle_deg": 0.0,
-            "schedule_altitude_m": [60000, 45000, 30000, 15000],
-            "schedule_angle_of_attack_deg": [20, 12, 10, 8]
-          }
-        },
-        {
-          "type": "cavh.constant_mass",
-          "name": "mass",
-          "config": {
-            "mass_kg": 900.0
-          }
-        },
-        {
-          "type": "cavh.aero_table",
-          "name": "aero",
-          "config": {}
-        },
-        {
-          "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
-          "name": "bridge",
-          "config": {}
-        },
-        {
-          "type": "state_3dof.point_mass_spherical_soviet",
-          "name": "dynamics",
-          "config": {
-            "launch_azimuth_rad": 1.5707963267948966,
-            "initial_state": {
-              "longitude_rad": 1.9198621771937625,
-              "latitude_rad": 0.5235987755982988,
-              "altitude_m": 60000.0,
-              "speed_mps": 3200.0,
-              "flight_path_angle_rad": -0.1047197551196598,
-              "heading_angle_rad": -1.5707963267948966
-            }
-          }
-        },
-        {
-          "type": "flight_state_3dof.soviet_observer",
-          "name": "flight_state",
-          "config": {}
-        }
-      ]
-    },
-    {
-      "id": "environment",
-      "role": "environment",
-      "components": [
-        { "type": "environment.spherical_earth", "name": "earth", "config": {} },
-        { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} },
-        { "type": "environment.spherical_gravity", "name": "gravity", "config": {} }
-      ]
+      "type": "component_field_below",
+      "component": "vehicle.dynamics",
+      "field": "altitude_m",
+      "value": 1000.0,
+      "description": "Terminate below 1 km altitude"
     }
   ]
 }
@@ -110,13 +116,14 @@ int main() {
                               "Pluginized mission JSON could not be parsed.");
 
         auto& simulator = builder.build();
-        auto* dynamics = simulator.getRegistry().get<gnc::plugins::state_3dof::IStateSolver3DOF>(
-            "missile.dynamics");
+        auto* dynamics =
+            simulator.getRegistry().get<gnc::plugins::state_3dof::IStateSolver3DOF>(
+                "vehicle.dynamics");
         test_support::require(dynamics != nullptr,
                               "Dynamics component did not expose IStateSolver3DOF.");
         auto* flight_state = simulator.getRegistry().get<
             gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver>(
-            "missile.flight_state");
+            "vehicle.flight_state");
         test_support::require(flight_state != nullptr,
                               "Flight-state observer component is missing.");
         const double initial_altitude = dynamics->getAltitude();

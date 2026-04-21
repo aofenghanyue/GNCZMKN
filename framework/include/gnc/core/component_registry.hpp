@@ -120,6 +120,12 @@ public:
      */
     size_t size() const { return components_.size(); }
 
+    void clear() {
+        components_.clear();
+        interface_map_.clear();
+        component_order_.clear();
+    }
+
     bool hasInterface(std::type_index type_idx) const {
         auto it = interface_map_.find(type_idx);
         return it != interface_map_.end() && !it->second.empty();

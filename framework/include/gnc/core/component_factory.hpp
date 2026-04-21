@@ -330,6 +330,30 @@ public:
         return it->second.registration_origin;
     }
 
+    ComponentPackageRole getPackageRole(const std::string& type_name) const {
+        const auto it = creators_.find(type_name);
+        if (it == creators_.end()) {
+            return ComponentPackageRole::Unknown;
+        }
+        return it->second.package_role;
+    }
+
+    ExecutionStage getExecutionStage(const std::string& type_name) const {
+        const auto it = creators_.find(type_name);
+        if (it == creators_.end()) {
+            return ExecutionStage::None;
+        }
+        return it->second.execution_stage;
+    }
+
+    std::string getFormFamily(const std::string& type_name) const {
+        const auto it = creators_.find(type_name);
+        if (it == creators_.end()) {
+            return "";
+        }
+        return it->second.form_family;
+    }
+
 private:
     ComponentFactory() = default;
 

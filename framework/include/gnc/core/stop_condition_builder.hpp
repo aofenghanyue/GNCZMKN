@@ -26,7 +26,7 @@ public:
             return true;
         }
         if (!conditions.isArray()) {
-            add_warning_("simulation.stop_conditions must be an array.");
+            add_warning_("stop_conditions must be an array.");
             return false;
         }
 

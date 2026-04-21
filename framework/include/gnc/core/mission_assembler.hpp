@@ -2,6 +2,7 @@
 
 #include "gnc/bootstrap/install_builtin_services.hpp"
 #include "gnc/common/string_utils.hpp"
+#include "gnc/core/assembly_descriptor.hpp"
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
@@ -54,28 +55,20 @@ public:
         global_services_.clear();
         environment_ = EnvironmentInstance{};
         vehicles_.clear();
+        selected_form_family_.clear();
+        assembly_descriptors_.clear();
     }
 
     void installGlobalServices(const ConfigNode& global_service_config) {
         buildServices(global_service_config, global_services_, "global", "");
     }
 
-    void buildEntities(const ConfigNode& entities) {
-        vehicles_.reserve(entities.size());
-
-        for (size_t i = 0; i < entities.size(); ++i) {
-            const auto& entity_config = entities[i];
-            if (entity_config["role"].asString("vehicle") == "environment") {
-                buildEntity(entity_config, i);
-            }
-        }
-
-        for (size_t i = 0; i < entities.size(); ++i) {
-            const auto& entity_config = entities[i];
-            if (entity_config["role"].asString("vehicle") != "environment") {
-                buildEntity(entity_config, i);
-            }
-        }
+    void buildMission(const ConfigNode& root) {
+        buildEnvironment(root["environment"]);
+        prepareVehicle(root["vehicle"]);
+        buildForm(root["form"]);
+        buildVehicleGroups(root["vehicle"]);
+        buildInteraction(root["interaction"]);
     }
 
     void runDeferredServiceActions() {
@@ -90,7 +83,25 @@ public:
         }
     }
 
+    const std::vector<AssemblyDescriptor>& getAssemblyDescriptors() const {
+        return assembly_descriptors_;
+    }
+
+    const std::string& getSelectedFormFamily() const {
+        return selected_form_family_;
+    }
+
 private:
+    struct PlacementSpec {
+        std::string context;
+        std::string placement;
+        std::string name_prefix;
+        ComponentPackageRole expected_role = ComponentPackageRole::Unknown;
+        ExecutionStage execution_stage = ExecutionStage::None;
+        ServiceContext* local_services = nullptr;
+        std::vector<ComponentBase*>* owner_components = nullptr;
+    };
+
     static std::string joinStrings(const std::vector<std::string>& values) {
         std::string result;
         for (size_t i = 0; i < values.size(); ++i) {
@@ -157,77 +168,212 @@ private:
                      ") has unrecognized config keys: " + joinStrings(unused) + ".");
     }
 
-    void buildEntity(const ConfigNode& entity_config, size_t index) {
-        if (!entity_config.isObject()) {
-            add_error_("Entity at index " + std::to_string(index) +
-                       " must be an object.");
+    void buildEnvironment(const ConfigNode& environment_config) {
+        if (environment_config.isNull()) {
+            return;
+        }
+        if (!environment_config.isObject()) {
+            add_error_("Top-level 'environment' must be an object.");
             return;
         }
 
-        const std::string id = entity_config["id"].asString();
-        if (id.empty()) {
-            add_error_("Entity at index " + std::to_string(index) +
-                       " is missing an id.");
+        environment_.id = "environment";
+        buildServices(environment_config["services"],
+                      environment_.services,
+                      "environment",
+                      "env");
+
+        PlacementSpec placement;
+        placement.context = "environment";
+        placement.placement = "environment";
+        placement.name_prefix = "env.";
+        placement.expected_role = ComponentPackageRole::Environment;
+        placement.execution_stage = ExecutionStage::Environment;
+        placement.owner_components = &environment_.components;
+        registerComponents(environment_config["components"], placement);
+    }
+
+    void prepareVehicle(const ConfigNode& vehicle_config) {
+        vehicles_.clear();
+        vehicles_.push_back(VehicleInstance{});
+        auto& vehicle = vehicles_.back();
+        vehicle.id = "vehicle";
+
+        if (vehicle_config.isNull()) {
+            return;
+        }
+        if (!vehicle_config.isObject()) {
+            add_error_("Top-level 'vehicle' must be an object.");
             return;
         }
 
-        const std::string role = entity_config["role"].asString("vehicle");
-        const auto& components = entity_config["components"];
-        if (!components.isArray()) {
-            add_error_("Entity '" + id + "' must define a 'components' array.");
-            return;
-        }
-
-        if (role == "environment") {
-            if (!environment_.id.empty()) {
-                add_error_("Multiple environment entities are not supported. Existing id '" +
-                           environment_.id + "', duplicate id '" + id + "'.");
-                return;
-            }
-
-            environment_.id = id;
-            buildServices(entity_config["services"],
-                          environment_.services,
-                          "environment entity '" + id + "'",
-                          "env");
-            registerComponents(components,
-                               "environment entity '" + id + "'",
-                               "env.",
-                               global_services_,
-                               environment_.services,
-                               nullptr,
-                               environment_.components);
-            return;
-        }
-
-        if (role != "vehicle") {
-            add_error_("Entity '" + id + "' has unsupported role '" + role + "'.");
-            return;
-        }
-
-        VehicleInstance vehicle;
-        vehicle.id = id;
-        buildServices(entity_config["services"],
+        buildServices(vehicle_config["services"],
                       vehicle.services,
-                      "vehicle entity '" + id + "'",
-                      id);
-        registerComponents(components,
-                           "vehicle entity '" + id + "'",
-                           id + ".",
-                           global_services_,
-                           environment_.services,
-                           &vehicle.services,
-                           vehicle.components);
-        vehicles_.push_back(std::move(vehicle));
+                      "vehicle",
+                      "vehicle");
+    }
+
+    void buildForm(const ConfigNode& form_config) {
+        if (form_config.isNull()) {
+            add_error_("Mission configuration must define a top-level 'form' object.");
+            return;
+        }
+        if (!form_config.isObject()) {
+            add_error_("Top-level 'form' must be an object.");
+            return;
+        }
+
+        const std::string declared_family = form_config["family"].asString();
+        if (!declared_family.empty()) {
+            selected_form_family_ = declared_family;
+        }
+
+        PlacementSpec placement;
+        placement.context = "form";
+        placement.placement = "form";
+        placement.name_prefix = "vehicle.";
+        placement.expected_role = ComponentPackageRole::Form;
+        placement.execution_stage = ExecutionStage::Form;
+        placement.local_services = vehicles_.empty() ? nullptr : &vehicles_.back().services;
+        placement.owner_components =
+            vehicles_.empty() ? nullptr : &vehicles_.back().components;
+        registerComponents(form_config["components"], placement);
+    }
+
+    void buildVehicleGroups(const ConfigNode& vehicle_config) {
+        if (vehicle_config.isNull()) {
+            return;
+        }
+        if (!vehicle_config.isObject()) {
+            return;
+        }
+
+        auto* vehicle_services =
+            vehicles_.empty() ? nullptr : &vehicles_.back().services;
+        auto* vehicle_components =
+            vehicles_.empty() ? nullptr : &vehicles_.back().components;
+
+        registerComponents(
+            vehicle_config["common"],
+            PlacementSpec{"vehicle.common",
+                          "vehicle.common",
+                          "vehicle.",
+                          ComponentPackageRole::VehicleCommon,
+                          ExecutionStage::VehicleOutput,
+                          vehicle_services,
+                          vehicle_components});
+        registerComponents(
+            vehicle_config["input"],
+            PlacementSpec{"vehicle.input",
+                          "vehicle.input",
+                          "vehicle.",
+                          ComponentPackageRole::VehicleInput,
+                          ExecutionStage::VehicleInput,
+                          vehicle_services,
+                          vehicle_components});
+        registerComponents(
+            vehicle_config["process"],
+            PlacementSpec{"vehicle.process",
+                          "vehicle.process",
+                          "vehicle.",
+                          ComponentPackageRole::VehicleProcess,
+                          ExecutionStage::VehicleProcess,
+                          vehicle_services,
+                          vehicle_components});
+        registerComponents(
+            vehicle_config["output"],
+            PlacementSpec{"vehicle.output",
+                          "vehicle.output",
+                          "vehicle.",
+                          ComponentPackageRole::VehicleOutput,
+                          ExecutionStage::VehicleOutput,
+                          vehicle_services,
+                          vehicle_components});
+    }
+
+    void buildInteraction(const ConfigNode& interaction_config) {
+        if (interaction_config.isNull()) {
+            return;
+        }
+        if (!interaction_config.isObject()) {
+            add_error_("Top-level 'interaction' must be an object.");
+            return;
+        }
+
+        auto* vehicle_services =
+            vehicles_.empty() ? nullptr : &vehicles_.back().services;
+        auto* vehicle_components =
+            vehicles_.empty() ? nullptr : &vehicles_.back().components;
+
+        registerComponents(
+            interaction_config["components"],
+            PlacementSpec{"interaction",
+                          "interaction",
+                          "vehicle.",
+                          ComponentPackageRole::Interaction,
+                          ExecutionStage::Interaction,
+                          vehicle_services,
+                          vehicle_components});
+    }
+
+    void validatePlacement(const std::string& type_name,
+                           const std::string& full_name,
+                           const PlacementSpec& placement,
+                           const ComponentFactory& factory) {
+        const auto registered_role = factory.getPackageRole(type_name);
+        if (placement.expected_role != ComponentPackageRole::Unknown &&
+            registered_role != ComponentPackageRole::Unknown &&
+            registered_role != placement.expected_role) {
+            add_error_("Component '" + full_name + "' of type '" + type_name +
+                       "' is registered as role '" + toString(registered_role) +
+                       "' but was placed in '" + placement.placement + "'.");
+        }
+
+        const auto registered_stage = factory.getExecutionStage(type_name);
+        if (placement.execution_stage != ExecutionStage::None &&
+            registered_stage != ExecutionStage::None &&
+            registered_stage != placement.execution_stage) {
+            add_error_("Component '" + full_name + "' of type '" + type_name +
+                       "' is registered for stage '" + toString(registered_stage) +
+                       "' but was placed in '" + placement.placement +
+                       "' which executes at stage '" +
+                       toString(placement.execution_stage) + "'.");
+        }
+
+        const std::string type_form_family = factory.getFormFamily(type_name);
+        if (placement.placement == "form") {
+            if (!type_form_family.empty()) {
+                if (selected_form_family_.empty()) {
+                    selected_form_family_ = type_form_family;
+                } else if (selected_form_family_ != type_form_family) {
+                    add_error_("Form component '" + full_name + "' of type '" + type_name +
+                               "' advertises form family '" + type_form_family +
+                               "' but the selected form family is '" +
+                               selected_form_family_ + "'.");
+                }
+            }
+            return;
+        }
+
+        if (!selected_form_family_.empty() && !type_form_family.empty() &&
+            type_form_family != selected_form_family_) {
+            add_error_("Component '" + full_name + "' of type '" + type_name +
+                       "' targets form family '" + type_form_family +
+                       "' but the selected form family is '" +
+                       selected_form_family_ + "'.");
+        }
     }
 
     void registerComponents(const ConfigNode& components,
-                            const std::string& context,
-                            const std::string& name_prefix,
-                            ServiceContext& global_services,
-                            ServiceContext& environment_services,
-                            ServiceContext* local_services,
-                            std::vector<ComponentBase*>& owner_components) {
+                            const PlacementSpec& placement) {
+        if (components.isNull()) {
+            return;
+        }
+        if (!components.isArray()) {
+            add_error_("Component block '" + placement.context + "' must be an array.");
+            return;
+        }
+
         auto& registry = simulator_.getRegistry();
         auto& factory = ComponentFactory::instance();
 
@@ -235,21 +381,27 @@ private:
             const auto& component_config = components[i];
             const std::string type_name = component_config["type"].asString();
             const std::string base_name = component_config["name"].asString();
-            const std::string full_name = name_prefix + base_name;
+            const std::string full_name = placement.name_prefix + base_name;
 
             if (type_name.empty() || base_name.empty()) {
                 add_error_("Component at index " + std::to_string(i) +
-                           " in " + context + " is missing type or name.");
+                           " in " + placement.context +
+                           " is missing type or name.");
                 continue;
             }
             if (!factory.hasType(type_name)) {
-                add_error_(buildUnknownTypeMessage(type_name, full_name, factory, context));
+                add_error_(buildUnknownTypeMessage(type_name,
+                                                   full_name,
+                                                   factory,
+                                                   placement.context));
                 continue;
             }
             if (registry.has(full_name)) {
                 add_error_("Duplicate component name '" + full_name + "'.");
                 continue;
             }
+
+            validatePlacement(type_name, full_name, placement, factory);
 
             auto component = factory.create(type_name);
             auto* component_ptr = component.get();
@@ -260,13 +412,25 @@ private:
             component_ptr->configure(config);
             checkUnusedConfigKeys(full_name, type_name, config);
 
-            component_ptr->injectServices(global_services);
-            component_ptr->injectServices(environment_services);
-            if (local_services) {
-                component_ptr->injectServices(*local_services);
+            component_ptr->injectServices(global_services_);
+            component_ptr->injectServices(environment_.services);
+            if (placement.local_services) {
+                component_ptr->injectServices(*placement.local_services);
             }
 
-            owner_components.push_back(component_ptr);
+            if (placement.owner_components) {
+                placement.owner_components->push_back(component_ptr);
+            }
+
+            simulator_.addComponentToStage(component_ptr, placement.execution_stage);
+            assembly_descriptors_.push_back(AssemblyDescriptor{
+                full_name,
+                type_name,
+                placement.placement,
+                factory.getPackageRole(type_name),
+                placement.execution_stage,
+                factory.getFormFamily(type_name)});
+
             registry.addDynamic(full_name,
                                 std::move(component),
                                 factory.getInterfaces(type_name));
@@ -309,8 +473,8 @@ private:
                     add_error_(buildUnknownServiceMessage(service_name));
                     continue;
                 }
-                add_error_("Service '" + service_name + "' in scope '" + service_scope_name +
-                           "' failed to install: " + e.what());
+                add_error_("Service '" + service_name + "' in scope '" +
+                           service_scope_name + "' failed to install: " + e.what());
             }
         }
     }
@@ -322,6 +486,8 @@ private:
     std::vector<DeferredRegistryAction>& deferred_service_actions_;
     DiagnosticReporter add_error_;
     DiagnosticReporter add_warning_;
+    std::string selected_form_family_;
+    std::vector<AssemblyDescriptor> assembly_descriptors_;
 };
 
 } // namespace gnc::core

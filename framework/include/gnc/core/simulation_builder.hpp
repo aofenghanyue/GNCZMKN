@@ -27,6 +27,7 @@ public:
     Simulator& build() {
         build_errors_.clear();
         build_warnings_.clear();
+        simulator_.resetAssemblyState();
 
         MissionAssembler assembler(
             simulator_,
@@ -46,10 +47,13 @@ public:
         buildIntegrator();
 
         assembler.installGlobalServices(config_.globalServices());
-        buildMissionEntities(assembler);
+        buildMissionArchitecture(assembler);
         assembler.runDeferredServiceActions();
 
-        const auto validation = ValidationPipeline::run(simulator_.getRegistry());
+        const auto validation = ValidationPipeline::run(
+            simulator_.getRegistry(),
+            assembler.getAssemblyDescriptors(),
+            assembler.getSelectedFormFamily());
         for (const auto& error : validation.errors) {
             addBuildError(error);
         }
@@ -59,9 +63,9 @@ public:
 
         StopConditionBuilder stop_conditions(
             simulator_, [this](const std::string& message) { addBuildWarning(message); });
-        stop_conditions.build(simulation["stop_conditions"]);
+        stop_conditions.build(config_.stopConditions());
 
-        if (!simulator_.initializeAutoDataLogger(config_.root()["outputs"])) {
+        if (!simulator_.initializeAutoDataLogger(config_.outputs())) {
             addBuildError("AutoDataLogger initialization failed during simulation build.");
         }
 
@@ -123,31 +127,34 @@ private:
                  unique_join(std::move(project_types)));
     }
 
-    void buildMissionEntities(MissionAssembler& assembler) {
-        const auto& entities = config_.entities();
-        if (entities.isArray()) {
-            assembler.buildEntities(entities);
+    void buildMissionArchitecture(MissionAssembler& assembler) {
+        const auto& root = config_.root();
+
+        if (config_.hasEntities()) {
+            addBuildError(
+                "Legacy top-level 'entities[]' missions are no longer supported. "
+                "Migrate the mission to the top-level "
+                "'form/environment/vehicle/interaction' layout.");
             return;
         }
 
-        const auto& root = config_.root();
         if (root.has("components") || root.has("services") || root.has("vehicles")) {
             addBuildError(
                 "Legacy root-level mission format ('components' / 'services' / "
-                "'vehicles') is no longer supported. Migrate the mission to "
-                "top-level 'entities[]'.");
+                "'vehicles') is no longer supported. Migrate the mission to the "
+                "top-level 'form/environment/vehicle/interaction' layout.");
             return;
         }
 
-        if (config_.hasEntities()) {
-            addBuildError("Mission configuration field 'entities' must be an array.");
+        if (!config_.hasModernMissionLayout()) {
+            addBuildError(
+                "Mission configuration must define a top-level 'form' object and "
+                "should organize optional packages under "
+                "'environment', 'vehicle', and 'interaction'.");
             return;
         }
 
-        addBuildError(
-            "Mission configuration must define a top-level 'entities' array. "
-            "Legacy root-level mission format ('components' / 'services' / "
-            "'vehicles') is no longer supported.");
+        assembler.buildMission(root);
     }
 
     void buildIntegrator() {

@@ -6,6 +6,7 @@
 
 #include "gnc/infrastructure/auto_data_logger.hpp"
 #include "component_registry.hpp"
+#include "gnc/core/component_factory.hpp"
 #include "gnc/infrastructure/dependency_validator.hpp"
 #include "integrators/rk4_integrator.hpp"
 #include "scoped_registry.hpp"
@@ -14,6 +15,7 @@
 #include "gnc/interfaces/i_integrator.hpp"
 #include "gnc/common/logger.hpp"
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <functional>
@@ -53,6 +55,16 @@ public:
     /// 获取组件注册表
     ComponentRegistry& getRegistry() { return registry_; }
     const ComponentRegistry& getRegistry() const { return registry_; }
+
+    void resetAssemblyState() {
+        registry_.clear();
+        clearExecutionPlan();
+        termination_conditions_.clear();
+        termination_reason_ = "completed";
+        current_time_ = 0.0;
+        is_initialized_ = false;
+        phase_manager_ = ExecutionPhaseManager{};
+    }
     
     /// 设置仿真配置
     void configure(const SimulatorConfig& config) {
@@ -86,6 +98,28 @@ public:
     void addTerminationCondition(const std::string& name,
                                  TerminationCondition condition) {
         termination_conditions_.push_back({name, std::move(condition)});
+    }
+
+    void clearExecutionPlan() {
+        for (auto& bucket : stage_buckets_) {
+            bucket.clear();
+        }
+    }
+
+    void addComponentToStage(ComponentBase* component, ExecutionStage stage) {
+        if (!component) {
+            return;
+        }
+
+        const auto index = stageBucketIndex(stage);
+        if (index < 0) {
+            return;
+        }
+
+        auto& bucket = stage_buckets_[static_cast<size_t>(index)];
+        if (std::find(bucket.begin(), bucket.end(), component) == bucket.end()) {
+            bucket.push_back(component);
+        }
     }
 
     const std::string& getTerminationReason() const {
@@ -189,31 +223,8 @@ simulation_end:
     
     /// 单步执行
     void step(int step_index) {
-        for (auto* component : registry_.getAllComponents()) {
-            component->setSimTimeInternal_(current_time_, step_index);
-            component->clearDebugSnapshotInternal_();
-            if (!component->shouldExecute(step_index)) {
-                continue;
-            }
-
-            auto* continuous_system = dynamic_cast<interfaces::IContinuousSystem*>(component);
-            if (continuous_system && integrator_) {
-                Eigen::VectorXd x = continuous_system->getState();
-                integrator_->step(
-                    [continuous_system](double t,
-                                        const Eigen::VectorXd& state,
-                                        Eigen::VectorXd& dxdt) {
-                        continuous_system->computeDerivatives(t, state, dxdt);
-                    },
-                    current_time_,
-                    x,
-                    config_.dt
-                );
-                continuous_system->setState(x);
-                component->update(config_.dt);
-            } else {
-                component->update(config_.dt);
-            }
+        for (const auto stage : orderedStages()) {
+            executeStage(stage, step_index);
         }
     }
     
@@ -233,6 +244,74 @@ private:
         std::string name;
         TerminationCondition condition;
     };
+
+    static constexpr size_t kStageCount = 6;
+
+    static std::array<ExecutionStage, kStageCount> orderedStages() {
+        return {ExecutionStage::Environment,
+                ExecutionStage::VehicleInput,
+                ExecutionStage::VehicleProcess,
+                ExecutionStage::VehicleOutput,
+                ExecutionStage::Interaction,
+                ExecutionStage::Form};
+    }
+
+    static int stageBucketIndex(ExecutionStage stage) {
+        switch (stage) {
+        case ExecutionStage::Environment:
+            return 0;
+        case ExecutionStage::VehicleInput:
+            return 1;
+        case ExecutionStage::VehicleProcess:
+            return 2;
+        case ExecutionStage::VehicleOutput:
+            return 3;
+        case ExecutionStage::Interaction:
+            return 4;
+        case ExecutionStage::Form:
+            return 5;
+        default:
+            return -1;
+        }
+    }
+
+    void executeStage(ExecutionStage stage, int step_index) {
+        const auto index = stageBucketIndex(stage);
+        if (index < 0) {
+            return;
+        }
+
+        for (auto* component : stage_buckets_[static_cast<size_t>(index)]) {
+            executeComponent(component, step_index);
+        }
+    }
+
+    void executeComponent(ComponentBase* component, int step_index) {
+        component->setSimTimeInternal_(current_time_, step_index);
+        component->clearDebugSnapshotInternal_();
+        if (!component->shouldExecute(step_index)) {
+            return;
+        }
+
+        auto* continuous_system = dynamic_cast<interfaces::IContinuousSystem*>(component);
+        if (continuous_system && integrator_) {
+            Eigen::VectorXd x = continuous_system->getState();
+            integrator_->step(
+                [continuous_system](double t,
+                                    const Eigen::VectorXd& state,
+                                    Eigen::VectorXd& dxdt) {
+                    continuous_system->computeDerivatives(t, state, dxdt);
+                },
+                current_time_,
+                x,
+                config_.dt);
+            continuous_system->setState(x);
+            component->update(config_.dt);
+            return;
+        }
+
+        component->update(config_.dt);
+    }
 
     /// 根据频率计算各组件的步长间隔
     void computeStepIntervals() {
@@ -271,6 +350,7 @@ private:
     std::string termination_reason_ = "completed";
     double current_time_ = 0.0;
     bool is_initialized_ = false;
+    std::array<std::vector<ComponentBase*>, kStageCount> stage_buckets_{};
 };
 
 } // namespace gnc::core

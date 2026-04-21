@@ -4,114 +4,120 @@
         "duration": 5.0,
         "integrator": "rk4"
     },
+    "form": {
+        "components": [
+            {
+                "type": "state_3dof.point_mass_spherical_soviet",
+                "name": "dynamics",
+                "config": {
+                    "launch_azimuth_rad": 1.5707963267948966,
+                    "initial_state": {
+                        "longitude_rad": 1.9198621771937625,
+                        "latitude_rad": 0.5235987755982988,
+                        "altitude_m": 50000.0,
+                        "speed_mps": 1500.0,
+                        "flight_path_angle_rad": -0.017453292519943295,
+                        "heading_angle_rad": -1.3962634015954636
+                    }
+                }
+            },
+            {
+                "type": "example.coordinate_probe",
+                "name": "probe",
+                "config": {
+                    "from_frame": "L",
+                    "to_frame": "K"
+                }
+            }
+        ]
+    },
+    "environment": {
+        "components": [
+            {
+                "type": "environment.spherical_earth",
+                "name": "earth",
+                "config": {}
+            },
+            {
+                "type": "environment.standard_atmosphere",
+                "name": "atmosphere",
+                "config": {}
+            },
+            {
+                "type": "environment.spherical_gravity",
+                "name": "gravity",
+                "config": {}
+            }
+        ]
+    },
+    "vehicle": {
+        "services": {
+            "soviet_coord": {
+                "launch": {
+                    "latitude_rad": 0.5235987755982988,
+                    "longitude_rad": 1.9198621771937625,
+                    "azimuth_rad": 1.5707963267948966,
+                    "launch_time_s": 0.0,
+                    "earth_rotation_angle_rad": 0.0
+                },
+                "bindings": {
+                    "earth": {
+                        "name": "env.earth"
+                    },
+                    "velocity_direction": {
+                        "name": "vehicle.dynamics"
+                    }
+                }
+            }
+        },
+        "common": [
+            {
+                "type": "cavh.constant_mass",
+                "name": "mass",
+                "config": {
+                    "mass_kg": 300.0
+                }
+            },
+            {
+                "type": "aero.simple_polynomial",
+                "name": "aero",
+                "config": {}
+            }
+        ],
+        "input": [],
+        "process": [
+            {
+                "type": "example.programmed_aoa",
+                "name": "guidance",
+                "config": {
+                    "bank_angle_deg": 0.0,
+                    "schedule_altitude_m": [50000, 40000],
+                    "schedule_angle_of_attack_deg": [12, 12]
+                }
+            }
+        ],
+        "output": []
+    },
+    "interaction": {
+        "components": [
+            {
+                "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
+                "name": "bridge",
+                "config": {}
+            }
+        ]
+    },
     "outputs": {
         "directory": "user/outputs/{timestamp}",
         "format": "csv",
         "session_name": "soviet_coord",
         "record": {
-            "missile.probe": "all",
-            "missile.dynamics": [
+            "vehicle.probe": "all",
+            "vehicle.dynamics": [
                 "velocity_launch.x",
                 "velocity_launch.y",
                 "velocity_launch.z"
             ]
         }
-    },
-    "entities": [
-        {
-            "id": "missile",
-            "role": "vehicle",
-            "services": {
-                "soviet_coord": {
-                    "launch": {
-                        "latitude_rad": 0.5235987755982988,
-                        "longitude_rad": 1.9198621771937625,
-                        "azimuth_rad": 1.5707963267948966,
-                        "launch_time_s": 0.0,
-                        "earth_rotation_angle_rad": 0.0
-                    },
-                    "bindings": {
-                        "earth": {
-                            "name": "env.earth"
-                        },
-                        "velocity_direction": {
-                            "name": "missile.dynamics"
-                        }
-                    }
-                }
-            },
-            "components": [
-                {
-                    "type": "example.programmed_aoa",
-                    "name": "guidance",
-                    "config": {
-                        "bank_angle_deg": 0.0,
-                        "schedule_altitude_m": [50000, 40000],
-                        "schedule_angle_of_attack_deg": [12, 12]
-                    }
-                },
-                {
-                    "type": "cavh.constant_mass",
-                    "name": "mass",
-                    "config": {
-                        "mass_kg": 300.0
-                    }
-                },
-                {
-                    "type": "aero.simple_polynomial",
-                    "name": "aero",
-                    "config": {}
-                },
-                {
-                    "type": "state_3dof_bridge.force_to_local_acceleration_soviet",
-                    "name": "bridge",
-                    "config": {}
-                },
-                {
-                    "type": "state_3dof.point_mass_spherical_soviet",
-                    "name": "dynamics",
-                    "config": {
-                        "launch_azimuth_rad": 1.5707963267948966,
-                        "initial_state": {
-                            "longitude_rad": 1.9198621771937625,
-                            "latitude_rad": 0.5235987755982988,
-                            "altitude_m": 50000.0,
-                            "speed_mps": 1500.0,
-                            "flight_path_angle_rad": -0.017453292519943295,
-                            "heading_angle_rad": -1.3962634015954636
-                        }
-                    }
-                },
-                {
-                    "type": "example.coordinate_probe",
-                    "name": "probe",
-                    "config": {
-                        "from_frame": "L",
-                        "to_frame": "K"
-                    }
-                }
-            ]
-        },
-        {
-            "id": "environment",
-            "role": "environment",
-            "components": [
-                {
-                    "type": "environment.spherical_earth",
-                    "name": "earth",
-                    "config": {}
-                },
-                {
-                    "type": "environment.standard_atmosphere",
-                    "name": "atmosphere",
-                    "config": {}
-                },
-                {
-                    "type": "environment.spherical_gravity",
-                    "name": "gravity",
-                    "config": {}
-                }
-            ]
-        }
-    ]
+    }
 }
