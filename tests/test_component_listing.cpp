@@ -35,17 +35,17 @@ int main() {
             containsValue(it->interface_names, "IContinuousSystem"),
             "form.local_spherical_3dof.point_mass should advertise IContinuousSystem.");
         test_support::require(
-            containsValue(it->interface_names, "IStateSolver3DOF"),
-            "form.local_spherical_3dof.point_mass should advertise IStateSolver3DOF.");
-        test_support::require(
-            containsValue(it->interface_names, "ISovietSphericalState3DOF"),
-            "form.local_spherical_3dof.point_mass should advertise ISovietSphericalState3DOF.");
+            containsValue(it->interface_names, "IVelocityDirectionProvider"),
+            "form.local_spherical_3dof.point_mass should advertise IVelocityDirectionProvider.");
         test_support::require(
             containsValue(it->interface_names, "ITruthView"),
             "form.local_spherical_3dof.point_mass should advertise ITruthView.");
         test_support::require(
             containsValue(it->interface_names, "IObservable"),
             "form.local_spherical_3dof.point_mass should advertise IObservable.");
+        test_support::require(
+            !containsValue(it->interface_names, "IStateSolver3DOF"),
+            "form.local_spherical_3dof.point_mass should no longer advertise IStateSolver3DOF.");
         test_support::require(
             it->package_role == gnc::core::ComponentPackageRole::Form,
             "form.local_spherical_3dof.point_mass should be labeled as a form package.");

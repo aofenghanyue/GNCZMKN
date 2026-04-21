@@ -4,7 +4,7 @@
 #include "gnc/core/component_factory.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/plugins/soviet_coord/interfaces/i_soviet_coord_service.hpp"
+#include "gnc/services/soviet_coord/interfaces/i_coord_service.hpp"
 
 class CoordinateProbe final : public gnc::core::ComponentBase,
                               public gnc::interfaces::IObservable {
@@ -12,7 +12,7 @@ public:
     CoordinateProbe() : ComponentBase("CoordinateProbe") {}
 
     void injectServices(gnc::core::ServiceContext& services) override {
-        coord_service_ = services.get<gnc::plugins::soviet_coord::ISovietCoordService>();
+        coord_service_ = services.get<gnc::services::soviet_coord::ICoordService>();
     }
 
     void configure(const gnc::core::ConfigNode& config) override {
@@ -36,7 +36,7 @@ public:
     }
 
 private:
-    gnc::plugins::soviet_coord::ISovietCoordService* coord_service_ = nullptr;
+    gnc::services::soviet_coord::ICoordService* coord_service_ = nullptr;
     gnc::math::Vector3 transformed_axis_ = gnc::math::Vector3::UnitX();
     std::string from_frame_ = "L";
     std::string to_frame_ = "K";

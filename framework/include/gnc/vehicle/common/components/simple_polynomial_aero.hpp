@@ -1,11 +1,8 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
-#include "gnc/core/scoped_registry.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
 #include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
 
 #include <cmath>
@@ -32,19 +29,7 @@ public:
             config["reference_length_m"].asDouble(reference_length_m_);
     }
 
-    void injectDependencies(gnc::core::ScopedRegistry& registry) override {
-        registry.bindAll(
-            gnc::core::bindIfPresent(state_solver_, "dynamics"),
-            gnc::core::bindIfPresent(command_provider_, "guidance"));
-    }
-
-    void update(double) override {
-        const double angle_of_attack =
-            command_provider_ ? command_provider_->getFlightCommand().angle_of_attack_rad : 0.0;
-        const double speed = state_solver_ ? state_solver_->getSpeed() : 0.0;
-        const double mach = speed / 340.0;
-        current_coefficients_ = computeCoefficients(angle_of_attack, 0.0, mach);
-    }
+    void update(double) override {}
 
     AeroCoefficients computeCoefficients(double angle_of_attack_rad,
                                          double,
@@ -55,6 +40,7 @@ public:
         coefficients.drag_coefficient =
             drag_zero_ + drag_quadratic_ * angle_of_attack_rad * angle_of_attack_rad +
             0.015 * std::max(0.0, mach_number - 5.0);
+        current_coefficients_ = coefficients;
         return coefficients;
     }
 
@@ -85,9 +71,7 @@ private:
     double drag_quadratic_ = 1.25;
     double reference_area_m2_ = 0.48;
     double reference_length_m_ = 2.5;
-    AeroCoefficients current_coefficients_{};
-    gnc::plugins::state_3dof::IStateSolver3DOF* state_solver_ = nullptr;
-    gnc::plugins::state_3dof::IFlightCommandProvider3DOF* command_provider_ = nullptr;
+    mutable AeroCoefficients current_coefficients_{};
 };
 
 } // namespace gnc::vehicle::common

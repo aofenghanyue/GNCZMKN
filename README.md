@@ -9,8 +9,8 @@ The active architecture is centered on:
 - `Interaction`
 
 The old plugin-centered architecture is no longer the active design model.
-Plugin-era headers and some legacy type ids still exist only as compatibility
-shims while the cleanup finishes.
+Plugin-era compatibility shims and legacy type ids have been removed from the
+active code path.
 
 ## Current Runtime Model
 
@@ -62,9 +62,6 @@ Current canonical builtin form and interaction types include:
 - `form.local_spherical_3dof.flight_state_view`
 - `interaction.local_spherical_3dof.direct_accel`
 - `interaction.local_spherical_3dof.aero_propulsive`
-
-Legacy type ids such as `state_3dof.point_mass_cartesian` are still registered
-for compatibility, but new code and new missions should use the canonical names.
 
 ## Quick Start
 

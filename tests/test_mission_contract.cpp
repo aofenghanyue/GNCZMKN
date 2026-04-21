@@ -2,8 +2,9 @@
 
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
-#include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
+#include "gnc/forms/cartesian_3dof/interfaces/i_truth_view.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -134,12 +135,11 @@ int main() {
       "role": "vehicle",
       "components": [
         {
-          "type": "state_3dof.point_mass_cartesian",
+          "type": "form.cartesian_3dof.point_mass",
           "name": "dynamics",
           "config": {
             "initial_position": [0.0, 0.0, 1000.0],
-            "initial_velocity": [250.0, 0.0, 40.0],
-            "constant_acceleration": [0.0, 0.0, -9.81]
+            "initial_velocity": [250.0, 0.0, 40.0]
           }
         }
       ]
@@ -163,7 +163,7 @@ int main() {
                               "Legacy entities[] mission format should now fail fast.");
         test_support::require(
             containsSubstring(legacy_builder.getBuildErrors(),
-                              "Legacy top-level 'entities[]' missions"),
+            "Legacy top-level 'entities[]' missions"),
             "Legacy mission failure did not explain that entities[] is unsupported.");
         test_support::require(
             containsSubstring(legacy_builder.getBuildErrors(),
@@ -487,23 +487,27 @@ int main() {
 
         auto& direct_simulator = direct_builder.build();
         auto* direct_dynamics =
-            direct_simulator.getRegistry().get<gnc::plugins::state_3dof::IStateSolver3DOF>(
+            direct_simulator.getRegistry().get<gnc::forms::local_spherical_3dof::ITruthView>(
                 "vehicle.dynamics");
         auto* direct_flight_state = direct_simulator.getRegistry().get<
-            gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver>(
+            gnc::forms::local_spherical_3dof::IFlightStateView>(
             "vehicle.flight_state");
         test_support::require(direct_dynamics != nullptr,
-                              "Direct-accel mission did not expose IStateSolver3DOF.");
+                              "Direct-accel mission did not expose local_spherical truth view.");
         test_support::require(direct_flight_state != nullptr,
                               "Direct-accel mission did not expose flight-state view.");
 
-        const double initial_direct_altitude = direct_dynamics->getAltitude();
+        direct_simulator.initialize();
+        const double initial_direct_altitude =
+            direct_dynamics->getLocalSpherical3DoFTruth().state.altitude_m;
         direct_simulator.run();
 
-        test_support::require(direct_dynamics->getAltitude() < initial_direct_altitude,
+        test_support::require(
+            direct_dynamics->getLocalSpherical3DoFTruth().state.altitude_m <
+                initial_direct_altitude,
                               "Direct-accel local_spherical_3dof mission did not descend.");
         test_support::require(
-            direct_flight_state->getFlightState3DOFSoviet().dynamic_pressure_pa > 0.0,
+            direct_flight_state->getFlightState().dynamic_pressure_pa > 0.0,
             "Direct-accel local_spherical_3dof mission returned a non-physical flight state.");
 
         const char* cartesian_direct_accel_mission = R"json(
@@ -564,10 +568,10 @@ int main() {
 
         auto& cartesian_simulator = cartesian_builder.build();
         auto* cartesian_dynamics =
-            cartesian_simulator.getRegistry().get<gnc::plugins::state_3dof::IStateSolver3DOF>(
+            cartesian_simulator.getRegistry().get<gnc::forms::cartesian_3dof::ITruthView>(
                 "vehicle.dynamics");
         test_support::require(cartesian_dynamics != nullptr,
-                              "Cartesian direct-accel mission did not expose IStateSolver3DOF.");
+                              "Cartesian direct-accel mission did not expose cartesian truth view.");
 
         cartesian_simulator.run();
 

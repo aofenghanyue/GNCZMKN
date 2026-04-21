@@ -210,7 +210,7 @@ void injectDependencies(gnc::core::ScopedRegistry& registry) override {
 
 ```cpp
 void injectServices(gnc::core::ServiceContext& services) override {
-    coord_service_ = services.get<gnc::plugins::soviet_coord::ISovietCoordService>();
+    coord_service_ = services.get<gnc::services::soviet_coord::ICoordService>();
 }
 ```
 

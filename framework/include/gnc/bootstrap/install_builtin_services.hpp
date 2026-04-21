@@ -6,7 +6,7 @@
 #include "gnc/core/deferred_registry_action.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/core/service_context.hpp"
-#include "gnc/plugins/soviet_coord/components/soviet_coord_service.hpp"
+#include "gnc/services/soviet_coord/components/soviet_coord_service.hpp"
 
 #include <memory>
 #include <stdexcept>
@@ -34,8 +34,8 @@ inline void installBuiltinService(const std::string& service_name,
         throw std::runtime_error(message);
     }
 
-    gnc::plugins::soviet_coord::SovietCoordLaunchConfig launch_config;
-    gnc::plugins::soviet_coord::SovietCoordBindings bindings;
+    gnc::services::soviet_coord::SovietCoordLaunchConfig launch_config;
+    gnc::services::soviet_coord::SovietCoordBindings bindings;
 
     const auto& launch = config["launch"];
     if (launch.isNull()) {
@@ -63,8 +63,8 @@ inline void installBuiltinService(const std::string& service_name,
     bindings.body_airspeed = binding_config["body_airspeed"]["name"].asString();
 
     auto service =
-        std::make_shared<gnc::plugins::soviet_coord::SovietCoordService>(launch_config, bindings);
-    services.registerService<gnc::plugins::soviet_coord::ISovietCoordService>(service);
+        std::make_shared<gnc::services::soviet_coord::SovietCoordService>(launch_config, bindings);
+    services.registerService<gnc::services::soviet_coord::ICoordService>(service);
 
     deferred_actions.push_back(
         [service, registry_scope](gnc::core::ComponentRegistry& component_registry) {

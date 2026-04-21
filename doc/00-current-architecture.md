@@ -128,18 +128,20 @@ Examples:
 - `interaction.local_spherical_3dof.direct_accel`
 - `interaction.local_spherical_3dof.aero_propulsive`
 
-Some legacy plugin-era type ids are still registered as compatibility aliases.
-They should not be used for new code or new mission authoring.
+Legacy plugin-era type ids are no longer registered. Active missions and code
+should use only the canonical type ids shown above.
 
 ## Compatibility Policy
 
-Legacy compatibility currently exists in two places:
+There is no active compatibility layer for the removed plugin architecture.
+
+Do not author new code against:
 
 1. old include paths under `framework/include/gnc/plugins/`
-2. old builtin type ids that map to canonical form or interaction packages
+2. old plugin-era type ids
 
-These compatibility layers exist only to avoid breaking transition work during
-cleanup. They are not the architectural model.
+Historical plugin-era material may still appear in archived documents, but it
+is not part of the supported repository architecture.
 
 ## Current Direction
 
@@ -151,4 +153,4 @@ The repository has already validated:
 - a second `cartesian_3dof` form under the same shell
 
 Remaining cleanup work is mostly about removing or quarantining historical
-plugin-era documentation and compatibility wording.
+plugin-era documentation wording from archived reference material.

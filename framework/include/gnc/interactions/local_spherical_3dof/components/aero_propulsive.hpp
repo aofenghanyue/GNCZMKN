@@ -6,11 +6,10 @@
 #include "gnc/environment/interfaces/i_gravity.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/local_spherical_3dof/internal/math.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_acceleration_provider_3dof.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
 #include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
 #include "gnc/vehicle/common/interfaces/i_constant_mass.hpp"
 #include "gnc/vehicle/common/interfaces/i_continuous_mass.hpp"
+#include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,8 +19,7 @@ namespace gnc::interactions::local_spherical_3dof {
 
 class AeroPropulsive final
     : public gnc::core::ComponentBase,
-      public gnc::forms::local_spherical_3dof::IInputProvider,
-      public gnc::plugins::state_3dof::IAccelerationProvider3DOF {
+      public gnc::forms::local_spherical_3dof::IInputProvider {
 public:
     AeroPropulsive() : ComponentBase("LocalSpherical3DoFAeroPropulsive") {}
 
@@ -48,27 +46,14 @@ public:
         const gnc::forms::local_spherical_3dof::Truth& truth,
         double) const override {
         gnc::forms::local_spherical_3dof::Input input;
-        input.local_acceleration_nue_mps2 = computeLocalAcceleration(truth.state);
+        input.local_acceleration_nue_mps2 = computeLocalAccelerationNue(truth.state);
         return input;
     }
 
-    gnc::math::Vector3 computeLocalAccelerationNue(
-        const gnc::plugins::state_3dof::SovietSphericalState3DOF& state,
-        double) const override {
-        gnc::forms::local_spherical_3dof::State local_state;
-        local_state.longitude_rad = state.longitude_rad;
-        local_state.latitude_rad = state.latitude_rad;
-        local_state.altitude_m = state.altitude_m;
-        local_state.speed_mps = state.speed_mps;
-        local_state.flight_path_angle_rad = state.flight_path_angle_rad;
-        local_state.heading_angle_rad = state.heading_angle_rad;
-        return computeLocalAcceleration(local_state);
-    }
-
 private:
-    gnc::plugins::state_3dof::FlightCommand3DOF currentCommand() const {
-        if (command_provider_ && command_provider_->isActive()) {
-            return command_provider_->getFlightCommand();
+    gnc::vehicle::process::AeroGuidanceCommand currentCommand() const {
+        if (command_provider_ && command_provider_->isGuidanceActive()) {
+            return command_provider_->getAeroGuidanceCommand();
         }
         return {};
     }
@@ -80,7 +65,8 @@ private:
         return constant_mass_->getMassKg();
     }
 
-    gnc::math::Vector3 computeLocalAcceleration(
+public:
+    gnc::math::Vector3 computeLocalAccelerationNue(
         const gnc::forms::local_spherical_3dof::State& state) const {
         const auto atmosphere_sample = atmosphere_->sample(state.altitude_m);
         const double speed_of_sound =
@@ -115,10 +101,11 @@ private:
                gnc::math::Vector3(0.0, -gravity_m_per_s2, 0.0);
     }
 
+private:
     gnc::environment::IAtmosphere* atmosphere_ = nullptr;
     gnc::environment::IGravity* gravity_ = nullptr;
     gnc::vehicle::common::IAeroModel* aero_model_ = nullptr;
-    gnc::plugins::state_3dof::IFlightCommandProvider3DOF* command_provider_ = nullptr;
+    gnc::vehicle::process::IAeroGuidanceProvider* command_provider_ = nullptr;
     gnc::vehicle::common::IConstantMass* constant_mass_ = nullptr;
     gnc::vehicle::common::IContinuousMass* continuous_mass_ = nullptr;
 };

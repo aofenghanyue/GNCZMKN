@@ -8,13 +8,11 @@
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
 
 namespace gnc::forms::cartesian_3dof {
 
 class PointMass final : public gnc::core::ComponentBase,
                         public gnc::interfaces::IContinuousSystem,
-                        public gnc::plugins::state_3dof::IStateSolver3DOF,
                         public ITruthView,
                         public gnc::interfaces::IObservable {
 public:
@@ -78,16 +76,16 @@ public:
     void setState(const Eigen::VectorXd& state) override { state_vector_ = state; }
     Eigen::VectorXd getInitialState() const override { return initial_state_vector_; }
 
-    gnc::math::Vector3 getPosition() const override {
+    gnc::math::Vector3 getPosition() const {
         return unpackState(state_vector_).position_m;
     }
 
-    gnc::math::Vector3 getVelocity() const override {
+    gnc::math::Vector3 getVelocity() const {
         return unpackState(state_vector_).velocity_mps;
     }
 
-    double getSpeed() const override { return getVelocity().norm(); }
-    double getAltitude() const override { return getPosition().z(); }
+    double getSpeed() const { return getVelocity().norm(); }
+    double getAltitude() const { return getPosition().z(); }
 
     const Truth& getCartesian3DoFTruth() const override { return truth_; }
 

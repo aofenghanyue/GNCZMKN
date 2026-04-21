@@ -3,10 +3,10 @@
 #include "gnc/common/math/eigen_types.hpp"
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/scoped_registry.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -15,7 +15,7 @@ namespace gnc::vehicle::process {
 
 class ProgrammedAoAGuidance final
     : public gnc::core::ComponentBase,
-      public gnc::plugins::state_3dof::IFlightCommandProvider3DOF,
+      public IAeroGuidanceProvider,
       public gnc::interfaces::IObservable {
 public:
     ProgrammedAoAGuidance() : ComponentBase("ProgrammedAoAGuidance") {
@@ -35,23 +35,24 @@ public:
     }
 
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
-        registry.bindAll(gnc::core::bind(state_solver_, "dynamics"));
+        registry.bindAll(gnc::core::bind(truth_view_, "dynamics"));
     }
 
     void update(double) override {
         const double altitude =
-            state_solver_ ? state_solver_->getAltitude() : schedule_altitude_m_.front();
+            truth_view_ ? truth_view_->getLocalSpherical3DoFTruth().state.altitude_m
+                        : schedule_altitude_m_.front();
         command_.angle_of_attack_rad =
             gnc::math::deg2rad(interpolateAngleOfAttackDeg(altitude));
         command_.bank_angle_rad = gnc::math::deg2rad(bank_angle_deg_);
         command_.timestamp = getSimTime();
     }
 
-    const gnc::plugins::state_3dof::FlightCommand3DOF& getFlightCommand() const override {
+    const AeroGuidanceCommand& getAeroGuidanceCommand() const override {
         return command_;
     }
 
-    bool isActive() const override { return true; }
+    bool isGuidanceActive() const override { return true; }
 
     std::vector<gnc::interfaces::ObservableField> getObservableFields() const override {
         gnc::core::ObservableFieldBuilder builder;
@@ -102,8 +103,8 @@ private:
         return schedule_alpha_deg_.back();
     }
 
-    gnc::plugins::state_3dof::FlightCommand3DOF command_{};
-    gnc::plugins::state_3dof::IStateSolver3DOF* state_solver_ = nullptr;
+    AeroGuidanceCommand command_{};
+    gnc::forms::local_spherical_3dof::ITruthView* truth_view_ = nullptr;
     std::vector<double> schedule_altitude_m_;
     std::vector<double> schedule_alpha_deg_;
     double bank_angle_deg_ = 0.0;

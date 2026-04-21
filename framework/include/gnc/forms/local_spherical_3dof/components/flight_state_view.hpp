@@ -3,18 +3,18 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/environment/interfaces/i_atmosphere.hpp"
+#include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 
 #include <algorithm>
 
 namespace gnc::forms::local_spherical_3dof {
 
 class FlightStateView final : public gnc::core::ComponentBase,
-                              public gnc::plugins::flight_state_3dof::IFlightState3DOFSovietObserver,
+                              public IFlightStateView,
                               public gnc::interfaces::IObservable {
 public:
     FlightStateView() : ComponentBase("LocalSpherical3DoFFlightStateView") {}
@@ -30,8 +30,7 @@ public:
 
     void update(double) override { refreshSample(); }
 
-    const gnc::plugins::flight_state_3dof::FlightState3DOFSovietSample&
-    getFlightState3DOFSoviet() const override {
+    const FlightState& getFlightState() const override {
         return sample_;
     }
 
@@ -68,9 +67,9 @@ public:
     }
 
 private:
-    gnc::plugins::state_3dof::FlightCommand3DOF currentCommand() const {
-        if (command_provider_ && command_provider_->isActive()) {
-            return command_provider_->getFlightCommand();
+    gnc::vehicle::process::AeroGuidanceCommand currentCommand() const {
+        if (command_provider_ && command_provider_->isGuidanceActive()) {
+            return command_provider_->getAeroGuidanceCommand();
         }
         return {};
     }
@@ -102,8 +101,8 @@ private:
 
     ITruthView* truth_view_ = nullptr;
     gnc::environment::IAtmosphere* atmosphere_ = nullptr;
-    gnc::plugins::state_3dof::IFlightCommandProvider3DOF* command_provider_ = nullptr;
-    gnc::plugins::flight_state_3dof::FlightState3DOFSovietSample sample_{};
+    gnc::vehicle::process::IAeroGuidanceProvider* command_provider_ = nullptr;
+    FlightState sample_{};
 };
 
 } // namespace gnc::forms::local_spherical_3dof

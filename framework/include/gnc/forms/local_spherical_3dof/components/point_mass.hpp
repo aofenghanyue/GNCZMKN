@@ -9,9 +9,7 @@
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_soviet_spherical_state_3dof.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_state_solver_3dof.hpp"
-#include "gnc/plugins/state_3dof/interfaces/i_velocity_direction_provider.hpp"
+#include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
 
 #include <string>
 
@@ -19,9 +17,7 @@ namespace gnc::forms::local_spherical_3dof {
 
 class PointMass final : public gnc::core::ComponentBase,
                         public gnc::interfaces::IContinuousSystem,
-                        public gnc::plugins::state_3dof::IStateSolver3DOF,
-                        public gnc::plugins::state_3dof::ISovietSphericalState3DOF,
-                        public gnc::plugins::state_3dof::IVelocityDirectionProvider,
+                        public gnc::services::soviet_coord::IVelocityDirectionProvider,
                         public ITruthView,
                         public gnc::interfaces::IObservable {
 public:
@@ -48,15 +44,7 @@ public:
             initial_state["heading_angle_rad"].asDouble(0.0);
 
         earth_lookup_name_ = config["earth_lookup_name"].asString(earth_lookup_name_);
-        if (config.has("input_lookup_name")) {
-            input_lookup_name_ = config["input_lookup_name"].asString(input_lookup_name_);
-            allow_legacy_bridge_fallback_ = false;
-        }
-        if (config.has("acceleration_lookup_name")) {
-            input_lookup_name_ =
-                config["acceleration_lookup_name"].asString(input_lookup_name_);
-            allow_legacy_bridge_fallback_ = false;
-        }
+        input_lookup_name_ = config["input_lookup_name"].asString(input_lookup_name_);
         launch_azimuth_rad_ = config["launch_azimuth_rad"].asDouble(launch_azimuth_rad_);
         reference_radius_m_ = config["reference_radius_m"].asDouble(reference_radius_m_);
         state_vector_ = initial_state_vector_;
@@ -64,15 +52,7 @@ public:
 
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
         registry.bindAll(gnc::core::bind(earth_, earth_lookup_name_));
-
-        input_provider_ = registry.tryGetByName<IInputProvider>(input_lookup_name_);
-        if (!input_provider_ && allow_legacy_bridge_fallback_ &&
-            input_lookup_name_ != legacy_input_lookup_name_) {
-            input_provider_ = registry.tryGetByName<IInputProvider>(legacy_input_lookup_name_);
-        }
-        if (!input_provider_) {
-            input_provider_ = registry.requireByName<IInputProvider>(input_lookup_name_);
-        }
+        input_provider_ = registry.requireByName<IInputProvider>(input_lookup_name_);
     }
 
     void initialize() override { refreshTruth(getSimTime()); }
@@ -107,26 +87,16 @@ public:
     void setState(const Eigen::VectorXd& state) override { state_vector_ = state; }
     Eigen::VectorXd getInitialState() const override { return initial_state_vector_; }
 
-    gnc::math::Vector3 getPosition() const override {
+    gnc::math::Vector3 getPosition() const {
         return sampleTruth(getSimTime()).position_ecef_m;
     }
 
-    gnc::math::Vector3 getVelocity() const override {
+    gnc::math::Vector3 getVelocity() const {
         return sampleTruth(getSimTime()).velocity_ecef_mps;
     }
 
-    double getSpeed() const override { return state_vector_[speed_index_]; }
-    double getAltitude() const override { return state_vector_[altitude_index_]; }
-
-    gnc::plugins::state_3dof::SovietSphericalState3DOF getSovietSphericalState() const override {
-        const auto state = unpackState(state_vector_);
-        return {state.longitude_rad,
-                state.latitude_rad,
-                state.altitude_m,
-                state.speed_mps,
-                state.flight_path_angle_rad,
-                state.heading_angle_rad};
-    }
+    double getSpeed() const { return state_vector_[speed_index_]; }
+    double getAltitude() const { return state_vector_[altitude_index_]; }
 
     gnc::math::Vector3 getVelocityInLaunchFrame() const override {
         return sampleTruth(getSimTime()).velocity_launch_mps;
@@ -224,8 +194,6 @@ private:
     IInputProvider* input_provider_ = nullptr;
     std::string earth_lookup_name_ = "env.earth";
     std::string input_lookup_name_ = "interaction";
-    std::string legacy_input_lookup_name_ = "bridge";
-    bool allow_legacy_bridge_fallback_ = true;
     double launch_azimuth_rad_ = 0.0;
     double reference_radius_m_ = 6371000.0;
     int longitude_index_ = -1;
