@@ -1,13 +1,9 @@
 #pragma once
 
+#include "gnc/vehicle/common/interfaces/i_continuous_mass.hpp"
+
 namespace gnc::plugins::mass {
 
-class IContinuousMass {
-public:
-    virtual ~IContinuousMass() = default;
-
-    virtual double getMassKg() const = 0;
-    virtual double getMassRateKgPerSec() const = 0;
-};
+using IContinuousMass = ::gnc::vehicle::common::IContinuousMass;
 
 } // namespace gnc::plugins::mass

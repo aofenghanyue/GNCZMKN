@@ -1,19 +1,19 @@
 #include "test_support.hpp"
 
-#include "gnc/plugins/environment/components/spherical_earth.hpp"
-#include "gnc/plugins/environment/components/spherical_gravity.hpp"
-#include "gnc/plugins/environment/components/standard_atmosphere.hpp"
-#include "gnc/plugins/environment/components/wgs84_earth.hpp"
+#include "gnc/environment/components/spherical_earth.hpp"
+#include "gnc/environment/components/spherical_gravity.hpp"
+#include "gnc/environment/components/standard_atmosphere.hpp"
+#include "gnc/environment/components/wgs84_earth.hpp"
 
 #include <exception>
 #include <iostream>
 
 int main() {
     try {
-        gnc::plugins::environment::Wgs84Earth wgs84_earth;
-        gnc::plugins::environment::SphericalEarth spherical_earth;
-        gnc::plugins::environment::StandardAtmosphere atmosphere;
-        gnc::plugins::environment::SphericalGravity gravity;
+        gnc::environment::Wgs84Earth wgs84_earth;
+        gnc::environment::SphericalEarth spherical_earth;
+        gnc::environment::StandardAtmosphere atmosphere;
+        gnc::environment::SphericalGravity gravity;
 
         test_support::requireNear(wgs84_earth.getEquatorialRadius(),
                                   6378137.0,

@@ -2,19 +2,19 @@
 
 #include "gnc/core/component_registry.hpp"
 #include "gnc/core/scoped_registry.hpp"
-#include "gnc/plugins/cavh/components/aero_table.hpp"
-#include "gnc/plugins/cavh/components/constant_mass.hpp"
-#include "gnc/plugins/environment/components/spherical_earth.hpp"
-#include "gnc/plugins/environment/components/spherical_gravity.hpp"
-#include "gnc/plugins/environment/components/standard_atmosphere.hpp"
+#include "gnc/environment/components/spherical_earth.hpp"
+#include "gnc/environment/components/spherical_gravity.hpp"
+#include "gnc/environment/components/standard_atmosphere.hpp"
 #include "gnc/plugins/flight_state_3dof/components/soviet_observer.hpp"
 #include "gnc/plugins/flight_state_3dof/interfaces/i_flight_state_3dof_soviet_observer.hpp"
-#include "gnc/plugins/mass/components/continuous_constant_rate_mass.hpp"
 #include "gnc/plugins/state_3dof/components/point_mass_cartesian.hpp"
 #include "gnc/plugins/state_3dof/components/point_mass_spherical_soviet.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_acceleration_provider_3dof.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_flight_command_provider_3dof.hpp"
 #include "gnc/plugins/state_3dof_bridge/components/force_to_local_acceleration_soviet.hpp"
+#include "gnc/vehicle/common/components/cavh_aero_table.hpp"
+#include "gnc/vehicle/common/components/cavh_constant_mass.hpp"
+#include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
 
 #include <exception>
 #include <iostream>
@@ -100,7 +100,7 @@ int main() {
         test_support::requireNear(cartesian.getAltitude(), 1000.0, 1e-9,
                                   "Cartesian altitude accessor returned an unexpected value.");
 
-        gnc::plugins::mass::ContinuousConstantRateMass continuous_mass;
+        gnc::vehicle::common::ContinuousConstantRateMass continuous_mass;
         continuous_mass.configure(makeContinuousMassConfig());
         Eigen::VectorXd mass_dx;
         continuous_mass.computeDerivatives(0.0, continuous_mass.getState(), mass_dx);
@@ -112,35 +112,35 @@ int main() {
                                   "Continuous mass derivative must equal the configured rate.");
 
         gnc::core::ComponentRegistry registry;
-        registry.add<gnc::plugins::environment::StandardAtmosphere,
-                     gnc::plugins::environment::IAtmosphere>(
+        registry.add<gnc::environment::StandardAtmosphere,
+                     gnc::environment::IAtmosphere>(
             "env.atmosphere",
-            std::make_unique<gnc::plugins::environment::StandardAtmosphere>());
-        registry.add<gnc::plugins::environment::SphericalGravity,
-                     gnc::plugins::environment::IGravity>(
+            std::make_unique<gnc::environment::StandardAtmosphere>());
+        registry.add<gnc::environment::SphericalGravity,
+                     gnc::environment::IGravity>(
             "env.gravity",
-            std::make_unique<gnc::plugins::environment::SphericalGravity>());
-        registry.add<gnc::plugins::environment::SphericalEarth,
-                     gnc::plugins::environment::IEarth>(
+            std::make_unique<gnc::environment::SphericalGravity>());
+        registry.add<gnc::environment::SphericalEarth,
+                     gnc::environment::IEarth>(
             "env.earth",
-            std::make_unique<gnc::plugins::environment::SphericalEarth>());
+            std::make_unique<gnc::environment::SphericalEarth>());
         registry.add<ConstantGuidance,
                      gnc::plugins::state_3dof::IFlightCommandProvider3DOF>(
             "missile.guidance",
             std::make_unique<ConstantGuidance>());
 
-        auto mass = std::make_unique<gnc::plugins::cavh::ConstantMass>();
+        auto mass = std::make_unique<gnc::vehicle::common::CavhConstantMass>();
         auto* mass_ptr = mass.get();
         mass_ptr->configure(makeCavhMassConfig());
-        registry.add<gnc::plugins::cavh::ConstantMass,
-                     gnc::plugins::mass::IConstantMass,
+        registry.add<gnc::vehicle::common::CavhConstantMass,
+                     gnc::vehicle::common::IConstantMass,
                      gnc::interfaces::IObservable>("missile.mass", std::move(mass));
 
-        registry.add<gnc::plugins::cavh::AeroTable,
-                     gnc::plugins::aero::IAeroModel,
+        registry.add<gnc::vehicle::common::CavhAeroTable,
+                     gnc::vehicle::common::IAeroModel,
                      gnc::interfaces::IObservable>(
             "missile.aero",
-            std::make_unique<gnc::plugins::cavh::AeroTable>());
+            std::make_unique<gnc::vehicle::common::CavhAeroTable>());
 
         auto bridge =
             std::make_unique<gnc::plugins::state_3dof_bridge::ForceToLocalAccelerationSoviet>();

@@ -2,7 +2,6 @@
 
 #include "gnc/common/math/eigen_types.hpp"
 #include "gnc/core/component_base.hpp"
-#include "gnc/core/component_factory.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
@@ -12,9 +11,12 @@
 #include <algorithm>
 #include <vector>
 
-class ProgrammedAoAGuidance final : public gnc::core::ComponentBase,
-                                    public gnc::plugins::state_3dof::IFlightCommandProvider3DOF,
-                                    public gnc::interfaces::IObservable {
+namespace gnc::vehicle::process {
+
+class ProgrammedAoAGuidance final
+    : public gnc::core::ComponentBase,
+      public gnc::plugins::state_3dof::IFlightCommandProvider3DOF,
+      public gnc::interfaces::IObservable {
 public:
     ProgrammedAoAGuidance() : ComponentBase("ProgrammedAoAGuidance") {
         setExecutionFrequency(20.0);
@@ -107,8 +109,4 @@ private:
     double bank_angle_deg_ = 0.0;
 };
 
-GNC_REGISTER_COMPONENT_TYPE(
-    "example.programmed_aoa",
-    ProgrammedAoAGuidance,
-    gnc::plugins::state_3dof::IFlightCommandProvider3DOF,
-    gnc::interfaces::IObservable)
+} // namespace gnc::vehicle::process

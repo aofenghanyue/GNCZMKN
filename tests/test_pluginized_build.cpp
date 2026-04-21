@@ -67,7 +67,7 @@ int main() {
     "input": [],
     "process": [
       {
-        "type": "example.programmed_aoa",
+        "type": "vehicle.process.programmed_aoa",
         "name": "guidance",
         "config": {
           "bank_angle_deg": 0.0,

@@ -25,6 +25,8 @@ int main() {
             "mass.continuous_constant_rate",
             "cavh.constant_mass",
             "cavh.aero_table",
+            "vehicle.process.programmed_aoa",
+            "vehicle.process.coordinate_probe",
             "state_3dof.point_mass_cartesian",
             "state_3dof.point_mass_spherical_soviet",
             "state_3dof_bridge.force_to_local_acceleration_soviet",

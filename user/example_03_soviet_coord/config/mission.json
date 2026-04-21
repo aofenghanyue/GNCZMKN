@@ -20,14 +20,6 @@
                         "heading_angle_rad": -1.3962634015954636
                     }
                 }
-            },
-            {
-                "type": "example.coordinate_probe",
-                "name": "probe",
-                "config": {
-                    "from_frame": "L",
-                    "to_frame": "K"
-                }
             }
         ]
     },
@@ -87,12 +79,20 @@
         "input": [],
         "process": [
             {
-                "type": "example.programmed_aoa",
+                "type": "vehicle.process.programmed_aoa",
                 "name": "guidance",
                 "config": {
                     "bank_angle_deg": 0.0,
                     "schedule_altitude_m": [50000, 40000],
                     "schedule_angle_of_attack_deg": [12, 12]
+                }
+            },
+            {
+                "type": "vehicle.process.coordinate_probe",
+                "name": "probe",
+                "config": {
+                    "from_frame": "L",
+                    "to_frame": "K"
                 }
             }
         ],

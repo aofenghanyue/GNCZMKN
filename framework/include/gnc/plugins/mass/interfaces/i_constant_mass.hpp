@@ -1,12 +1,9 @@
 #pragma once
 
+#include "gnc/vehicle/common/interfaces/i_constant_mass.hpp"
+
 namespace gnc::plugins::mass {
 
-class IConstantMass {
-public:
-    virtual ~IConstantMass() = default;
-
-    virtual double getMassKg() const = 0;
-};
+using IConstantMass = ::gnc::vehicle::common::IConstantMass;
 
 } // namespace gnc::plugins::mass

@@ -4,7 +4,7 @@
 #include "gnc/core/component_registry.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/core/service_context.hpp"
-#include "gnc/plugins/environment/interfaces/i_earth.hpp"
+#include "gnc/environment/interfaces/i_earth.hpp"
 #include "gnc/plugins/soviet_coord/interfaces/i_soviet_coord_service.hpp"
 #include "gnc/plugins/state_3dof/interfaces/i_velocity_direction_provider.hpp"
 
@@ -16,7 +16,7 @@
 namespace {
 
 class FixedEarth final : public gnc::core::ComponentBase,
-                         public gnc::plugins::environment::IEarth {
+                         public gnc::environment::IEarth {
 public:
     FixedEarth() : ComponentBase("FixedEarth") {}
     void update(double) override {}
@@ -68,7 +68,7 @@ gnc::core::ConfigNode makeServiceConfig() {
 int main() {
     try {
         gnc::core::ComponentRegistry registry;
-        registry.add<FixedEarth, gnc::plugins::environment::IEarth>(
+        registry.add<FixedEarth, gnc::environment::IEarth>(
             "earth", std::make_unique<FixedEarth>());
         registry.add<FixedVelocityDirection, gnc::plugins::state_3dof::IVelocityDirectionProvider>(
             "velocity", std::make_unique<FixedVelocityDirection>());
