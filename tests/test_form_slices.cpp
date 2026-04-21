@@ -16,9 +16,9 @@
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
-#include "gnc/vehicle/common/components/cavh_aero_table.hpp"
-#include "gnc/vehicle/common/components/cavh_constant_mass.hpp"
+#include "gnc/vehicle/common/components/constant_mass.hpp"
 #include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
+#include "gnc/vehicle/common/components/table2d_aero.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 
 #include <exception>
@@ -70,10 +70,74 @@ gnc::core::ConfigNode makeContinuousMassConfig() {
     });
 }
 
-gnc::core::ConfigNode makeCavhMassConfig() {
+gnc::core::ConfigNode makeConstantMassConfig() {
     using namespace test_support;
     return object({
         field("mass_kg", number(900.0)),
+    });
+}
+
+gnc::core::ConfigNode makeTable2dAeroConfig() {
+    using namespace test_support;
+    return object({
+        field("alpha_breaks_rad",
+              array({number(0.17453292519943295),
+                     number(0.2617993877991494),
+                     number(0.3490658503988659)})),
+        field("mach_breaks",
+              array({number(3.5),
+                     number(5.0),
+                     number(8.0),
+                     number(10.0),
+                     number(15.0),
+                     number(20.0),
+                     number(23.0)})),
+        field("lift_coefficients",
+              array({array({number(0.4500),
+                            number(0.4250),
+                            number(0.4000),
+                            number(0.3800),
+                            number(0.3700),
+                            number(0.3600),
+                            number(0.3500)}),
+                     array({number(0.7400),
+                            number(0.7000),
+                            number(0.6700),
+                            number(0.6300),
+                            number(0.6000),
+                            number(0.5700),
+                            number(0.5570)}),
+                     array({number(1.0500),
+                            number(1.0000),
+                            number(0.9500),
+                            number(0.9000),
+                            number(0.8500),
+                            number(0.8000),
+                            number(0.7800)})})),
+        field("drag_coefficients",
+              array({array({number(0.2045),
+                            number(0.1700),
+                            number(0.1290),
+                            number(0.1090),
+                            number(0.1090),
+                            number(0.1090),
+                            number(0.1090)}),
+                     array({number(0.2960),
+                            number(0.2630),
+                            number(0.2240),
+                            number(0.1970),
+                            number(0.1950),
+                            number(0.1920),
+                            number(0.1920)}),
+                     array({number(0.4770),
+                            number(0.4230),
+                            number(0.3540),
+                            number(0.3100),
+                            number(0.3050),
+                            number(0.3000),
+                            number(0.3000)})})),
+        field("reference_area_m2", number(0.48387)),
+        field("reference_length_m", number(3.0)),
     });
 }
 
@@ -167,18 +231,20 @@ int main() {
             "missile.guidance",
             std::make_unique<ConstantGuidance>());
 
-        auto mass = std::make_unique<gnc::vehicle::common::CavhConstantMass>();
+        auto mass = std::make_unique<gnc::vehicle::common::ConstantMass>();
         auto* mass_ptr = mass.get();
-        mass_ptr->configure(makeCavhMassConfig());
-        registry.add<gnc::vehicle::common::CavhConstantMass,
+        mass_ptr->configure(makeConstantMassConfig());
+        registry.add<gnc::vehicle::common::ConstantMass,
                      gnc::vehicle::common::IConstantMass,
                      gnc::interfaces::IObservable>("missile.mass", std::move(mass));
 
-        registry.add<gnc::vehicle::common::CavhAeroTable,
+        auto aero = std::make_unique<gnc::vehicle::common::Table2DAero>();
+        aero->configure(makeTable2dAeroConfig());
+        registry.add<gnc::vehicle::common::Table2DAero,
                      gnc::vehicle::common::IAeroModel,
                      gnc::interfaces::IObservable>(
             "missile.aero",
-            std::make_unique<gnc::vehicle::common::CavhAeroTable>());
+            std::move(aero));
 
         auto interaction =
             std::make_unique<gnc::interactions::local_spherical_3dof::AeroPropulsive>();
@@ -219,7 +285,7 @@ int main() {
 
         const auto interaction_acceleration =
             interaction_ptr->computeLocalAccelerationNue(
-                dynamics_ptr->getLocalSpherical3DoFTruth().state);
+                dynamics_ptr->getLocalSpherical3DoFTruth());
 
         Eigen::VectorXd spherical_dx;
         dynamics_ptr->computeDerivatives(0.0, dynamics_ptr->getState(), spherical_dx);
@@ -260,7 +326,7 @@ int main() {
         test_support::requireNear(mass_ptr->getMassKg(),
                                   900.0,
                                   1e-9,
-                                  "CAV-H constant mass no longer returns its configured value.");
+                                  "Constant mass no longer returns its configured value.");
 
         std::cout << "form slice checks passed\n";
         return 0;

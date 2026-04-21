@@ -5,7 +5,6 @@
 #include "gnc/environment/interfaces/i_atmosphere.hpp"
 #include "gnc/environment/interfaces/i_gravity.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
-#include "gnc/forms/local_spherical_3dof/internal/math.hpp"
 #include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
 #include "gnc/vehicle/common/interfaces/i_constant_mass.hpp"
 #include "gnc/vehicle/common/interfaces/i_continuous_mass.hpp"
@@ -46,7 +45,7 @@ public:
         const gnc::forms::local_spherical_3dof::Truth& truth,
         double) const override {
         gnc::forms::local_spherical_3dof::Input input;
-        input.local_acceleration_nue_mps2 = computeLocalAccelerationNue(truth.state);
+        input.local_acceleration_nue_mps2 = computeLocalAccelerationNue(truth);
         return input;
     }
 
@@ -67,7 +66,8 @@ private:
 
 public:
     gnc::math::Vector3 computeLocalAccelerationNue(
-        const gnc::forms::local_spherical_3dof::State& state) const {
+        const gnc::forms::local_spherical_3dof::Truth& truth) const {
+        const auto& state = truth.state;
         const auto atmosphere_sample = atmosphere_->sample(state.altitude_m);
         const double speed_of_sound =
             std::max(1.0, atmosphere_sample.speed_of_sound_mps);
@@ -88,16 +88,11 @@ public:
         const double gravity_m_per_s2 =
             gravity_->getGravityMagnitude(state.altitude_m);
 
-        const gnc::math::Vector3 k1 =
-            gnc::forms::local_spherical_3dof::internal::velocityBasisK1(state);
-        const gnc::math::Vector3 k2 =
-            gnc::forms::local_spherical_3dof::internal::velocityBasisK2(state);
-        const gnc::math::Vector3 k3 =
-            gnc::forms::local_spherical_3dof::internal::velocityBasisK3(state);
-
-        return -drag_acceleration_m_per_s2 * k1 +
-               lift_acceleration_m_per_s2 * std::cos(command.bank_angle_rad) * k2 -
-               lift_acceleration_m_per_s2 * std::sin(command.bank_angle_rad) * k3 +
+        return -drag_acceleration_m_per_s2 * truth.drag_axis_nue +
+               lift_acceleration_m_per_s2 * std::cos(command.bank_angle_rad) *
+                   truth.lift_up_axis_nue -
+               lift_acceleration_m_per_s2 * std::sin(command.bank_angle_rad) *
+                   truth.lift_side_axis_nue +
                gnc::math::Vector3(0.0, -gravity_m_per_s2, 0.0);
     }
 

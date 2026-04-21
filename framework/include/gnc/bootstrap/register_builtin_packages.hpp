@@ -22,10 +22,10 @@
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
 #include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
-#include "gnc/vehicle/common/components/cavh_aero_table.hpp"
-#include "gnc/vehicle/common/components/cavh_constant_mass.hpp"
+#include "gnc/vehicle/common/components/constant_mass.hpp"
 #include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
 #include "gnc/vehicle/common/components/simple_polynomial_aero.hpp"
+#include "gnc/vehicle/common/components/table2d_aero.hpp"
 #include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
 #include "gnc/vehicle/common/interfaces/i_constant_mass.hpp"
 #include "gnc/vehicle/common/interfaces/i_continuous_mass.hpp"
@@ -76,7 +76,15 @@ inline void registerVehicleCommonPackages(gnc::core::ComponentFactory& factory) 
         ComponentCategory::Builtin,
         __FILE__,
         ComponentPackageRole::VehicleCommon,
-        ExecutionStage::VehicleOutput);
+        ExecutionStage::None);
+    factory.registerType<gnc::vehicle::common::Table2DAero,
+                         gnc::vehicle::common::IAeroModel,
+                         gnc::interfaces::IObservable>(
+        "aero.table2d",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleCommon,
+        ExecutionStage::None);
     factory.registerType<gnc::vehicle::common::ContinuousConstantRateMass,
                          gnc::vehicle::common::IContinuousMass,
                          gnc::interfaces::IContinuousSystem,
@@ -85,23 +93,15 @@ inline void registerVehicleCommonPackages(gnc::core::ComponentFactory& factory) 
         ComponentCategory::Builtin,
         __FILE__,
         ComponentPackageRole::VehicleCommon,
-        ExecutionStage::VehicleOutput);
-    factory.registerType<gnc::vehicle::common::CavhConstantMass,
+        ExecutionStage::None);
+    factory.registerType<gnc::vehicle::common::ConstantMass,
                          gnc::vehicle::common::IConstantMass,
                          gnc::interfaces::IObservable>(
-        "cavh.constant_mass",
+        "mass.constant",
         ComponentCategory::Builtin,
         __FILE__,
         ComponentPackageRole::VehicleCommon,
-        ExecutionStage::VehicleOutput);
-    factory.registerType<gnc::vehicle::common::CavhAeroTable,
-                         gnc::vehicle::common::IAeroModel,
-                         gnc::interfaces::IObservable>(
-        "cavh.aero_table",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleCommon,
-        ExecutionStage::VehicleOutput);
+        ExecutionStage::None);
 }
 
 inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory) {

@@ -7,11 +7,11 @@
 
 namespace gnc::vehicle::common {
 
-class CavhConstantMass final : public gnc::core::ComponentBase,
-                               public IConstantMass,
-                               public gnc::interfaces::IObservable {
+class ConstantMass final : public gnc::core::ComponentBase,
+                           public IConstantMass,
+                           public gnc::interfaces::IObservable {
 public:
-    CavhConstantMass() : ComponentBase("CavhConstantMass") {}
+    ConstantMass() : ComponentBase("ConstantMass") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
         mass_kg_ = config["mass_kg"].asDouble(mass_kg_);
@@ -28,7 +28,7 @@ public:
     }
 
 private:
-    double mass_kg_ = 2000.0 * 0.45359237;
+    double mass_kg_ = 1000.0;
 };
 
 } // namespace gnc::vehicle::common

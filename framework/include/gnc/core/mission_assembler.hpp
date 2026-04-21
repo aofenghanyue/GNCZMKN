@@ -259,7 +259,7 @@ private:
                           "vehicle.common",
                           "vehicle.",
                           ComponentPackageRole::VehicleCommon,
-                          ExecutionStage::VehicleOutput,
+                          ExecutionStage::None,
                           vehicle_services,
                           vehicle_components});
         registerComponents(
@@ -330,9 +330,15 @@ private:
         }
 
         const auto registered_stage = factory.getExecutionStage(type_name);
-        if (placement.execution_stage != ExecutionStage::None &&
-            registered_stage != ExecutionStage::None &&
-            registered_stage != placement.execution_stage) {
+        if (placement.execution_stage == ExecutionStage::None &&
+            registered_stage != ExecutionStage::None) {
+            add_error_("Component '" + full_name + "' of type '" + type_name +
+                       "' is registered for stage '" + toString(registered_stage) +
+                       "' but was placed in '" + placement.placement +
+                       "' which is non-scheduled and requires execution stage 'none'.");
+        } else if (placement.execution_stage != ExecutionStage::None &&
+                   registered_stage != ExecutionStage::None &&
+                   registered_stage != placement.execution_stage) {
             add_error_("Component '" + full_name + "' of type '" + type_name +
                        "' is registered for stage '" + toString(registered_stage) +
                        "' but was placed in '" + placement.placement +

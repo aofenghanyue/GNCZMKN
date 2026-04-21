@@ -225,6 +225,7 @@ if(BUILD_TESTS)
     add_gnc_test(test_canonical_build tests/test_canonical_build.cpp)
     add_gnc_test(test_mission_contract tests/test_mission_contract.cpp)
     add_gnc_test(test_component_listing tests/test_component_listing.cpp)
+    add_gnc_test(test_architecture_guards tests/test_architecture_guards.cpp)
     add_gnc_test(test_auto_data_logger tests/test_auto_data_logger.cpp)
 endif()
 

@@ -37,6 +37,11 @@ public:
     InputProbe() : RecordingComponent("InputProbe", "input") {}
 };
 
+class CommonProbe final : public RecordingComponent {
+public:
+    CommonProbe() : RecordingComponent("CommonProbe", "common") {}
+};
+
 class ProcessProbe final : public RecordingComponent {
 public:
     ProcessProbe() : RecordingComponent("ProcessProbe", "process") {}
@@ -63,6 +68,12 @@ public:
     FormProbe() : RecordingComponent("FormProbe", "form") {}
 };
 
+class CommonStageLeakProbe final : public RecordingComponent {
+public:
+    CommonStageLeakProbe()
+        : RecordingComponent("CommonStageLeakProbe", "common_stage_leak") {}
+};
+
 bool containsSubstring(const std::vector<std::string>& lines, const std::string& needle) {
     return std::any_of(lines.begin(), lines.end(), [&](const std::string& line) {
         return line.find(needle) != std::string::npos;
@@ -78,6 +89,11 @@ void registerMissionContractTestTypes() {
                                            __FILE__,
                                            ComponentPackageRole::Environment,
                                            ExecutionStage::Environment);
+    factory.registerType<CommonProbe>("test.common_probe",
+                                      ComponentCategory::Project,
+                                      __FILE__,
+                                      ComponentPackageRole::VehicleCommon,
+                                      ExecutionStage::None);
     factory.registerType<InputProbe>("test.input_probe",
                                      ComponentCategory::Project,
                                      __FILE__,
@@ -111,6 +127,11 @@ void registerMissionContractTestTypes() {
                                     ComponentPackageRole::Form,
                                     ExecutionStage::Form,
                                     "test_form");
+    factory.registerType<CommonStageLeakProbe>("test.common_stage_leak_probe",
+                                               ComponentCategory::Project,
+                                               __FILE__,
+                                               ComponentPackageRole::VehicleCommon,
+                                               ExecutionStage::VehicleOutput);
 }
 
 } // namespace
@@ -253,7 +274,13 @@ int main() {
     ]
   },
   "vehicle": {
-    "common": [],
+    "common": [
+      {
+        "type": "test.common_probe",
+        "name": "common_data",
+        "config": {}
+      }
+    ],
     "input": [
       {
         "type": "test.input_probe",
@@ -305,6 +332,63 @@ int main() {
             g_stage_trace == expected_trace,
             "Execution stages no longer run in the expected environment -> input -> "
             "process -> output -> interaction -> form order.");
+
+        const char* invalid_common_stage_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "form": {
+    "components": [
+      {
+        "type": "test.form_probe",
+        "name": "dynamics",
+        "config": {}
+      }
+    ]
+  },
+  "environment": {},
+  "vehicle": {
+    "common": [
+      {
+        "type": "test.common_stage_leak_probe",
+        "name": "common_data",
+        "config": {}
+      }
+    ],
+    "input": [],
+    "process": [],
+    "output": []
+  },
+  "interaction": {
+    "components": []
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder invalid_common_stage_builder;
+        test_support::require(
+            invalid_common_stage_builder.loadConfigString(invalid_common_stage_mission),
+            "Invalid common-stage mission JSON could not be parsed.");
+
+        bool invalid_common_stage_failed = false;
+        try {
+            invalid_common_stage_builder.build();
+        } catch (const std::exception&) {
+            invalid_common_stage_failed = true;
+        }
+
+        test_support::require(
+            invalid_common_stage_failed,
+            "vehicle.common should reject components that still advertise a runtime stage.");
+        test_support::require(
+            containsSubstring(invalid_common_stage_builder.getBuildErrors(),
+                              "requires execution stage 'none'"),
+            "vehicle.common stage validation did not explain that common is non-scheduled.");
 
         const char* incompatible_mission = R"json(
 {

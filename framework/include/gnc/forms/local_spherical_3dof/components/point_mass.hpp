@@ -157,6 +157,9 @@ private:
                                                                 state.altitude_m)
                                        : gnc::math::Vector3::Zero();
         truth.local_velocity_nue_mps = internal::localVelocityNue(state);
+        truth.drag_axis_nue = internal::velocityBasisK1(state);
+        truth.lift_up_axis_nue = internal::velocityBasisK2(state);
+        truth.lift_side_axis_nue = internal::velocityBasisK3(state);
         truth.velocity_ecef_mps =
             internal::localNueToEcefRotation(state.latitude_rad, state.longitude_rad) *
             truth.local_velocity_nue_mps;

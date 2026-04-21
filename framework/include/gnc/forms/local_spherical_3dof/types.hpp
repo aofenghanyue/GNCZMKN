@@ -23,6 +23,9 @@ struct Truth {
     gnc::math::Vector3 velocity_ecef_mps = gnc::math::Vector3::Zero();
     gnc::math::Vector3 local_velocity_nue_mps = gnc::math::Vector3::Zero();
     gnc::math::Vector3 local_acceleration_nue_mps2 = gnc::math::Vector3::Zero();
+    gnc::math::Vector3 drag_axis_nue = gnc::math::Vector3::Zero();
+    gnc::math::Vector3 lift_up_axis_nue = gnc::math::Vector3::Zero();
+    gnc::math::Vector3 lift_side_axis_nue = gnc::math::Vector3::Zero();
     gnc::math::Vector3 velocity_launch_mps = gnc::math::Vector3::Zero();
     double launch_azimuth_rad = 0.0;
     double earth_radius_m = 0.0;

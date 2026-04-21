@@ -64,7 +64,7 @@
         },
         "common": [
             {
-                "type": "cavh.constant_mass",
+                "type": "mass.constant",
                 "name": "mass",
                 "config": {
                     "mass_kg": 300.0

@@ -22,9 +22,9 @@ int main() {
             "environment.standard_atmosphere",
             "environment.spherical_gravity",
             "aero.simple_polynomial",
+            "aero.table2d",
             "mass.continuous_constant_rate",
-            "cavh.constant_mass",
-            "cavh.aero_table",
+            "mass.constant",
             "vehicle.process.programmed_aoa",
             "vehicle.process.coordinate_probe",
             "form.cartesian_3dof.point_mass",
@@ -38,6 +38,10 @@ int main() {
             test_support::require(factory.hasType(type_name),
                                   "Missing registered builtin component type: " + type_name);
         }
+        test_support::require(!factory.hasType("cavh.constant_mass"),
+                              "Hardcoded CAVH mass primitive should no longer be a builtin type.");
+        test_support::require(!factory.hasType("cavh.aero_table"),
+                              "Hardcoded CAVH aero primitive should no longer be a builtin type.");
 
         const auto service_names = gnc::bootstrap::getBuiltinServiceNames();
         test_support::require(std::find(service_names.begin(),

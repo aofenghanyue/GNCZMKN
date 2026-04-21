@@ -379,17 +379,9 @@ private:
     }
 #else
 #define GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, Category, ...) \
-    namespace { \
-        struct ComponentType##_Registrar { \
-            ComponentType##_Registrar() { \
-                ::gnc::core::ComponentFactory::instance() \
-                    .registerType<ComponentType, __VA_ARGS__>( \
-                        TypeId, \
-                        Category, \
-                        __FILE__); \
-            } \
-        } ComponentType##_registrar_instance; \
-    }
+    static_assert(false, \
+                  "GNC_REGISTER_COMPONENT_TYPE requires GNC_COMPONENT_REGISTRATION_FN " \
+                  "to be defined by the build-generated explicit registration chain.")
 #endif
 
 #define GNC_REGISTER_COMPONENT_TYPE(TypeId, ComponentType, ...) \

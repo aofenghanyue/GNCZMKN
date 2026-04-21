@@ -96,7 +96,7 @@ private:
         if (placement == "vehicle.process") {
             return ExecutionStage::VehicleProcess;
         }
-        if (placement == "vehicle.common" || placement == "vehicle.output") {
+        if (placement == "vehicle.output") {
             return ExecutionStage::VehicleOutput;
         }
         return ExecutionStage::None;
@@ -132,9 +132,17 @@ private:
             }
 
             const auto expected_stage = expectedStageForPlacement(descriptor.placement);
-            if (expected_stage != ExecutionStage::None &&
-                descriptor.execution_stage != ExecutionStage::None &&
-                descriptor.execution_stage != expected_stage) {
+            if (expected_stage == ExecutionStage::None &&
+                descriptor.execution_stage != ExecutionStage::None) {
+                result.errors.push_back(
+                    "Component '" + descriptor.name + "' of type '" + descriptor.type_name +
+                    "' is registered for execution stage '" +
+                    stageLabel(descriptor.execution_stage) +
+                    "' but was assembled in placement '" + descriptor.placement +
+                    "' which is non-scheduled and requires execution stage 'none'.");
+            } else if (expected_stage != ExecutionStage::None &&
+                       descriptor.execution_stage != ExecutionStage::None &&
+                       descriptor.execution_stage != expected_stage) {
                 result.errors.push_back(
                     "Component '" + descriptor.name + "' of type '" + descriptor.type_name +
                     "' is registered for execution stage '" +
