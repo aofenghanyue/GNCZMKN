@@ -15,7 +15,7 @@
   mission.
 - `example_02_atmospheric_3dof`
   The primary atmospheric local-spherical 3DoF chain:
-  `environment + vehicle common/process + form.local_spherical_3dof +
+  `environment + vehicle.process + vehicle.output + form.local_spherical_3dof +
   interaction.local_spherical_3dof.aero_propulsive`.
 - `example_03_soviet_coord`
   A service-focused local-spherical 3DoF mission that probes the Soviet coordinate

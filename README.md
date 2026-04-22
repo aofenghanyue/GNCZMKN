@@ -112,6 +112,11 @@ Start here:
 - [Current Architecture](doc/00-current-architecture.md)
 - [Documentation Index](doc/README.md)
 - [User Workspace Notes](user/README.md)
+- [Rearchitecture Target](temp/framework_rearchitecture_program/01_target_architecture.md)
+- [Rearchitecture Migration Program](temp/framework_rearchitecture_program/02_migration_program.md)
+- [Rearchitecture Detailed Plan](temp/framework_rearchitecture_program/04_detailed_implementation_plan.md)
+- [Rearchitecture Phase 1 Baseline](temp/framework_rearchitecture_program/05_phase1_baseline_inventory.md)
+- [Rearchitecture Acceptance Criteria](temp/framework_rearchitecture_program/06_acceptance_criteria.md)
 
 The files `doc/01-getting-started.md` through `doc/07-decisions.md` are
 retained as archived reference from the older plugin-era documentation set.
