@@ -1,8 +1,8 @@
 #pragma once
 
-#include "gnc/vehicle/common/interfaces/aero_coefficients.hpp"
+#include "gnc/vehicle/output/interfaces/aero_coefficients.hpp"
 
-namespace gnc::vehicle::common {
+namespace gnc::vehicle::output {
 
 class IAeroModel {
 public:
@@ -15,4 +15,4 @@ public:
     virtual double getReferenceLength() const = 0;
 };
 
-} // namespace gnc::vehicle::common
+} // namespace gnc::vehicle::output

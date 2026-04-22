@@ -3,9 +3,10 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/vehicle/common/interfaces/i_constant_mass.hpp"
+#include "gnc/vehicle/common/assets/json_asset_loader.hpp"
+#include "gnc/vehicle/output/interfaces/i_constant_mass.hpp"
 
-namespace gnc::vehicle::common {
+namespace gnc::vehicle::output {
 
 class ConstantMass final : public gnc::core::ComponentBase,
                            public IConstantMass,
@@ -14,7 +15,10 @@ public:
     ConstantMass() : ComponentBase("ConstantMass") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
-        mass_kg_ = config["mass_kg"].asDouble(mass_kg_);
+        const auto source =
+            gnc::vehicle::common::assets::loadConfiguredJsonAsset(config,
+                                                                  "mass.constant");
+        mass_kg_ = source["mass_kg"].asDouble(mass_kg_);
     }
 
     void update(double) override {}
@@ -31,4 +35,4 @@ private:
     double mass_kg_ = 1000.0;
 };
 
-} // namespace gnc::vehicle::common
+} // namespace gnc::vehicle::output

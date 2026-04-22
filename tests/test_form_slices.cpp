@@ -16,10 +16,10 @@
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
-#include "gnc/vehicle/common/components/constant_mass.hpp"
-#include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
-#include "gnc/vehicle/common/components/table2d_aero.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
+#include "gnc/vehicle/output/components/constant_mass.hpp"
+#include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
+#include "gnc/vehicle/output/components/table2d_aero.hpp"
 
 #include <exception>
 #include <iostream>
@@ -73,71 +73,16 @@ gnc::core::ConfigNode makeContinuousMassConfig() {
 gnc::core::ConfigNode makeConstantMassConfig() {
     using namespace test_support;
     return object({
-        field("mass_kg", number(900.0)),
+        field("asset_file",
+              string("framework/data/vehicles/cavh/output/mass_atmospheric_reference.json")),
     });
 }
 
 gnc::core::ConfigNode makeTable2dAeroConfig() {
     using namespace test_support;
     return object({
-        field("alpha_breaks_rad",
-              array({number(0.17453292519943295),
-                     number(0.2617993877991494),
-                     number(0.3490658503988659)})),
-        field("mach_breaks",
-              array({number(3.5),
-                     number(5.0),
-                     number(8.0),
-                     number(10.0),
-                     number(15.0),
-                     number(20.0),
-                     number(23.0)})),
-        field("lift_coefficients",
-              array({array({number(0.4500),
-                            number(0.4250),
-                            number(0.4000),
-                            number(0.3800),
-                            number(0.3700),
-                            number(0.3600),
-                            number(0.3500)}),
-                     array({number(0.7400),
-                            number(0.7000),
-                            number(0.6700),
-                            number(0.6300),
-                            number(0.6000),
-                            number(0.5700),
-                            number(0.5570)}),
-                     array({number(1.0500),
-                            number(1.0000),
-                            number(0.9500),
-                            number(0.9000),
-                            number(0.8500),
-                            number(0.8000),
-                            number(0.7800)})})),
-        field("drag_coefficients",
-              array({array({number(0.2045),
-                            number(0.1700),
-                            number(0.1290),
-                            number(0.1090),
-                            number(0.1090),
-                            number(0.1090),
-                            number(0.1090)}),
-                     array({number(0.2960),
-                            number(0.2630),
-                            number(0.2240),
-                            number(0.1970),
-                            number(0.1950),
-                            number(0.1920),
-                            number(0.1920)}),
-                     array({number(0.4770),
-                            number(0.4230),
-                            number(0.3540),
-                            number(0.3100),
-                            number(0.3050),
-                            number(0.3000),
-                            number(0.3000)})})),
-        field("reference_area_m2", number(0.48387)),
-        field("reference_length_m", number(3.0)),
+        field("asset_file",
+              string("framework/data/vehicles/cavh/output/aero_table2d.json")),
     });
 }
 
@@ -202,7 +147,7 @@ int main() {
             1e-9,
             "Cartesian truth view lost the interaction acceleration.");
 
-        gnc::vehicle::common::ContinuousConstantRateMass continuous_mass;
+        gnc::vehicle::output::ContinuousConstantRateMass continuous_mass;
         continuous_mass.configure(makeContinuousMassConfig());
         Eigen::VectorXd mass_dx;
         continuous_mass.computeDerivatives(0.0, continuous_mass.getState(), mass_dx);
@@ -231,17 +176,17 @@ int main() {
             "missile.guidance",
             std::make_unique<ConstantGuidance>());
 
-        auto mass = std::make_unique<gnc::vehicle::common::ConstantMass>();
+        auto mass = std::make_unique<gnc::vehicle::output::ConstantMass>();
         auto* mass_ptr = mass.get();
         mass_ptr->configure(makeConstantMassConfig());
-        registry.add<gnc::vehicle::common::ConstantMass,
-                     gnc::vehicle::common::IConstantMass,
+        registry.add<gnc::vehicle::output::ConstantMass,
+                     gnc::vehicle::output::IConstantMass,
                      gnc::interfaces::IObservable>("missile.mass", std::move(mass));
 
-        auto aero = std::make_unique<gnc::vehicle::common::Table2DAero>();
+        auto aero = std::make_unique<gnc::vehicle::output::Table2DAero>();
         aero->configure(makeTable2dAeroConfig());
-        registry.add<gnc::vehicle::common::Table2DAero,
-                     gnc::vehicle::common::IAeroModel,
+        registry.add<gnc::vehicle::output::Table2DAero,
+                     gnc::vehicle::output::IAeroModel,
                      gnc::interfaces::IObservable>(
             "missile.aero",
             std::move(aero));

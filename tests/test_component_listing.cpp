@@ -64,21 +64,43 @@ int main() {
         test_support::require(aero_it != infos.end(),
                               "Generic table2d aero builtin was not registered.");
         test_support::require(
-            aero_it->package_role == gnc::core::ComponentPackageRole::VehicleCommon,
-            "aero.table2d should be labeled as a vehicle.common package.");
+            aero_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
+            "aero.table2d should be labeled as a vehicle.output package.");
         test_support::require(
-            aero_it->execution_stage == gnc::core::ExecutionStage::None,
-            "aero.table2d should remain non-scheduled.");
+            aero_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
+            "aero.table2d should execute in the vehicle.output stage.");
 
         const auto mass_it = findInfo("mass.constant");
         test_support::require(mass_it != infos.end(),
                               "Generic constant mass builtin was not registered.");
         test_support::require(
-            mass_it->package_role == gnc::core::ComponentPackageRole::VehicleCommon,
-            "mass.constant should be labeled as a vehicle.common package.");
+            mass_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
+            "mass.constant should be labeled as a vehicle.output package.");
         test_support::require(
-            mass_it->execution_stage == gnc::core::ExecutionStage::None,
-            "mass.constant should remain non-scheduled.");
+            mass_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
+            "mass.constant should execute in the vehicle.output stage.");
+
+        const auto continuous_mass_it = findInfo("mass.continuous_constant_rate");
+        test_support::require(continuous_mass_it != infos.end(),
+                              "Continuous mass builtin was not registered.");
+        test_support::require(
+            continuous_mass_it->package_role ==
+                gnc::core::ComponentPackageRole::VehicleOutput,
+            "mass.continuous_constant_rate should be labeled as a vehicle.output package.");
+        test_support::require(
+            continuous_mass_it->execution_stage ==
+                gnc::core::ExecutionStage::VehicleOutput,
+            "mass.continuous_constant_rate should execute in the vehicle.output stage.");
+
+        const auto simple_aero_it = findInfo("aero.simple_polynomial");
+        test_support::require(simple_aero_it != infos.end(),
+                              "Simple polynomial aero builtin was not registered.");
+        test_support::require(
+            simple_aero_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
+            "aero.simple_polynomial should be labeled as a vehicle.output package.");
+        test_support::require(
+            simple_aero_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
+            "aero.simple_polynomial should execute in the vehicle.output stage.");
 
         test_support::require(findInfo("cavh.constant_mass") == infos.end(),
                               "Hardcoded CAVH mass primitive should not appear in the builtin list.");

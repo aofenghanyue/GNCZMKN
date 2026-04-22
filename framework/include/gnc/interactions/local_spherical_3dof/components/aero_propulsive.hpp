@@ -5,10 +5,10 @@
 #include "gnc/environment/interfaces/i_atmosphere.hpp"
 #include "gnc/environment/interfaces/i_gravity.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
-#include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
-#include "gnc/vehicle/common/interfaces/i_constant_mass.hpp"
-#include "gnc/vehicle/common/interfaces/i_continuous_mass.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
+#include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
+#include "gnc/vehicle/output/interfaces/i_constant_mass.hpp"
+#include "gnc/vehicle/output/interfaces/i_continuous_mass.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -99,10 +99,10 @@ public:
 private:
     gnc::environment::IAtmosphere* atmosphere_ = nullptr;
     gnc::environment::IGravity* gravity_ = nullptr;
-    gnc::vehicle::common::IAeroModel* aero_model_ = nullptr;
+    gnc::vehicle::output::IAeroModel* aero_model_ = nullptr;
     gnc::vehicle::process::IAeroGuidanceProvider* command_provider_ = nullptr;
-    gnc::vehicle::common::IConstantMass* constant_mass_ = nullptr;
-    gnc::vehicle::common::IContinuousMass* continuous_mass_ = nullptr;
+    gnc::vehicle::output::IConstantMass* constant_mass_ = nullptr;
+    gnc::vehicle::output::IContinuousMass* continuous_mass_ = nullptr;
 };
 
 } // namespace gnc::interactions::local_spherical_3dof

@@ -3,11 +3,12 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
+#include "gnc/vehicle/common/assets/json_asset_loader.hpp"
+#include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
 
 #include <cmath>
 
-namespace gnc::vehicle::common {
+namespace gnc::vehicle::output {
 
 class SimplePolynomialAero final : public gnc::core::ComponentBase,
                                    public IAeroModel,
@@ -16,17 +17,21 @@ public:
     SimplePolynomialAero() : ComponentBase("SimplePolynomialAero") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
-        if (config.isNull()) {
+        const auto source =
+            gnc::vehicle::common::assets::loadConfiguredJsonAsset(
+                config,
+                "aero.simple_polynomial");
+        if (source.isNull()) {
             return;
         }
-        lift_offset_ = config["lift_offset"].asDouble(lift_offset_);
+        lift_offset_ = source["lift_offset"].asDouble(lift_offset_);
         lift_slope_per_rad_ =
-            config["lift_slope_per_rad"].asDouble(lift_slope_per_rad_);
-        drag_zero_ = config["drag_zero"].asDouble(drag_zero_);
-        drag_quadratic_ = config["drag_quadratic"].asDouble(drag_quadratic_);
-        reference_area_m2_ = config["reference_area_m2"].asDouble(reference_area_m2_);
+            source["lift_slope_per_rad"].asDouble(lift_slope_per_rad_);
+        drag_zero_ = source["drag_zero"].asDouble(drag_zero_);
+        drag_quadratic_ = source["drag_quadratic"].asDouble(drag_quadratic_);
+        reference_area_m2_ = source["reference_area_m2"].asDouble(reference_area_m2_);
         reference_length_m_ =
-            config["reference_length_m"].asDouble(reference_length_m_);
+            source["reference_length_m"].asDouble(reference_length_m_);
     }
 
     void update(double) override {}
@@ -74,4 +79,4 @@ private:
     mutable AeroCoefficients current_coefficients_{};
 };
 
-} // namespace gnc::vehicle::common
+} // namespace gnc::vehicle::output

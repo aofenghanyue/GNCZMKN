@@ -5,14 +5,15 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
+#include "gnc/vehicle/common/assets/json_asset_loader.hpp"
+#include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
 
 #include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-namespace gnc::vehicle::common {
+namespace gnc::vehicle::output {
 
 class Table2DAero final : public gnc::core::ComponentBase,
                           public IAeroModel,
@@ -24,26 +25,29 @@ public:
           drag_table_({0.0, 1.0}, {0.0, 1.0}, {{0.0, 0.0}, {0.0, 0.0}}) {}
 
     void configure(const gnc::core::ConfigNode& config) override {
-        reference_area_m2_ = config["reference_area_m2"].asDouble(reference_area_m2_);
-        reference_length_m_ = config["reference_length_m"].asDouble(reference_length_m_);
+        const auto source =
+            gnc::vehicle::common::assets::loadConfiguredJsonAsset(config,
+                                                                  "aero.table2d");
+        reference_area_m2_ = source["reference_area_m2"].asDouble(reference_area_m2_);
+        reference_length_m_ = source["reference_length_m"].asDouble(reference_length_m_);
 
-        if (!config.has("alpha_breaks_rad") &&
-            !config.has("mach_breaks") &&
-            !config.has("lift_coefficients") &&
-            !config.has("drag_coefficients")) {
+        if (!source.has("alpha_breaks_rad") &&
+            !source.has("mach_breaks") &&
+            !source.has("lift_coefficients") &&
+            !source.has("drag_coefficients")) {
             return;
         }
 
-        const auto alpha_breaks_rad = readDoubleArray(config["alpha_breaks_rad"],
+        const auto alpha_breaks_rad = readDoubleArray(source["alpha_breaks_rad"],
                                                       "alpha_breaks_rad");
-        const auto mach_breaks = readDoubleArray(config["mach_breaks"], "mach_breaks");
+        const auto mach_breaks = readDoubleArray(source["mach_breaks"], "mach_breaks");
         const auto lift_coefficients =
-            readTable(config["lift_coefficients"],
+            readTable(source["lift_coefficients"],
                       alpha_breaks_rad.size(),
                       mach_breaks.size(),
                       "lift_coefficients");
         const auto drag_coefficients =
-            readTable(config["drag_coefficients"],
+            readTable(source["drag_coefficients"],
                       alpha_breaks_rad.size(),
                       mach_breaks.size(),
                       "drag_coefficients");
@@ -160,4 +164,4 @@ private:
     mutable AeroCoefficients last_coefficients_{};
 };
 
-} // namespace gnc::vehicle::common
+} // namespace gnc::vehicle::output

@@ -62,20 +62,7 @@
                 }
             }
         },
-        "common": [
-            {
-                "type": "mass.constant",
-                "name": "mass",
-                "config": {
-                    "mass_kg": 300.0
-                }
-            },
-            {
-                "type": "aero.simple_polynomial",
-                "name": "aero",
-                "config": {}
-            }
-        ],
+        "common": [],
         "input": [],
         "process": [
             {
@@ -96,7 +83,20 @@
                 }
             }
         ],
-        "output": []
+        "output": [
+            {
+                "type": "mass.constant",
+                "name": "mass",
+                "config": {
+                    "asset_file": "framework/data/vehicles/cavh/output/mass_soviet_coord_demo.json"
+                }
+            },
+            {
+                "type": "aero.simple_polynomial",
+                "name": "aero",
+                "config": {}
+            }
+        ]
     },
     "interaction": {
         "components": [

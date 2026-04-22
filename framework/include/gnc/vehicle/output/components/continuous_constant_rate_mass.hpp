@@ -5,9 +5,10 @@
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/vehicle/common/interfaces/i_continuous_mass.hpp"
+#include "gnc/vehicle/common/assets/json_asset_loader.hpp"
+#include "gnc/vehicle/output/interfaces/i_continuous_mass.hpp"
 
-namespace gnc::vehicle::common {
+namespace gnc::vehicle::output {
 
 class ContinuousConstantRateMass final : public gnc::core::ComponentBase,
                                          public gnc::interfaces::IContinuousSystem,
@@ -21,9 +22,14 @@ public:
     }
 
     void configure(const gnc::core::ConfigNode& config) override {
-        initial_state_[mass_index_] = config["initial_mass_kg"].asDouble(900.0);
+        const auto source =
+            gnc::vehicle::common::assets::loadConfiguredJsonAsset(
+                config,
+                "mass.continuous_constant_rate");
+        initial_state_[mass_index_] =
+            source["initial_mass_kg"].asDouble(900.0);
         mass_rate_kg_per_s_ =
-            config["mass_rate_kg_per_s"].asDouble(mass_rate_kg_per_s_);
+            source["mass_rate_kg_per_s"].asDouble(mass_rate_kg_per_s_);
         state_ = initial_state_;
     }
 
@@ -61,4 +67,4 @@ private:
     int mass_index_ = -1;
 };
 
-} // namespace gnc::vehicle::common
+} // namespace gnc::vehicle::output

@@ -22,16 +22,16 @@
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
 #include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
-#include "gnc/vehicle/common/components/constant_mass.hpp"
-#include "gnc/vehicle/common/components/continuous_constant_rate_mass.hpp"
-#include "gnc/vehicle/common/components/simple_polynomial_aero.hpp"
-#include "gnc/vehicle/common/components/table2d_aero.hpp"
-#include "gnc/vehicle/common/interfaces/i_aero_model.hpp"
-#include "gnc/vehicle/common/interfaces/i_constant_mass.hpp"
-#include "gnc/vehicle/common/interfaces/i_continuous_mass.hpp"
 #include "gnc/vehicle/process/components/coordinate_probe.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
+#include "gnc/vehicle/output/components/constant_mass.hpp"
+#include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
+#include "gnc/vehicle/output/components/simple_polynomial_aero.hpp"
+#include "gnc/vehicle/output/components/table2d_aero.hpp"
+#include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
+#include "gnc/vehicle/output/interfaces/i_constant_mass.hpp"
+#include "gnc/vehicle/output/interfaces/i_continuous_mass.hpp"
 
 namespace gnc::bootstrap {
 
@@ -68,40 +68,11 @@ inline void registerEnvironmentPackages(gnc::core::ComponentFactory& factory) {
 }
 
 inline void registerVehicleCommonPackages(gnc::core::ComponentFactory& factory) {
-    using namespace gnc::core;
-    factory.registerType<gnc::vehicle::common::SimplePolynomialAero,
-                         gnc::vehicle::common::IAeroModel,
-                         gnc::interfaces::IObservable>(
-        "aero.simple_polynomial",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleCommon,
-        ExecutionStage::None);
-    factory.registerType<gnc::vehicle::common::Table2DAero,
-                         gnc::vehicle::common::IAeroModel,
-                         gnc::interfaces::IObservable>(
-        "aero.table2d",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleCommon,
-        ExecutionStage::None);
-    factory.registerType<gnc::vehicle::common::ContinuousConstantRateMass,
-                         gnc::vehicle::common::IContinuousMass,
-                         gnc::interfaces::IContinuousSystem,
-                         gnc::interfaces::IObservable>(
-        "mass.continuous_constant_rate",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleCommon,
-        ExecutionStage::None);
-    factory.registerType<gnc::vehicle::common::ConstantMass,
-                         gnc::vehicle::common::IConstantMass,
-                         gnc::interfaces::IObservable>(
-        "mass.constant",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleCommon,
-        ExecutionStage::None);
+    (void)factory;
+}
+
+inline void registerVehicleInputPackages(gnc::core::ComponentFactory& factory) {
+    (void)factory;
 }
 
 inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory) {
@@ -123,6 +94,43 @@ inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory)
         ComponentPackageRole::VehicleProcess,
         ExecutionStage::VehicleProcess,
         "local_spherical_3dof");
+}
+
+inline void registerVehicleOutputPackages(gnc::core::ComponentFactory& factory) {
+    using namespace gnc::core;
+    factory.registerType<gnc::vehicle::output::SimplePolynomialAero,
+                         gnc::vehicle::output::IAeroModel,
+                         gnc::interfaces::IObservable>(
+        "aero.simple_polynomial",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::Table2DAero,
+                         gnc::vehicle::output::IAeroModel,
+                         gnc::interfaces::IObservable>(
+        "aero.table2d",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::ContinuousConstantRateMass,
+                         gnc::vehicle::output::IContinuousMass,
+                         gnc::interfaces::IContinuousSystem,
+                         gnc::interfaces::IObservable>(
+        "mass.continuous_constant_rate",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::ConstantMass,
+                         gnc::vehicle::output::IConstantMass,
+                         gnc::interfaces::IObservable>(
+        "mass.constant",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
 }
 
 inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
@@ -197,7 +205,9 @@ inline void registerFormViewPackages(gnc::core::ComponentFactory& factory) {
 inline void registerBuiltinPackages(gnc::core::ComponentFactory& factory) {
     registerEnvironmentPackages(factory);
     registerVehicleCommonPackages(factory);
+    registerVehicleInputPackages(factory);
     registerVehicleProcessPackages(factory);
+    registerVehicleOutputPackages(factory);
     registerState3DoFPackages(factory);
     registerInteractionPackages(factory);
     registerFormViewPackages(factory);

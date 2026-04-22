@@ -87,6 +87,19 @@ void requireNoStaticRegistrationFallback(const fs::path& root) {
         "component_factory.hpp should enforce explicit registration at compile time.");
 }
 
+void requireVehicleInputAndOutputBootstrapHooks(const fs::path& root) {
+    const fs::path bootstrap_path =
+        root / "framework/include/gnc/bootstrap/register_builtin_packages.hpp";
+    const std::string text = readFile(bootstrap_path);
+
+    test_support::require(
+        text.find("registerVehicleInputPackages") != std::string::npos,
+        "Builtin bootstrap should expose a formal vehicle.input registration hook.");
+    test_support::require(
+        text.find("registerVehicleOutputPackages") != std::string::npos,
+        "Builtin bootstrap should expose a formal vehicle.output registration hook.");
+}
+
 } // namespace
 
 int main() {
@@ -97,6 +110,7 @@ int main() {
 
         requireNoFormInternalLeakage(root);
         requireNoStaticRegistrationFallback(root);
+        requireVehicleInputAndOutputBootstrapHooks(root);
 
         std::cout << "architecture guard checks passed\n";
         return 0;

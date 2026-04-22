@@ -1,6 +1,6 @@
 #pragma once
 
-namespace gnc::vehicle::common {
+namespace gnc::vehicle::output {
 
 struct AeroCoefficients {
     double lift_coefficient = 0.0;
@@ -11,4 +11,4 @@ struct AeroCoefficients {
     double yawing_moment_coefficient = 0.0;
 };
 
-} // namespace gnc::vehicle::common
+} // namespace gnc::vehicle::output

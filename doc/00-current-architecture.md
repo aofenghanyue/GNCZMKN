@@ -2,72 +2,74 @@
 
 ## Summary
 
-The active architecture is:
+The active framework model is:
 
 - `Form`
 - `Environment`
 - `Vehicle`
 - `Interaction`
 
-This replaced the earlier plugin-centered design as the primary framework
-model.
+This is an explicitly assembled architecture. It is not a plugin graph.
 
-## Top-Level Concepts
+## Vehicle Boundary
 
-### Form
-
-`Form` owns:
-
-- state definition
-- propagation equations
-- form-local typed truth surfaces
-- form-local typed input surfaces
-- form-native derived quantities
-- form-local math and validation
-
-Current canonical form families include:
-
-- `cartesian_3dof`
-- `local_spherical_3dof`
-
-### Environment
-
-`Environment` provides world queries such as:
-
-- Earth models
-- atmosphere models
-- gravity models
-
-Environment packages should stay world-side and should not absorb vehicle or
-interaction closure logic.
-
-### Vehicle
-
-`Vehicle` follows the user-facing assembly model:
+`Vehicle` is split into four user-facing blocks:
 
 - `common`
 - `input`
 - `process`
 - `output`
 
-Only `input`, `process`, and `output` are formal runtime stages. `common`
-contains passive shared models and data.
+The intended meaning is:
 
-### Interaction
+- `vehicle.common`: static assets, profile selection, parameter packs, file
+  references, passive initialization data
+- `vehicle.input`: measurement-side runtime hardware and sensor packages
+- `vehicle.process`: navigation, guidance, control, timing logic, and command
+  generation
+- `vehicle.output`: runtime physical-effect subsystems such as propulsion,
+  aerodynamic models, mass evolution, configuration switching, separation, and
+  other effectors
 
-`Interaction` is the explicit closure layer that translates:
+Only `input`, `process`, and `output` are formal runtime stages.
 
-- selected form truth
+`common` is not a hidden non-scheduled physics layer. It is the asset/profile
+layer.
+
+## Asset, Loader, Runtime Split
+
+The framework now distinguishes three different responsibilities:
+
+1. Static assets
+   Example: JSON datasets under `framework/data/vehicles/`.
+2. Loaders and parsers
+   These are utility code, not components.
+3. Runtime components
+   These expose simulation-time capabilities such as `IAeroModel`,
+   `IConstantMass`, or `IContinuousMass`.
+
+Runtime aerodynamic and mass components belong to `vehicle.output`. They may
+load asset files during `configure()` or `initialize()`, but the asset itself
+is not the component.
+
+## Interaction Boundary
+
+`Interaction` is the form-aware closure layer.
+
+It consumes:
+
+- form truth
 - environment queries
-- vehicle outputs and relevant vehicle state
+- process commands
+- current runtime results from `vehicle.output`
 
-into the selected form input.
+It produces:
 
-Examples:
+- the selected form input
 
-- `interaction.cartesian_3dof.direct_accel`
-- `interaction.local_spherical_3dof.direct_accel`
-- `interaction.local_spherical_3dof.aero_propulsive`
+`Interaction` does not own aerodynamic tables, mass definitions, or other
+vehicle physical models. It consumes typed runtime capabilities from
+`vehicle.output`.
 
 ## Mission Schema
 
@@ -83,7 +85,15 @@ outputs:
 stop_conditions:
 ```
 
-The legacy `entities[]` schema is intentionally rejected.
+Within `vehicle`, the active structure is:
+
+```text
+vehicle:
+  common:
+  input:
+  process:
+  output:
+```
 
 ## Runtime Scheduling
 
@@ -97,60 +107,32 @@ Per-step execution order is:
 6. `form`
 7. outputs and stop conditions
 
-This schedule is explicit in the runtime shell and is no longer derived from
-component registration order.
+This schedule is explicit in the runtime shell.
 
 ## Registration Model
 
 Builtins are registered through explicit bootstrap functions in
 `framework/include/gnc/bootstrap/register_builtin_packages.hpp`.
 
-There is no active `PluginRegistry` path.
+There is no active static-registration fallback path.
 
-`ComponentFactory` metadata now includes:
+The bootstrap now includes formal hooks for:
 
-- package role
-- execution stage
-- form family
+- `registerVehicleCommonPackages(...)`
+- `registerVehicleInputPackages(...)`
+- `registerVehicleProcessPackages(...)`
+- `registerVehicleOutputPackages(...)`
 
-This metadata is used during assembly and validation.
-
-## Canonical vs Compatibility Names
-
-Canonical type ids are the preferred public names for new work.
-
-Examples:
-
-- `form.cartesian_3dof.point_mass`
-- `form.local_spherical_3dof.point_mass`
-- `form.local_spherical_3dof.flight_state_view`
-- `interaction.cartesian_3dof.direct_accel`
-- `interaction.local_spherical_3dof.direct_accel`
-- `interaction.local_spherical_3dof.aero_propulsive`
-
-Legacy plugin-era type ids are no longer registered. Active missions and code
-should use only the canonical type ids shown above.
-
-## Compatibility Policy
-
-There is no active compatibility layer for the removed plugin architecture.
-
-Do not author new code against:
-
-1. removed include paths formerly located under `framework/include/gnc/plugins/`
-2. old plugin-era type ids
-
-Historical plugin-era material may still appear in archived documents, but it
-is not part of the supported repository architecture.
+The `vehicle.input` hook exists even when there are no builtin input packages
+yet. That keeps the architecture skeleton complete.
 
 ## Current Direction
 
-The repository has already validated:
+The main architectural cleanup still in progress is:
 
-- explicit bootstrap instead of plugin registration
-- staged runtime execution
-- a full `local_spherical_3dof` vertical slice
-- a second `cartesian_3dof` form under the same shell
+- keeping `vehicle.common` strictly as the asset/profile layer
+- growing `vehicle.input` as a first-class extension area
+- moving runtime physical behavior into `vehicle.output`
+- keeping `interaction` as a thin form-aware closure layer
 
-Remaining cleanup work is mostly about removing or quarantining historical
-plugin-era documentation wording from archived reference material.
+That is the active direction for new framework work.
