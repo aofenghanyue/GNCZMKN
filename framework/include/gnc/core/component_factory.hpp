@@ -370,24 +370,63 @@ private:
 };
 
 #ifdef GNC_COMPONENT_REGISTRATION_FN
-#define GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, Category, ...) \
+#define GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, \
+                                         ComponentType, \
+                                         Category, \
+                                         PackageRole, \
+                                         ExecutionStage, \
+                                         FormFamily, \
+                                         ...) \
     inline void GNC_COMPONENT_REGISTRATION_FN(::gnc::core::ComponentFactory& factory) { \
         factory.registerType<ComponentType, __VA_ARGS__>( \
             TypeId, \
             Category, \
-            __FILE__); \
+            __FILE__, \
+            PackageRole, \
+            ExecutionStage, \
+            FormFamily); \
     }
 #else
-#define GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, Category, ...) \
+#define GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, \
+                                         ComponentType, \
+                                         Category, \
+                                         PackageRole, \
+                                         ExecutionStage, \
+                                         FormFamily, \
+                                         ...) \
     static_assert(false, \
                   "GNC_REGISTER_COMPONENT_TYPE requires GNC_COMPONENT_REGISTRATION_FN " \
-                  "to be defined by the build-generated explicit registration chain.")
+                  "to be defined by the build-generated explicit registration chain, " \
+                  "and project registrations must declare package role, execution stage, " \
+                  "and form family metadata.")
 #endif
 
-#define GNC_REGISTER_COMPONENT_TYPE(TypeId, ComponentType, ...) \
-    GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, ::gnc::core::ComponentCategory::Project, __VA_ARGS__)
+#define GNC_REGISTER_COMPONENT_TYPE(TypeId, \
+                                    ComponentType, \
+                                    PackageRole, \
+                                    ExecutionStage, \
+                                    FormFamily, \
+                                    ...) \
+    GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, \
+                                     ComponentType, \
+                                     ::gnc::core::ComponentCategory::Project, \
+                                     PackageRole, \
+                                     ExecutionStage, \
+                                     FormFamily, \
+                                     __VA_ARGS__)
 
-#define GNC_REGISTER_BUILTIN_COMPONENT(TypeId, ComponentType, ...) \
-    GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, ComponentType, ::gnc::core::ComponentCategory::Builtin, __VA_ARGS__)
+#define GNC_REGISTER_BUILTIN_COMPONENT(TypeId, \
+                                       ComponentType, \
+                                       PackageRole, \
+                                       ExecutionStage, \
+                                       FormFamily, \
+                                       ...) \
+    GNC_REGISTER_COMPONENT_TYPE_IMPL(TypeId, \
+                                     ComponentType, \
+                                     ::gnc::core::ComponentCategory::Builtin, \
+                                     PackageRole, \
+                                     ExecutionStage, \
+                                     FormFamily, \
+                                     __VA_ARGS__)
 
 } // namespace gnc::core

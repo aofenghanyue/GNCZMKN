@@ -26,8 +26,12 @@ public:
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(
                 config,
                 "mass.continuous_constant_rate");
-        initial_state_[mass_index_] =
-            source["initial_mass_kg"].asDouble(900.0);
+        if (!source.has("initial_mass_kg")) {
+            throw std::runtime_error(
+                "mass.continuous_constant_rate requires 'initial_mass_kg' to be "
+                "provided by config or asset.");
+        }
+        initial_state_[mass_index_] = source["initial_mass_kg"].asDouble();
         mass_rate_kg_per_s_ =
             source["mass_rate_kg_per_s"].asDouble(mass_rate_kg_per_s_);
         state_ = initial_state_;

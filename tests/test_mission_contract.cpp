@@ -138,8 +138,33 @@ void registerMissionContractTestTypes() {
 
 int main() {
     try {
-        test_support::registerAvailableComponentTypes();
+        test_support::registerBuiltinComponentTypes();
+        test_support::registerStableTestProjectComponentTypes();
         registerMissionContractTestTypes();
+
+        auto& factory = gnc::core::ComponentFactory::instance();
+        test_support::require(factory.hasType("test_fixture.process_probe"),
+                              "Stable test fixture process probe was not auto-registered.");
+        test_support::require(
+            factory.getPackageRole("test_fixture.process_probe") ==
+                gnc::core::ComponentPackageRole::VehicleProcess,
+            "Test fixture process probe did not retain vehicle.process package metadata.");
+        test_support::require(
+            factory.getExecutionStage("test_fixture.process_probe") ==
+                gnc::core::ExecutionStage::VehicleProcess,
+            "Test fixture process probe did not retain vehicle.process stage metadata.");
+        test_support::require(
+            factory.getPackageRole("test_fixture.output_probe") ==
+                gnc::core::ComponentPackageRole::VehicleOutput,
+            "Test fixture output probe did not retain vehicle.output package metadata.");
+        test_support::require(
+            factory.getExecutionStage("test_fixture.output_probe") ==
+                gnc::core::ExecutionStage::VehicleOutput,
+            "Test fixture output probe did not retain vehicle.output stage metadata.");
+        test_support::require(
+            factory.getFormFamily("test_fixture.local_spherical_output_probe") ==
+                "local_spherical_3dof",
+            "Test fixture local_spherical output probe did not retain form-family metadata.");
 
         const char* legacy_mission = R"json(
 {
@@ -248,6 +273,187 @@ int main() {
             std::find(component_names.begin(), component_names.end(), "dynamics") ==
                 component_names.end(),
             "Missions should not register bare component names under the new schema.");
+
+        const char* project_wrong_block_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "form": {
+    "components": [
+      {
+        "type": "test.form_probe",
+        "name": "dynamics",
+        "config": {}
+      }
+    ]
+  },
+  "environment": {},
+  "vehicle": {
+    "common": [],
+    "input": [],
+        "process": [
+      {
+        "type": "test_fixture.output_probe",
+        "name": "misplaced_output",
+        "config": {}
+      }
+    ],
+    "output": []
+  },
+  "interaction": {
+    "components": []
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder project_wrong_block_builder;
+        test_support::require(
+            project_wrong_block_builder.loadConfigString(project_wrong_block_mission),
+            "Project wrong-block mission JSON could not be parsed.");
+
+        bool project_wrong_block_failed = false;
+        try {
+            project_wrong_block_builder.build();
+        } catch (const std::exception&) {
+            project_wrong_block_failed = true;
+        }
+
+        test_support::require(
+            project_wrong_block_failed,
+            "Project components placed in the wrong vehicle block must fail assembly.");
+        test_support::require(
+            containsSubstring(project_wrong_block_builder.getBuildErrors(),
+                              "registered as role 'vehicle_output' but was placed in "
+                              "'vehicle.process'"),
+            "Project wrong-block failure did not report the registered vehicle role.");
+
+        const char* project_stage_mismatch_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "form": {
+    "components": [
+      {
+        "type": "test.form_probe",
+        "name": "dynamics",
+        "config": {}
+      }
+    ]
+  },
+  "environment": {},
+  "vehicle": {
+    "common": [],
+    "input": [],
+        "process": [
+      {
+        "type": "test_fixture.process_wrong_stage_probe",
+        "name": "bad_stage",
+        "config": {}
+      }
+    ],
+    "output": []
+  },
+  "interaction": {
+    "components": []
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder project_stage_mismatch_builder;
+        test_support::require(
+            project_stage_mismatch_builder.loadConfigString(project_stage_mismatch_mission),
+            "Project stage-mismatch mission JSON could not be parsed.");
+
+        bool project_stage_mismatch_failed = false;
+        try {
+            project_stage_mismatch_builder.build();
+        } catch (const std::exception&) {
+            project_stage_mismatch_failed = true;
+        }
+
+        test_support::require(
+            project_stage_mismatch_failed,
+            "Project components with mismatched execution stage metadata must fail assembly.");
+        test_support::require(
+            containsSubstring(project_stage_mismatch_builder.getBuildErrors(),
+                              "registered for stage 'vehicle_output'"),
+            "Project stage mismatch did not report the registered execution stage.");
+        test_support::require(
+            containsSubstring(project_stage_mismatch_builder.getBuildErrors(),
+                              "'vehicle.process' which executes at stage 'vehicle_process'"),
+            "Project stage mismatch did not report the expected vehicle.process stage.");
+
+        const char* project_form_family_mismatch_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "form": {
+    "components": [
+      {
+        "type": "test.form_probe",
+        "name": "dynamics",
+        "config": {}
+      }
+    ]
+  },
+  "environment": {},
+  "vehicle": {
+    "common": [],
+    "input": [],
+    "process": [],
+    "output": [
+      {
+        "type": "test_fixture.local_spherical_output_probe",
+        "name": "family_specific_output",
+        "config": {}
+      }
+    ]
+  },
+  "interaction": {
+    "components": []
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder project_form_family_mismatch_builder;
+        test_support::require(
+            project_form_family_mismatch_builder.loadConfigString(
+                project_form_family_mismatch_mission),
+            "Project form-family mismatch mission JSON could not be parsed.");
+
+        bool project_form_family_mismatch_failed = false;
+        try {
+            project_form_family_mismatch_builder.build();
+        } catch (const std::exception&) {
+            project_form_family_mismatch_failed = true;
+        }
+
+        test_support::require(
+            project_form_family_mismatch_failed,
+            "Project components with incompatible form-family metadata must fail assembly.");
+        test_support::require(
+            containsSubstring(project_form_family_mismatch_builder.getBuildErrors(),
+                              "targets form family 'local_spherical_3dof'"),
+            "Project form-family mismatch did not report the component family.");
+        test_support::require(
+            containsSubstring(project_form_family_mismatch_builder.getBuildErrors(),
+                              "selected form family is 'test_form'"),
+            "Project form-family mismatch did not report the selected mission family.");
 
         const char* stage_mission = R"json(
 {

@@ -141,30 +141,40 @@ generate_ussa1976_atmosphere_header(
     "${GNC_ATMOSPHERE_DATA_FILE}"
     "${GNC_ATMOSPHERE_HEADER_FILE}")
 
+function(generate_component_registration_header output_file function_name symbol_prefix)
+    set(component_files ${ARGN})
+
+    file(WRITE "${output_file}" "#pragma once\n\n")
+
+    set(auto_register_calls "")
+    if(component_files)
+        set(comp_index 0)
+        foreach(comp_file IN LISTS component_files)
+            file(APPEND "${output_file}" "#define GNC_COMPONENT_REGISTRATION_FN ${symbol_prefix}_${comp_index}\n")
+            file(APPEND "${output_file}" "#include \"${comp_file}\"\n")
+            file(APPEND "${output_file}" "#undef GNC_COMPONENT_REGISTRATION_FN\n\n")
+            string(APPEND auto_register_calls "    ::${symbol_prefix}_${comp_index}(factory);\n")
+            math(EXPR comp_index "${comp_index} + 1")
+        endforeach()
+    endif()
+
+    file(APPEND "${output_file}" "#include \"gnc/core/component_factory.hpp\"\n\n")
+    file(APPEND "${output_file}" "namespace gnc::build {\n")
+    file(APPEND "${output_file}" "inline void ${function_name}(::gnc::core::ComponentFactory& factory) {\n")
+    file(APPEND "${output_file}" "    (void)factory;\n")
+    if(auto_register_calls)
+        file(APPEND "${output_file}" "${auto_register_calls}")
+    endif()
+    file(APPEND "${output_file}" "}\n")
+    file(APPEND "${output_file}" "} // namespace gnc::build\n")
+endfunction()
+
 set(AUTO_REGISTER_FILE "${GENERATED_DIR}/auto_registered_components.hpp")
-file(WRITE "${AUTO_REGISTER_FILE}" "#pragma once\n\n")
-
-set(AUTO_REGISTER_CALLS "")
-if(USER_COMPONENT_FILES)
-    set(COMP_INDEX 0)
-    foreach(COMP_FILE IN LISTS USER_COMPONENT_FILES)
-        file(APPEND "${AUTO_REGISTER_FILE}" "#define GNC_COMPONENT_REGISTRATION_FN gnc_register_project_component_${COMP_INDEX}\n")
-        file(APPEND "${AUTO_REGISTER_FILE}" "#include \"${COMP_FILE}\"\n")
-        file(APPEND "${AUTO_REGISTER_FILE}" "#undef GNC_COMPONENT_REGISTRATION_FN\n\n")
-        string(APPEND AUTO_REGISTER_CALLS "    ::gnc_register_project_component_${COMP_INDEX}(factory);\n")
-        math(EXPR COMP_INDEX "${COMP_INDEX} + 1")
-    endforeach()
-endif()
-
-file(APPEND "${AUTO_REGISTER_FILE}" "#include \"gnc/core/component_factory.hpp\"\n\n")
-file(APPEND "${AUTO_REGISTER_FILE}" "namespace gnc::build {\n")
-file(APPEND "${AUTO_REGISTER_FILE}" "inline void registerAutoRegisteredProjectComponents(::gnc::core::ComponentFactory& factory) {\n")
-file(APPEND "${AUTO_REGISTER_FILE}" "    (void)factory;\n")
-if(AUTO_REGISTER_CALLS)
-    file(APPEND "${AUTO_REGISTER_FILE}" "${AUTO_REGISTER_CALLS}")
-endif()
-file(APPEND "${AUTO_REGISTER_FILE}" "}\n")
-file(APPEND "${AUTO_REGISTER_FILE}" "} // namespace gnc::build\n")
+generate_component_registration_header(
+    "${AUTO_REGISTER_FILE}"
+    "registerAutoRegisteredProjectComponents"
+    "gnc_register_project_component"
+    ${USER_COMPONENT_FILES})
 
 set(ACTIVE_PROJECT_CONFIG_FILE "${GENERATED_DIR}/active_project_config.hpp")
 file(WRITE "${ACTIVE_PROJECT_CONFIG_FILE}" "#pragma once\n\n")
@@ -200,6 +210,19 @@ option(BUILD_TESTS "Build test programs" OFF)
 if(BUILD_TESTS)
     enable_testing()
 
+    set(TEST_PROJECT_COMPONENT_FILES "")
+    file(GLOB_RECURSE TEST_PROJECT_COMPONENT_FILES CONFIGURE_DEPENDS
+        RELATIVE "${CMAKE_SOURCE_DIR}"
+        "tests/project_components/*.hpp"
+    )
+
+    set(TEST_AUTO_REGISTER_FILE "${GENERATED_DIR}/auto_registered_test_components.hpp")
+    generate_component_registration_header(
+        "${TEST_AUTO_REGISTER_FILE}"
+        "registerAutoRegisteredTestComponents"
+        "gnc_register_test_component"
+        ${TEST_PROJECT_COMPONENT_FILES})
+
     function(add_gnc_test target source)
         add_executable(${target} ${source})
         target_link_libraries(${target} PRIVATE gnc_framework)
@@ -207,9 +230,6 @@ if(BUILD_TESTS)
             "${CMAKE_SOURCE_DIR}"
             "${GENERATED_DIR}"
         )
-        if(USER_COMPONENTS_DIR)
-            target_include_directories(${target} PRIVATE "${USER_COMPONENTS_DIR}")
-        endif()
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /utf-8)
         else()
@@ -227,6 +247,10 @@ if(BUILD_TESTS)
     add_gnc_test(test_component_listing tests/test_component_listing.cpp)
     add_gnc_test(test_architecture_guards tests/test_architecture_guards.cpp)
     add_gnc_test(test_auto_data_logger tests/test_auto_data_logger.cpp)
+
+    list(LENGTH TEST_PROJECT_COMPONENT_FILES TEST_PROJECT_COMPONENT_COUNT)
+    message(STATUS
+        "Auto-registered stable test project component headers: ${TEST_PROJECT_COMPONENT_COUNT}")
 endif()
 
 message(STATUS "GNC Simulation Framework v${PROJECT_VERSION}")

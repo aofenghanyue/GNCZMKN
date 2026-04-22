@@ -9,7 +9,7 @@
 
 int main() {
     try {
-        test_support::registerAvailableComponentTypes();
+        test_support::registerBuiltinComponentTypes();
 
         const char* mission = R"json(
 {

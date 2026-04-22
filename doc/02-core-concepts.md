@@ -86,3 +86,9 @@ Component registration is explicit.
 `GNC_REGISTER_COMPONENT_TYPE` is only valid when the build-generated explicit
 registration chain defines `GNC_COMPONENT_REGISTRATION_FN`. There is no hidden
 static fallback.
+
+Project registrations must declare:
+
+- package role
+- execution stage
+- form family metadata, or `""` for form-neutral components

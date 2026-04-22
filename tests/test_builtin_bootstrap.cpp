@@ -12,7 +12,7 @@ int main() {
     try {
         using namespace gnc::core;
 
-        test_support::registerAvailableComponentTypes();
+        test_support::registerBuiltinComponentTypes();
 
         auto& factory = ComponentFactory::instance();
 

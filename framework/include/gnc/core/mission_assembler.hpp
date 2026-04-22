@@ -434,7 +434,7 @@ private:
                 type_name,
                 placement.placement,
                 factory.getPackageRole(type_name),
-                placement.execution_stage,
+                factory.getExecutionStage(type_name),
                 factory.getFormFamily(type_name)});
 
             registry.addDynamic(full_name,

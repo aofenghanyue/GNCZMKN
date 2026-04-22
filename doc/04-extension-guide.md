@@ -22,6 +22,9 @@ registration chain.
 Use `GNC_REGISTER_COMPONENT_TYPE(...)` only inside project component headers
 that are discovered by the build.
 
+Project registrations must declare package role, execution stage, and form
+family metadata. Use `""` when the component is form-neutral.
+
 There is no hidden static-registration fallback anymore.
 
 If the build-generated registration chain does not define
@@ -74,6 +77,9 @@ private:
 
 GNC_REGISTER_COMPONENT_TYPE("example.step_counter",
                             StepCounter,
+                            ::gnc::core::ComponentPackageRole::VehicleProcess,
+                            ::gnc::core::ExecutionStage::VehicleProcess,
+                            "",
                             gnc::interfaces::IObservable)
 ```
 

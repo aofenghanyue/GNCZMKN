@@ -17,7 +17,7 @@ bool containsValue(const std::vector<std::string>& values, const std::string& ex
 
 int main() {
     try {
-        test_support::registerAvailableComponentTypes();
+        test_support::registerBuiltinComponentTypes();
 
         using gnc::core::ComponentFactory;
 

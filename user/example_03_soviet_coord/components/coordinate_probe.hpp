@@ -45,4 +45,7 @@ private:
 GNC_REGISTER_COMPONENT_TYPE(
     "example.coordinate_probe",
     CoordinateProbe,
+    ::gnc::core::ComponentPackageRole::VehicleProcess,
+    ::gnc::core::ExecutionStage::VehicleProcess,
+    "local_spherical_3dof",
     gnc::interfaces::IObservable)

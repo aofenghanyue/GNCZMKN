@@ -158,6 +158,18 @@ int main() {
         test_support::requireNear(mass_dx[0], -2.0, 1e-9,
                                   "Continuous mass derivative must equal the configured rate.");
 
+        bool missing_initial_mass_failed = false;
+        try {
+            gnc::vehicle::output::ContinuousConstantRateMass missing_initial_mass;
+            missing_initial_mass.configure(test_support::object({}));
+        } catch (const std::exception& ex) {
+            missing_initial_mass_failed =
+                std::string(ex.what()).find("initial_mass_kg") != std::string::npos;
+        }
+        test_support::require(
+            missing_initial_mass_failed,
+            "Continuous mass should fail fast when no initial_mass_kg is provided by config or asset.");
+
         gnc::core::ComponentRegistry registry;
         registry.add<gnc::environment::StandardAtmosphere,
                      gnc::environment::IAtmosphere>(
