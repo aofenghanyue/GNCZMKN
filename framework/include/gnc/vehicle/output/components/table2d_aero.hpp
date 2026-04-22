@@ -25,9 +25,56 @@ public:
           drag_table_({0.0, 1.0}, {0.0, 1.0}, {{0.0, 0.0}, {0.0, 0.0}}) {}
 
     void configure(const gnc::core::ConfigNode& config) override {
+        const bool using_asset_file =
+            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
         const auto source =
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(config,
                                                                   "aero.table2d");
+        const std::string source_description =
+            using_asset_file
+                ? "aero.table2d asset '" +
+                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
+                          .generic_string() +
+                      "'"
+                : "aero.table2d inline config";
+
+        if (using_asset_file) {
+            reference_area_m2_ =
+                readRequiredNumber(source["reference_area_m2"],
+                                   "reference_area_m2",
+                                   source_description);
+            reference_length_m_ =
+                readRequiredNumber(source["reference_length_m"],
+                                   "reference_length_m",
+                                   source_description);
+            const auto alpha_breaks_rad =
+                readDoubleArray(source["alpha_breaks_rad"],
+                                "alpha_breaks_rad",
+                                source_description);
+            const auto mach_breaks =
+                readDoubleArray(source["mach_breaks"],
+                                "mach_breaks",
+                                source_description);
+            const auto lift_coefficients =
+                readTable(source["lift_coefficients"],
+                          alpha_breaks_rad.size(),
+                          mach_breaks.size(),
+                          "lift_coefficients",
+                          source_description);
+            const auto drag_coefficients =
+                readTable(source["drag_coefficients"],
+                          alpha_breaks_rad.size(),
+                          mach_breaks.size(),
+                          "drag_coefficients",
+                          source_description);
+
+            configureTables(alpha_breaks_rad,
+                            mach_breaks,
+                            lift_coefficients,
+                            drag_coefficients);
+            return;
+        }
+
         reference_area_m2_ = source["reference_area_m2"].asDouble(reference_area_m2_);
         reference_length_m_ = source["reference_length_m"].asDouble(reference_length_m_);
 
@@ -97,10 +144,24 @@ public:
     }
 
 private:
+    static double readRequiredNumber(const gnc::core::ConfigNode& node,
+                                     const std::string& field_name,
+                                     const std::string& source_description) {
+        if (!node.isNumber()) {
+            throw std::runtime_error(source_description +
+                                     " must define numeric field '" +
+                                     field_name + "'.");
+        }
+        return node.asDouble();
+    }
+
     static std::vector<double> readDoubleArray(const gnc::core::ConfigNode& node,
-                                               const std::string& field_name) {
+                                               const std::string& field_name,
+                                               const std::string& source_description =
+                                                   "aero.table2d") {
         if (!node.isArray() || node.size() < 2) {
-            throw std::runtime_error("aero.table2d requires array field '" + field_name +
+            throw std::runtime_error(source_description +
+                                     " requires array field '" + field_name +
                                      "' with at least 2 entries.");
         }
 
@@ -115,9 +176,11 @@ private:
     static std::vector<std::vector<double>> readTable(const gnc::core::ConfigNode& node,
                                                       size_t expected_rows,
                                                       size_t expected_columns,
-                                                      const std::string& field_name) {
+                                                      const std::string& field_name,
+                                                      const std::string& source_description =
+                                                          "aero.table2d") {
         if (!node.isArray() || node.size() != expected_rows) {
-            throw std::runtime_error("aero.table2d field '" + field_name +
+            throw std::runtime_error(source_description + " field '" + field_name +
                                      "' must provide exactly " +
                                      std::to_string(expected_rows) + " rows.");
         }
@@ -127,7 +190,7 @@ private:
         for (size_t row = 0; row < node.size(); ++row) {
             const auto& row_node = node[row];
             if (!row_node.isArray() || row_node.size() != expected_columns) {
-                throw std::runtime_error("aero.table2d field '" + field_name +
+                throw std::runtime_error(source_description + " field '" + field_name +
                                          "' row " + std::to_string(row) +
                                          " must contain exactly " +
                                          std::to_string(expected_columns) + " values.");

@@ -15,9 +15,19 @@ public:
     ConstantMass() : ComponentBase("ConstantMass") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
+        const bool using_asset_file =
+            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
         const auto source =
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(config,
                                                                   "mass.constant");
+        if (using_asset_file &&
+            (!source.has("mass_kg") || !source["mass_kg"].isNumber())) {
+            throw std::runtime_error(
+                "mass.constant asset '" +
+                gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
+                    .generic_string() +
+                "' must define numeric field 'mass_kg'.");
+        }
         mass_kg_ = source["mass_kg"].asDouble(mass_kg_);
     }
 

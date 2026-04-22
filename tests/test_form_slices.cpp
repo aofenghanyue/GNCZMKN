@@ -22,6 +22,7 @@
 #include "gnc/vehicle/output/components/table2d_aero.hpp"
 
 #include <exception>
+#include <functional>
 #include <iostream>
 #include <memory>
 
@@ -86,6 +87,46 @@ gnc::core::ConfigNode makeTable2dAeroConfig() {
     });
 }
 
+gnc::core::ConfigNode makeWrongSchemaMassConfig() {
+    using namespace test_support;
+    return object({
+        field("asset_file",
+              string("framework/data/vehicles/cavh/output/aero_table2d.json")),
+    });
+}
+
+gnc::core::ConfigNode makeMissingMassFieldConfig() {
+    using namespace test_support;
+    return object({
+        field("asset_file",
+              string("tests/assets/phase5/mass_missing_mass_kg.json")),
+    });
+}
+
+gnc::core::ConfigNode makeWrongSchemaTable2dAeroConfig() {
+    using namespace test_support;
+    return object({
+        field("asset_file",
+              string("framework/data/vehicles/cavh/output/mass_atmospheric_reference.json")),
+    });
+}
+
+gnc::core::ConfigNode makeMissingTable2dAeroFieldConfig() {
+    using namespace test_support;
+    return object({
+        field("asset_file",
+              string("tests/assets/phase5/aero_missing_tables.json")),
+    });
+}
+
+gnc::core::ConfigNode makeBadDimensionsTable2dAeroConfig() {
+    using namespace test_support;
+    return object({
+        field("asset_file",
+              string("tests/assets/phase5/aero_bad_dimensions.json")),
+    });
+}
+
 gnc::core::ConfigNode makeSphericalConfig() {
     using namespace test_support;
     return object({
@@ -100,6 +141,19 @@ gnc::core::ConfigNode makeSphericalConfig() {
                   field("heading_angle_rad", number(-1.5707963267948966)),
               })),
     });
+}
+
+void requireConfigureFailure(const std::function<void()>& configure_action,
+                             const std::string& expected_fragment,
+                             const std::string& message) {
+    bool failed_as_expected = false;
+    try {
+        configure_action();
+    } catch (const std::exception& ex) {
+        failed_as_expected =
+            std::string(ex.what()).find(expected_fragment) != std::string::npos;
+    }
+    test_support::require(failed_as_expected, message);
 }
 
 } // namespace
@@ -169,6 +223,46 @@ int main() {
         test_support::require(
             missing_initial_mass_failed,
             "Continuous mass should fail fast when no initial_mass_kg is provided by config or asset.");
+
+        requireConfigureFailure(
+            []() {
+                gnc::vehicle::output::ConstantMass wrong_schema_mass;
+                wrong_schema_mass.configure(makeWrongSchemaMassConfig());
+            },
+            "mass_kg",
+            "Constant mass should reject asset files that do not define mass_kg.");
+
+        requireConfigureFailure(
+            []() {
+                gnc::vehicle::output::ConstantMass missing_mass_field;
+                missing_mass_field.configure(makeMissingMassFieldConfig());
+            },
+            "mass_kg",
+            "Constant mass should reject assets that omit mass_kg.");
+
+        requireConfigureFailure(
+            []() {
+                gnc::vehicle::output::Table2DAero wrong_schema_aero;
+                wrong_schema_aero.configure(makeWrongSchemaTable2dAeroConfig());
+            },
+            "reference_area_m2",
+            "Table2D aero should reject asset files that do not expose aerodynamic tables.");
+
+        requireConfigureFailure(
+            []() {
+                gnc::vehicle::output::Table2DAero missing_aero_tables;
+                missing_aero_tables.configure(makeMissingTable2dAeroFieldConfig());
+            },
+            "alpha_breaks_rad",
+            "Table2D aero should reject assets that omit required table fields.");
+
+        requireConfigureFailure(
+            []() {
+                gnc::vehicle::output::Table2DAero bad_dimension_aero;
+                bad_dimension_aero.configure(makeBadDimensionsTable2dAeroConfig());
+            },
+            "lift_coefficients",
+            "Table2D aero should reject assets whose table dimensions do not match the breakpoints.");
 
         gnc::core::ComponentRegistry registry;
         registry.add<gnc::environment::StandardAtmosphere,

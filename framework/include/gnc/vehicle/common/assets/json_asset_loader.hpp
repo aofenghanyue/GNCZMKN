@@ -12,6 +12,16 @@ namespace gnc::vehicle::common::assets {
 
 namespace fs = std::filesystem;
 
+inline std::string getConfiguredJsonAssetFile(
+    const gnc::core::ConfigNode& config) {
+    return config["asset_file"].asString();
+}
+
+inline bool hasConfiguredJsonAssetFile(
+    const gnc::core::ConfigNode& config) {
+    return !getConfiguredJsonAssetFile(config).empty();
+}
+
 inline std::string joinPaths(const std::vector<fs::path>& paths) {
     std::string result;
     for (size_t i = 0; i < paths.size(); ++i) {
@@ -57,15 +67,23 @@ inline fs::path resolveJsonAssetPath(const std::string& configured_path) {
                              joinPaths(searched_paths));
 }
 
+inline fs::path resolveConfiguredJsonAssetPath(
+    const gnc::core::ConfigNode& config) {
+    const std::string asset_file = getConfiguredJsonAssetFile(config);
+    if (asset_file.empty()) {
+        return {};
+    }
+    return resolveJsonAssetPath(asset_file);
+}
+
 inline gnc::core::ConfigNode loadConfiguredJsonAsset(
     const gnc::core::ConfigNode& config,
     const std::string& type_name) {
-    const std::string asset_file = config["asset_file"].asString();
-    if (asset_file.empty()) {
+    if (!hasConfiguredJsonAssetFile(config)) {
         return config;
     }
 
-    const fs::path resolved_path = resolveJsonAssetPath(asset_file);
+    const fs::path resolved_path = resolveConfiguredJsonAssetPath(config);
     gnc::core::ConfigManager manager;
     if (!manager.loadFromFile(resolved_path.string())) {
         throw std::runtime_error(type_name + " failed to load asset file '" +
