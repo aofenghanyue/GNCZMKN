@@ -1,21 +1,34 @@
-# Legacy User Components Directory
+# 旧 User Components 目录
 
-`user/components/` is now a legacy transition directory.
+`user/components/` 是旧过渡目录，不是当前推荐的项目扩展入口。
 
-Preferred layout:
+当前推荐布局是：
 
-- `user/<project>/components/`
-- `user/<project>/config/mission.json`
-- `user/active_project`
+```text
+user/<project>/
+  components/
+  config/
+    mission.json
+```
 
-The current build flow only scans the active project's `components/` directory.
+构建系统只会自动扫描 active project：
 
-If a component becomes stable, reusable, and repository-wide, it should usually
-move into a canonical framework package such as:
+```text
+user/<active_project>/components/
+```
 
-- `framework/include/gnc/forms/`
-- `framework/include/gnc/environment/`
-- `framework/include/gnc/vehicle/`
-- `framework/include/gnc/interactions/`
+active project 由 `user/active_project` 选择。切换 active project 或新增组件头文件后，需要重新运行 CMake 配置和构建。
 
-Do not treat this directory as the long-term extension model.
+如果一个组件变得稳定、通用，并且应该成为 repository-wide API，通常应移动到对应的 framework 包中：
+
+```text
+framework/include/gnc/forms/
+framework/include/gnc/environment/
+framework/include/gnc/vehicle/common/
+framework/include/gnc/vehicle/input/
+framework/include/gnc/vehicle/process/
+framework/include/gnc/vehicle/output/
+framework/include/gnc/interactions/
+```
+
+不要把这个目录当作长期扩展模型，也不要通过它绕过 active project 的显式注册链。

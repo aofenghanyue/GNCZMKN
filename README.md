@@ -1,32 +1,15 @@
 # GNCZMKN
 
-GNCZMKN is a simulation framework for guidance, navigation, and control work.
-The active architecture is centered on:
+GNCZMKN 是一个面向制导、导航与控制工作的 C++ 仿真框架。当前版本的核心目标是让仿真任务用清晰的架构块装配，而不是依赖旧式隐式装配或实体列表。
 
-- `Form`
-- `Environment`
-- `Vehicle`
-- `Interaction`
+当前框架围绕四个顶层概念组织：
 
-The old plugin-centered architecture is no longer the active design model.
-Plugin-era compatibility shims and legacy type ids have been removed from the
-active code path.
+- `Form`: 状态表示、积分方程、truth view 和 form input。
+- `Environment`: 地球、重力、大气等环境查询能力。
+- `Vehicle`: 飞行器侧组件，按 `common/input/process/output` 分层。
+- `Interaction`: 把 form truth、环境查询、过程命令和 vehicle output 能力闭合成 form input。
 
-## Current Runtime Model
-
-The runtime shell is built around:
-
-- `ComponentBase`
-- `ComponentFactory`
-- `IContinuousSystem`
-- `IIntegrator`
-- `ScopedRegistry`
-- `ServiceContext`
-- `MissionAssembler`
-- `AutoDataLogger`
-- `ConfigNode`
-
-Per-step execution order is:
+每个仿真步的执行顺序固定为：
 
 1. `environment`
 2. `vehicle.input`
@@ -34,11 +17,42 @@ Per-step execution order is:
 4. `vehicle.output`
 5. `interaction`
 6. `form`
-7. outputs and stop conditions
+7. 自动记录和停止条件检查
 
-## Mission Shape
+## 快速开始
 
-Active missions use this top-level structure:
+Windows 下推荐使用 MinGW 构建目录：
+
+```powershell
+cmake -S . -B build-mingw -G "MinGW Makefiles" -DBUILD_TESTS=ON
+cmake --build build-mingw -j 4
+ctest --test-dir build-mingw --output-on-failure
+```
+
+运行当前 active project 的默认任务：
+
+```powershell
+build-mingw\bin\gnc_sim.exe
+```
+
+显式运行一个示例任务：
+
+```powershell
+build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
+```
+
+查看当前构建注册了哪些组件：
+
+```powershell
+build-mingw\bin\gnc_sim.exe --list-components
+build-mingw\bin\gnc_sim.exe --list-components-verbose
+```
+
+`user/active_project` 选择会被编译进 `gnc_sim` 的项目组件。修改 active project 或新增项目组件后，需要重新运行 CMake 配置并重新构建。
+
+## Mission 形状
+
+当前 mission 使用显式顶层块：
 
 ```text
 simulation:
@@ -48,76 +62,52 @@ vehicle:
 interaction:
 outputs:
 stop_conditions:
+global_services:
 ```
 
-The legacy top-level `entities[]` shape is intentionally unsupported.
+`vehicle` 内部按职责拆分：
 
-## Canonical Builtin Families
-
-Current canonical builtin form and interaction types include:
-
-- `form.cartesian_3dof.point_mass`
-- `interaction.cartesian_3dof.direct_accel`
-- `form.local_spherical_3dof.point_mass`
-- `form.local_spherical_3dof.flight_state_view`
-- `interaction.local_spherical_3dof.direct_accel`
-- `interaction.local_spherical_3dof.aero_propulsive`
-
-## Quick Start
-
-Build on Windows with MinGW:
-
-```powershell
-cmake -S . -B build-mingw -G "MinGW Makefiles" -DBUILD_TESTS=ON
-cmake --build build-mingw -j 4
-ctest --test-dir build-mingw --output-on-failure
+```text
+vehicle:
+  services:
+  common:
+  input:
+  process:
+  output:
 ```
 
-Run the default mission:
+其中 `vehicle.common` 是静态资产和 profile 层，不参与运行时调度；`input/process/output` 是正式运行阶段。旧式 `entities[]`、根级 `components`、根级 `services` 和根级 `vehicles` 不属于当前运行时契约。
 
-```powershell
-build-mingw\bin\gnc_sim.exe
-```
+## 仓库结构
 
-Run a specific mission:
-
-```powershell
-build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
-```
-
-List registered components:
-
-```powershell
-build-mingw\bin\gnc_sim.exe --list-components
-build-mingw\bin\gnc_sim.exe --list-components-verbose
-```
-
-## Repository Layout
-
-| Path | Purpose |
+| 路径 | 用途 |
 | --- | --- |
-| `framework/include/gnc/core/` | runtime shell, assembly, validation, logging, stop conditions |
-| `framework/include/gnc/forms/` | canonical form packages |
-| `framework/include/gnc/environment/` | world-query packages |
-| `framework/include/gnc/services/` | assembly-owned services and service-side contracts |
-| `framework/include/gnc/vehicle/` | vehicle common/input/process/output packages |
-| `framework/include/gnc/interactions/` | form-aware closure packages |
-| `user/` | missions, active-project code, and outputs |
-| `doc/` | current documentation entrypoint and archived reference docs |
+| `framework/include/gnc/core/` | 运行时外壳、mission 装配、验证、日志、停止条件 |
+| `framework/include/gnc/forms/` | 内置 form 包和 form 专属接口 |
+| `framework/include/gnc/environment/` | 环境组件和环境查询接口 |
+| `framework/include/gnc/vehicle/` | vehicle common/input/process/output 包 |
+| `framework/include/gnc/interactions/` | form-aware interaction 包 |
+| `framework/include/gnc/services/` | service package 和 service 侧契约 |
+| `framework/data/` | 仿真运行时可加载资产 |
+| `src/runner.cpp` | 命令行入口 |
+| `user/` | active project、示例 mission、项目组件和输出 |
+| `tests/` | 架构契约、组件注册、mission 装配和日志测试 |
+| `doc/` | 当前用户文档和维护者文档 |
 
-## Documentation
+## 文档入口
 
-Start here:
+从这里开始：
 
-- [Current Architecture](doc/00-current-architecture.md)
-- [Documentation Index](doc/README.md)
-- [User Workspace Notes](user/README.md)
-- [Rearchitecture Target](temp/framework_rearchitecture_program/01_target_architecture.md)
-- [Rearchitecture Migration Program](temp/framework_rearchitecture_program/02_migration_program.md)
-- [Rearchitecture Detailed Plan](temp/framework_rearchitecture_program/04_detailed_implementation_plan.md)
-- [Rearchitecture Phase 1 Baseline](temp/framework_rearchitecture_program/05_phase1_baseline_inventory.md)
-- [Rearchitecture Acceptance Criteria](temp/framework_rearchitecture_program/06_acceptance_criteria.md)
+- [文档导航](doc/README.md)
+- [快速上手](doc/01-getting-started.md)
+- [核心概念](doc/02-core-concepts.md)
+- [Mission 配置](doc/03-mission-configuration.md)
+- [扩展指南](doc/04-extension-guide.md)
+- [参考手册](doc/06-reference.md)
 
-The files `doc/01-getting-started.md` through `doc/07-decisions.md` are
-retained as archived reference from the older plugin-era documentation set.
-They are not the source of truth for the current architecture.
+维护架构时再阅读：
+
+- [当前架构总览](doc/00-current-architecture.md)
+- [维护者架构说明](doc/05-architecture.md)
+- [设计决策](doc/07-decisions.md)
+- [User 工作区说明](user/README.md)
