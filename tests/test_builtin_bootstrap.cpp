@@ -1,6 +1,5 @@
 #include "test_support.hpp"
 
-#include "gnc/bootstrap/install_builtin_services.hpp"
 #include "gnc/core/component_factory.hpp"
 
 #include <algorithm>
@@ -42,12 +41,6 @@ int main() {
                               "Hardcoded CAVH mass primitive should no longer be a builtin type.");
         test_support::require(!factory.hasType("cavh.aero_table"),
                               "Hardcoded CAVH aero primitive should no longer be a builtin type.");
-
-        const auto service_names = gnc::bootstrap::getBuiltinServiceNames();
-        test_support::require(std::find(service_names.begin(),
-                                        service_names.end(),
-                                        "soviet_coord") != service_names.end(),
-                              "Builtin services should advertise soviet_coord.");
 
         std::cout << "builtin bootstrap inventory checks passed\n";
         return 0;

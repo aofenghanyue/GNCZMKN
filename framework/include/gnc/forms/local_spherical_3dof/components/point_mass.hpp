@@ -9,7 +9,6 @@
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
 
 #include <string>
 
@@ -17,7 +16,6 @@ namespace gnc::forms::local_spherical_3dof {
 
 class PointMass final : public gnc::core::ComponentBase,
                         public gnc::interfaces::IContinuousSystem,
-                        public gnc::services::soviet_coord::IVelocityDirectionProvider,
                         public ITruthView,
                         public gnc::interfaces::IObservable {
 public:
@@ -98,7 +96,7 @@ public:
     double getSpeed() const { return state_vector_[speed_index_]; }
     double getAltitude() const { return state_vector_[altitude_index_]; }
 
-    gnc::math::Vector3 getVelocityInLaunchFrame() const override {
+    gnc::math::Vector3 getVelocityInLaunchFrame() const {
         return sampleTruth(getSimTime()).velocity_launch_mps;
     }
 

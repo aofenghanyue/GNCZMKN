@@ -21,7 +21,6 @@
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
-#include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
 #include "gnc/vehicle/process/components/coordinate_probe.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
@@ -148,7 +147,6 @@ inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
 
     factory.registerType<gnc::forms::local_spherical_3dof::PointMass,
                          gnc::interfaces::IContinuousSystem,
-                         gnc::services::soviet_coord::IVelocityDirectionProvider,
                          gnc::forms::local_spherical_3dof::ITruthView,
                          gnc::interfaces::IObservable>(
         "form.local_spherical_3dof.point_mass",

@@ -4,7 +4,7 @@
 
 #include <string>
 
-namespace gnc::services::soviet_coord {
+namespace gnc::services::coordinate_tree {
 
 class ICoordService {
 public:
@@ -22,4 +22,4 @@ public:
                          const std::string& parent_frame) const = 0;
 };
 
-} // namespace gnc::services::soviet_coord
+} // namespace gnc::services::coordinate_tree

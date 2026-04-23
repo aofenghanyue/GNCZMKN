@@ -5,7 +5,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace gnc::services::soviet_coord::internal {
+namespace gnc::services::coordinate_tree::specs::internal {
 
 inline gnc::math::Matrix3 rotationY(double angle_rad) {
     const double c = std::cos(angle_rad);
@@ -88,22 +88,4 @@ inline gnc::math::Matrix3 trackToLaunchRotation(
     return basisToParent(axis_x, axis_y, axis_z);
 }
 
-inline gnc::math::Matrix3 airflowToBodyRotation(
-    const gnc::math::Vector3& airspeed_body_frame) {
-    const double speed = airspeed_body_frame.norm();
-    if (speed < 1e-9) {
-        throw std::runtime_error("Airflow coordinate system requires a non-zero body-frame airspeed.");
-    }
-
-    const gnc::math::Vector3 axis_x = airspeed_body_frame.normalized();
-    gnc::math::Vector3 reference_up(0.0, 1.0, 0.0);
-    gnc::math::Vector3 axis_z = axis_x.cross(reference_up);
-    if (axis_z.norm() < 1e-9) {
-        axis_z = gnc::math::Vector3(0.0, 0.0, 1.0);
-    }
-    axis_z.normalize();
-    const gnc::math::Vector3 axis_y = axis_z.cross(axis_x).normalized();
-    return basisToParent(axis_x, axis_y, axis_z);
-}
-
-} // namespace gnc::services::soviet_coord::internal
+} // namespace gnc::services::coordinate_tree::specs::internal

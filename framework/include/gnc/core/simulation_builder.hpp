@@ -1,13 +1,14 @@
 #pragma once
 
 #include "gnc/core/config_manager.hpp"
-#include "gnc/core/deferred_registry_action.hpp"
 #include "gnc/core/integrators/euler_integrator.hpp"
 #include "gnc/core/integrators/rk4_integrator.hpp"
 #include "gnc/core/mission_assembler.hpp"
 #include "gnc/core/simulator.hpp"
 #include "gnc/core/stop_condition_builder.hpp"
 #include "gnc/core/validation_pipeline.hpp"
+#include "gnc/services/coordinate_tree/internal/coordinate_tree_spec_registry.hpp"
+#include "gnc/services/coordinate_tree/specs/register_builtin_specs.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -16,6 +17,11 @@ namespace gnc::core {
 
 class SimulationBuilder {
 public:
+    SimulationBuilder() {
+        gnc::services::coordinate_tree::specs::registerBuiltinCoordinateTreeSpecs(
+            coordinate_tree_specs_);
+    }
+
     bool loadConfig(const std::string& filename) {
         return config_.loadFromFile(filename);
     }
@@ -34,7 +40,7 @@ public:
             global_services_,
             environment_,
             vehicles_,
-            deferred_service_actions_,
+            coordinate_tree_specs_,
             [this](const std::string& message) { addBuildError(message); },
             [this](const std::string& message) { addBuildWarning(message); });
         assembler.reset();
@@ -48,7 +54,7 @@ public:
 
         assembler.installGlobalServices(config_.globalServices());
         buildMissionArchitecture(assembler);
-        assembler.runDeferredServiceActions();
+        assembler.finalizeServices();
 
         const auto validation = ValidationPipeline::run(
             simulator_.getRegistry(),
@@ -219,7 +225,8 @@ private:
     ServiceContext global_services_;
     EnvironmentInstance environment_;
     std::vector<VehicleInstance> vehicles_;
-    std::vector<DeferredRegistryAction> deferred_service_actions_;
+    gnc::services::coordinate_tree::internal::CoordinateTreeSpecRegistry
+        coordinate_tree_specs_;
     std::vector<std::string> build_errors_;
     std::vector<std::string> build_warnings_;
 };

@@ -8,34 +8,60 @@
 #include <unordered_map>
 #include <vector>
 
-namespace gnc::services::soviet_coord::internal {
+namespace gnc::services::coordinate_tree::internal {
 
 class CoordinateTree {
 public:
     using TimedRotationProvider = std::function<gnc::math::Matrix3(double)>;
 
-    CoordinateTree() { setRoot("I"); }
-
     void setRoot(const std::string& root_frame) {
+        if (root_frame.empty()) {
+            throw std::runtime_error("Coordinate tree root frame cannot be empty.");
+        }
         nodes_.clear();
         edge_index_.clear();
         root_frame_ = root_frame;
         nodes_.emplace(root_frame_, Node{});
     }
 
+    void addFrame(const std::string& frame_id) {
+        if (frame_id.empty()) {
+            throw std::runtime_error("Coordinate tree frame id cannot be empty.");
+        }
+        if (nodes_.count(frame_id) > 0) {
+            throw std::runtime_error("Coordinate tree frame '" + frame_id +
+                                     "' is already registered.");
+        }
+        nodes_.emplace(frame_id, Node{});
+    }
+
     void registerEdge(const std::string& child_frame,
                       const std::string& parent_frame,
                       TimedRotationProvider provider,
                       bool time_invariant) {
+        if (child_frame.empty() || parent_frame.empty()) {
+            throw std::runtime_error("Coordinate tree edge endpoints cannot be empty.");
+        }
         if (child_frame == parent_frame) {
             throw std::runtime_error("Coordinate tree cannot create a self-parent edge.");
         }
-        if (nodes_.count(parent_frame) == 0) {
+
+        const auto parent_it = nodes_.find(parent_frame);
+        if (parent_it == nodes_.end()) {
             throw std::runtime_error("Parent coordinate system '" + parent_frame +
                                      "' is not registered.");
         }
+        const auto child_it = nodes_.find(child_frame);
+        if (child_it == nodes_.end()) {
+            throw std::runtime_error("Child coordinate system '" + child_frame +
+                                     "' is not registered.");
+        }
+        if (!provider) {
+            throw std::runtime_error("Coordinate tree edge '" + child_frame + " -> " +
+                                     parent_frame + "' has no rotation provider.");
+        }
 
-        Node& node = nodes_[child_frame];
+        Node& node = child_it->second;
         if (node.has_parent) {
             throw std::runtime_error("Coordinate system '" + child_frame +
                                      "' already has a parent.");
@@ -49,6 +75,10 @@ public:
         edge_index_[child_frame] = parent_frame;
     }
 
+    bool hasRoot() const {
+        return !root_frame_.empty();
+    }
+
     bool hasFrame(const std::string& frame_id) const {
         return nodes_.count(frame_id) > 0;
     }
@@ -56,6 +86,38 @@ public:
     bool hasEdge(const std::string& child_frame, const std::string& parent_frame) const {
         const auto it = edge_index_.find(child_frame);
         return it != edge_index_.end() && it->second == parent_frame;
+    }
+
+    const std::string& rootFrame() const {
+        return root_frame_;
+    }
+
+    void validateOrThrow() const {
+        if (!hasRoot()) {
+            throw std::runtime_error("Coordinate tree root was not set.");
+        }
+
+        const auto root_it = nodes_.find(root_frame_);
+        if (root_it == nodes_.end()) {
+            throw std::runtime_error("Coordinate tree root '" + root_frame_ +
+                                     "' is not registered.");
+        }
+        if (root_it->second.has_parent) {
+            throw std::runtime_error("Coordinate tree root '" + root_frame_ +
+                                     "' cannot have a parent.");
+        }
+
+        for (const auto& [frame_id, _] : nodes_) {
+            const auto lineage = lineageToRoot(frame_id);
+            if (lineage.empty() || lineage.back() != root_frame_) {
+                const std::string terminal_frame =
+                    lineage.empty() ? std::string("(unknown)") : lineage.back();
+                throw std::runtime_error("Coordinate tree frame '" + frame_id +
+                                         "' does not trace to root '" + root_frame_ +
+                                         "'; it terminates at disconnected frame '" +
+                                         terminal_frame + "'.");
+            }
+        }
     }
 
     gnc::math::Matrix3 getRotation(const std::string& from_frame,
@@ -117,8 +179,15 @@ private:
 
     std::vector<std::string> lineageToRoot(const std::string& frame_id) const {
         std::vector<std::string> lineage;
+        std::unordered_map<std::string, bool> visited;
         std::string current = frame_id;
         while (true) {
+            if (visited.count(current) > 0) {
+                throw std::runtime_error("Coordinate tree contains a cycle involving frame '" +
+                                         current + "'.");
+            }
+            visited.emplace(current, true);
+
             const auto it = nodes_.find(current);
             if (it == nodes_.end()) {
                 throw std::runtime_error("Coordinate system '" + current +
@@ -173,4 +242,4 @@ private:
     std::unordered_map<std::string, std::string> edge_index_;
 };
 
-} // namespace gnc::services::soviet_coord::internal
+} // namespace gnc::services::coordinate_tree::internal

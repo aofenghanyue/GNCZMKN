@@ -17,10 +17,10 @@
   The primary atmospheric local-spherical 3DoF chain:
   `environment + vehicle.process + vehicle.output + form.local_spherical_3dof +
   interaction.local_spherical_3dof.aero_propulsive`.
-- `example_03_soviet_coord`
-  A service-focused local-spherical 3DoF mission that probes the Soviet coordinate
+- `example_03_coordinate_tree`
+  A service-focused local-spherical 3DoF mission that probes the coordinate-tree
   transformation chain.
 
 Only the active project selected in `user/active_project` is auto-registered into
 `gnc_sim`. If you switch from `example_02_atmospheric_3dof` to
-`example_03_soviet_coord`, rebuild the binary before running that mission.
+`example_03_coordinate_tree`, rebuild the binary before running that mission.

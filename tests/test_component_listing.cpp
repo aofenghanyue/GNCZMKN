@@ -39,9 +39,6 @@ int main() {
             containsValue(it->interface_names, "IContinuousSystem"),
             "form.local_spherical_3dof.point_mass should advertise IContinuousSystem.");
         test_support::require(
-            containsValue(it->interface_names, "IVelocityDirectionProvider"),
-            "form.local_spherical_3dof.point_mass should advertise IVelocityDirectionProvider.");
-        test_support::require(
             containsValue(it->interface_names, "ITruthView"),
             "form.local_spherical_3dof.point_mass should advertise ITruthView.");
         test_support::require(

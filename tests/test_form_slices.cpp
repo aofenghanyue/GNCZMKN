@@ -15,7 +15,6 @@
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
-#include "gnc/services/soviet_coord/interfaces/i_velocity_direction_provider.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 #include "gnc/vehicle/output/components/constant_mass.hpp"
 #include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
@@ -310,7 +309,6 @@ int main() {
         dynamics_ptr->configure(makeSphericalConfig());
         registry.add<gnc::forms::local_spherical_3dof::PointMass,
                      gnc::interfaces::IContinuousSystem,
-                     gnc::services::soviet_coord::IVelocityDirectionProvider,
                      gnc::forms::local_spherical_3dof::ITruthView,
                      gnc::interfaces::IObservable>("missile.dynamics", std::move(dynamics));
 

@@ -1,18 +1,21 @@
 #pragma once
 
-#include "gnc/bootstrap/install_builtin_services.hpp"
 #include "gnc/common/string_utils.hpp"
 #include "gnc/core/assembly_descriptor.hpp"
 #include "gnc/core/component_base.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
-#include "gnc/core/deferred_registry_action.hpp"
 #include "gnc/core/service_context.hpp"
 #include "gnc/core/simulator.hpp"
+#include "gnc/services/coordinate_tree/components/coordinate_tree_builder.hpp"
+#include "gnc/services/coordinate_tree/components/coordinate_tree_service.hpp"
+#include "gnc/services/coordinate_tree/internal/coordinate_tree_build_context.hpp"
+#include "gnc/services/coordinate_tree/internal/coordinate_tree_spec_registry.hpp"
 
 #include <algorithm>
 #include <exception>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -39,24 +42,25 @@ public:
                      ServiceContext& global_services,
                      EnvironmentInstance& environment,
                      std::vector<VehicleInstance>& vehicles,
-                     std::vector<DeferredRegistryAction>& deferred_service_actions,
+                     gnc::services::coordinate_tree::internal::CoordinateTreeSpecRegistry&
+                         coordinate_tree_specs,
                      DiagnosticReporter add_error,
                      DiagnosticReporter add_warning)
         : simulator_(simulator),
           global_services_(global_services),
           environment_(environment),
           vehicles_(vehicles),
-          deferred_service_actions_(deferred_service_actions),
+          coordinate_tree_specs_(coordinate_tree_specs),
           add_error_(std::move(add_error)),
           add_warning_(std::move(add_warning)) {}
 
     void reset() {
-        deferred_service_actions_.clear();
         global_services_.clear();
         environment_ = EnvironmentInstance{};
         vehicles_.clear();
         selected_form_family_.clear();
         assembly_descriptors_.clear();
+        pending_coordinate_tree_services_.clear();
     }
 
     void installGlobalServices(const ConfigNode& global_service_config) {
@@ -71,14 +75,43 @@ public:
         buildInteraction(root["interaction"]);
     }
 
-    void runDeferredServiceActions() {
+    void finalizeServices() {
         auto& registry = simulator_.getRegistry();
-        for (const auto& action : deferred_service_actions_) {
+        for (auto& pending : pending_coordinate_tree_services_) {
             try {
-                action(registry);
+                if (!pending.service) {
+                    throw std::runtime_error("coordinate_tree pending service handle is null.");
+                }
+
+                pending.service->beginBuild();
+                const auto* spec = coordinate_tree_specs_.findSpec(pending.spec_id);
+                if (!spec) {
+                    const auto available_specs = coordinate_tree_specs_.listSpecIds();
+                    std::string message =
+                        "Service 'coordinate_tree' in scope '" +
+                        pending.service_scope_name + "' references unknown spec '" +
+                        pending.spec_id + "'.";
+                    if (!available_specs.empty()) {
+                        message += " Available specs: " + joinStrings(available_specs) + ".";
+                    }
+                    const std::string suggestion =
+                        common::findClosestMatch(pending.spec_id, available_specs);
+                    if (!suggestion.empty()) {
+                        message += " Did you mean '" + suggestion + "'?";
+                    }
+                    throw std::runtime_error(message);
+                }
+
+                gnc::services::coordinate_tree::internal::CoordinateTreeBuildContext context(
+                    registry, pending.registry_scope, pending.config);
+                gnc::services::coordinate_tree::CoordinateTreeBuilder builder;
+                spec->build(builder, context);
+                pending.service->loadBuiltTree(builder.seal());
+                warnUnusedServiceConfigKeys(pending.config, "services.coordinate_tree");
             } catch (const std::exception& e) {
-                add_error_("Deferred service installation failed: " +
-                           std::string(e.what()));
+                add_error_("Service 'coordinate_tree' in scope '" +
+                           pending.service_scope_name +
+                           "' failed to finalize: " + e.what());
             }
         }
     }
@@ -92,6 +125,14 @@ public:
     }
 
 private:
+    struct PendingCoordinateTreeService {
+        std::shared_ptr<gnc::services::coordinate_tree::CoordinateTreeService> service;
+        gnc::core::ConfigNode config;
+        std::string spec_id;
+        std::string registry_scope;
+        std::string service_scope_name;
+    };
+
     struct PlacementSpec {
         std::string context;
         std::string placement;
@@ -111,6 +152,27 @@ private:
             result += values[i];
         }
         return result.empty() ? "(none)" : result;
+    }
+
+    static std::vector<std::string> getSupportedServiceNames() {
+        return {"coordinate_tree"};
+    }
+
+    static void collectUnusedConfigKeys(const ConfigNode& node,
+                                        const std::string& path,
+                                        std::vector<std::string>& unused_keys) {
+        if (!node.isObject()) {
+            return;
+        }
+
+        for (const auto& key : node.getUnusedKeys()) {
+            unused_keys.push_back(path.empty() ? key : path + "." + key);
+        }
+
+        for (const auto& [key, child] : node) {
+            const std::string child_path = path.empty() ? key : path + "." + key;
+            collectUnusedConfigKeys(child, child_path, unused_keys);
+        }
     }
 
     static std::string buildUnknownTypeMessage(const std::string& type_name,
@@ -133,8 +195,8 @@ private:
     }
 
     static std::string buildUnknownServiceMessage(const std::string& service_name) {
-        std::string message = "Unknown builtin service '" + service_name + "'.";
-        const auto available = gnc::bootstrap::getBuiltinServiceNames();
+        std::string message = "Unknown service '" + service_name + "'.";
+        const auto available = getSupportedServiceNames();
         if (!available.empty()) {
             message += " Available services: " + joinStrings(available) + ".";
         }
@@ -155,6 +217,16 @@ private:
         component->setTypeNameInternal_(type_name);
         component->setComponentCategoryInternal_(toString(factory.getCategory(type_name)));
         component->setRegistrationOriginInternal_(factory.getRegistrationOrigin(type_name));
+    }
+
+    void warnUnusedServiceConfigKeys(const ConfigNode& config, const std::string& path) const {
+        std::vector<std::string> unused_keys;
+        collectUnusedConfigKeys(config, path, unused_keys);
+        if (unused_keys.empty()) {
+            return;
+        }
+        add_warning_("Service configuration has unrecognized keys: " +
+                     joinStrings(unused_keys) + ".");
     }
 
     void checkUnusedConfigKeys(const std::string& component_name,
@@ -465,23 +537,28 @@ private:
             if (config.has("enabled") && !config["enabled"].asBool(true)) {
                 continue;
             }
-            try {
-                gnc::bootstrap::installBuiltinService(
-                    service_name,
-                    config,
-                    services,
-                    registry_scope,
-                    deferred_service_actions_);
-            } catch (const std::exception& e) {
-                const auto available = gnc::bootstrap::getBuiltinServiceNames();
-                if (std::find(available.begin(), available.end(), service_name) ==
-                    available.end()) {
-                    add_error_(buildUnknownServiceMessage(service_name));
-                    continue;
-                }
-                add_error_("Service '" + service_name + "' in scope '" +
-                           service_scope_name + "' failed to install: " + e.what());
+
+            if (service_name != "coordinate_tree") {
+                add_error_(buildUnknownServiceMessage(service_name));
+                continue;
             }
+            if (service_scope_name != "vehicle") {
+                add_error_("Service 'coordinate_tree' is only supported in scope 'vehicle'.");
+                continue;
+            }
+
+            auto service =
+                std::make_shared<gnc::services::coordinate_tree::CoordinateTreeService>();
+            services.registerService<gnc::services::coordinate_tree::ICoordService>(service);
+
+            PendingCoordinateTreeService pending;
+            pending.service = service;
+            pending.config = config;
+            pending.config.resetAccessTracking();
+            pending.spec_id = pending.config["spec"].asString();
+            pending.registry_scope = registry_scope;
+            pending.service_scope_name = service_scope_name;
+            pending_coordinate_tree_services_.push_back(std::move(pending));
         }
     }
 
@@ -489,11 +566,13 @@ private:
     ServiceContext& global_services_;
     EnvironmentInstance& environment_;
     std::vector<VehicleInstance>& vehicles_;
-    std::vector<DeferredRegistryAction>& deferred_service_actions_;
+    gnc::services::coordinate_tree::internal::CoordinateTreeSpecRegistry&
+        coordinate_tree_specs_;
     DiagnosticReporter add_error_;
     DiagnosticReporter add_warning_;
     std::string selected_form_family_;
     std::vector<AssemblyDescriptor> assembly_descriptors_;
+    std::vector<PendingCoordinateTreeService> pending_coordinate_tree_services_;
 };
 
 } // namespace gnc::core

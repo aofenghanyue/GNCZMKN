@@ -100,6 +100,38 @@ void requireVehicleInputAndOutputBootstrapHooks(const fs::path& root) {
         "Builtin bootstrap should expose a formal vehicle.output registration hook.");
 }
 
+void requireNoLegacyCoordinateServicePath(const fs::path& root) {
+    const std::vector<fs::path> roots = {
+        root / "framework/include/gnc",
+        root / "src",
+        root / "tests",
+    };
+    const std::string self_path = normalizePath(fs::path(__FILE__));
+
+    for (const auto& scan_root : roots) {
+        for (const auto& file : collectFiles(scan_root)) {
+            const std::string normalized_file = normalizePath(file);
+            if (normalized_file == self_path) {
+                continue;
+            }
+
+            const std::string text = readFile(file);
+            test_support::require(
+                text.find("installBuiltinService") == std::string::npos,
+                "Legacy service-installer helper should not remain in runtime/test code: " +
+                    normalized_file);
+            test_support::require(
+                text.find("DeferredRegistryAction") == std::string::npos,
+                "Deferred service action wiring should not remain in runtime/test code: " +
+                    normalized_file);
+            test_support::require(
+                text.find("services/soviet_coord") == std::string::npos,
+                "Legacy soviet_coord service headers should not remain in runtime/test code: " +
+                    normalized_file);
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -111,6 +143,7 @@ int main() {
         requireNoFormInternalLeakage(root);
         requireNoStaticRegistrationFallback(root);
         requireVehicleInputAndOutputBootstrapHooks(root);
+        requireNoLegacyCoordinateServicePath(root);
 
         std::cout << "architecture guard checks passed\n";
         return 0;

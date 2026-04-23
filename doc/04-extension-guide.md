@@ -11,7 +11,7 @@ user/<project>/components/
 Example:
 
 ```text
-user/example_03_soviet_coord/components/
+user/example_03_coordinate_tree/components/
 ```
 
 These headers are collected by CMake into a build-generated explicit
@@ -29,6 +29,24 @@ There is no hidden static-registration fallback anymore.
 
 If the build-generated registration chain does not define
 `GNC_COMPONENT_REGISTRATION_FN`, the macro fails at compile time.
+
+## Coordinate-tree Specs
+
+`services.coordinate_tree.spec` is not a project auto-registration extension
+point. Coordinate-tree specs are builtin service assets compiled into the
+framework-side `coordinate_tree` service.
+
+If you need to add a new coordinate-tree spec, implement it under:
+
+```text
+framework/include/gnc/services/coordinate_tree/specs/
+```
+
+and register it explicitly in:
+
+```text
+framework/include/gnc/services/coordinate_tree/specs/register_builtin_specs.hpp
+```
 
 ## Choosing the Correct Vehicle Block
 

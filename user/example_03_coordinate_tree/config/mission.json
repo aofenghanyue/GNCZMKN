@@ -44,21 +44,22 @@
     },
     "vehicle": {
         "services": {
-            "soviet_coord": {
+            "coordinate_tree": {
+                "spec": "local_spherical_3dof.launch_track",
+                "bindings": {
+                    "earth": {
+                        "name": "env.earth"
+                    },
+                    "truth": {
+                        "name": "dynamics"
+                    }
+                },
                 "launch": {
                     "latitude_rad": 0.5235987755982988,
                     "longitude_rad": 1.9198621771937625,
                     "azimuth_rad": 1.5707963267948966,
                     "launch_time_s": 0.0,
                     "earth_rotation_angle_rad": 0.0
-                },
-                "bindings": {
-                    "earth": {
-                        "name": "env.earth"
-                    },
-                    "velocity_direction": {
-                        "name": "vehicle.dynamics"
-                    }
                 }
             }
         },
@@ -88,7 +89,7 @@
                 "type": "mass.constant",
                 "name": "mass",
                 "config": {
-                    "asset_file": "framework/data/vehicles/cavh/output/mass_soviet_coord_demo.json"
+                    "asset_file": "framework/data/vehicles/cavh/output/mass_coordinate_tree_demo.json"
                 }
             },
             {
@@ -110,7 +111,7 @@
     "outputs": {
         "directory": "user/outputs/{timestamp}",
         "format": "csv",
-        "session_name": "soviet_coord",
+        "session_name": "coordinate_tree",
         "record": {
             "vehicle.probe": "all",
             "vehicle.dynamics": [

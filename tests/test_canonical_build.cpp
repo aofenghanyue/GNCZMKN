@@ -3,6 +3,7 @@
 #include "gnc/core/simulation_builder.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
+#include "gnc/services/coordinate_tree/interfaces/i_coord_service.hpp"
 
 #include <exception>
 #include <iostream>
@@ -50,6 +51,22 @@ int main() {
     ]
   },
   "vehicle": {
+    "services": {
+      "coordinate_tree": {
+        "spec": "local_spherical_3dof.launch_track",
+        "bindings": {
+          "earth": { "name": "env.earth" },
+          "truth": { "name": "dynamics" }
+        },
+        "launch": {
+          "latitude_rad": 0.5235987755982988,
+          "longitude_rad": 1.9198621771937625,
+          "azimuth_rad": 1.5707963267948966,
+          "launch_time_s": 0.0,
+          "earth_rotation_angle_rad": 0.0
+        }
+      }
+    },
     "common": [],
     "input": [],
     "process": [
@@ -60,6 +77,14 @@ int main() {
           "bank_angle_deg": 0.0,
           "schedule_altitude_m": [60000, 45000, 30000, 15000],
           "schedule_angle_of_attack_deg": [20, 12, 10, 8]
+        }
+      },
+      {
+        "type": "vehicle.process.coordinate_probe",
+        "name": "probe",
+        "config": {
+          "from_frame": "L",
+          "to_frame": "K"
         }
       }
     ],
@@ -118,6 +143,14 @@ int main() {
                               "Canonical mission JSON could not be parsed.");
 
         auto& simulator = builder.build();
+        auto* coord_service = builder.getVehicles().empty()
+                                  ? nullptr
+                                  : builder.getVehicles().back().services.get<
+                                        gnc::services::coordinate_tree::ICoordService>();
+        test_support::require(coord_service != nullptr,
+                              "Coordinate-tree service was not installed in vehicle scope.");
+        test_support::require(coord_service->hasFrame("K"),
+                              "Coordinate-tree service did not finalize the launch-track spec.");
         auto* dynamics =
             simulator.getRegistry().get<gnc::forms::local_spherical_3dof::ITruthView>(
                 "vehicle.dynamics");

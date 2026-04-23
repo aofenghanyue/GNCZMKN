@@ -3,7 +3,7 @@
 #include "gnc/core/component_base.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/services/soviet_coord/interfaces/i_coord_service.hpp"
+#include "gnc/services/coordinate_tree/interfaces/i_coord_service.hpp"
 
 namespace gnc::vehicle::process {
 
@@ -13,7 +13,7 @@ public:
     CoordinateProbe() : ComponentBase("CoordinateProbe") {}
 
     void injectServices(gnc::core::ServiceContext& services) override {
-        coord_service_ = services.get<gnc::services::soviet_coord::ICoordService>();
+        coord_service_ = services.get<gnc::services::coordinate_tree::ICoordService>();
     }
 
     void configure(const gnc::core::ConfigNode& config) override {
@@ -37,7 +37,7 @@ public:
     }
 
 private:
-    gnc::services::soviet_coord::ICoordService* coord_service_ = nullptr;
+    gnc::services::coordinate_tree::ICoordService* coord_service_ = nullptr;
     gnc::math::Vector3 transformed_axis_ = gnc::math::Vector3::UnitX();
     std::string from_frame_ = "L";
     std::string to_frame_ = "K";

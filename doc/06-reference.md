@@ -68,22 +68,22 @@
 | `environment.spherical_gravity` | `environment` | `IGravity` |
 | `aero.simple_polynomial` | `aero` | `IAeroModel`, `IObservable` |
 | `state_3dof.point_mass_cartesian` | `state_3dof` | `IContinuousSystem`, `IStateSolver3DOF`, `IObservable` |
-| `state_3dof.point_mass_spherical` | `state_3dof` | `IContinuousSystem`, `IStateSolver3DOF`, `IVelocityDirectionProvider`, `IObservable` |
+| `state_3dof.point_mass_spherical` | `state_3dof` | `IContinuousSystem`, `IStateSolver3DOF`, `ITruthView`, `IObservable` |
 
 项目示例组件：
 
 | type id | 位置 | 作用 |
 | --- | --- | --- |
 | `example.programmed_aoa` | `user/example_02_atmospheric_3dof/components/` | 按高度表输出攻角指令 |
-| `example.coordinate_probe` | `user/example_03_soviet_coord/components/` | 调用坐标服务并输出探针结果 |
+| `example.coordinate_probe` | `user/example_03_coordinate_tree/components/` | 调用坐标树服务并输出探针结果 |
 
 ## 内置服务
 
 | 服务名 | 插件 | 作用 |
 | --- | --- | --- |
-| `soviet_coord` | `soviet_coord` | 安装 `ISovietCoordService`，提供坐标系转换 |
+| `coordinate_tree` | `coordinate_tree` | 安装 `ICoordService`，提供坐标系转换 |
 
-`soviet_coord` 配置字段：
+`coordinate_tree` 配置字段：
 
 | 路径 | 说明 |
 | --- | --- |
@@ -93,9 +93,8 @@
 | `launch.launch_time_s` | 发射时间 |
 | `launch.earth_rotation_angle_rad` | 初始地球自转角 |
 | `bindings.earth.name` | 实现 `IEarth` 的组件 |
-| `bindings.velocity_direction.name` | 可选，速度方向提供者 |
-| `bindings.body_attitude.name` | 可选，体轴姿态提供者 |
-| `bindings.body_airspeed.name` | 可选，体轴空速提供者 |
+| `spec` | 内建坐标树定义，当前支持 `empty` 与 `local_spherical_3dof.launch_track` |
+| `bindings.truth.name` | `ITruthView` 提供者 |
 
 ## 常用组件配置
 
