@@ -21,7 +21,6 @@
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
-#include "gnc/vehicle/process/components/coordinate_probe.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 #include "gnc/vehicle/output/components/constant_mass.hpp"
@@ -80,14 +79,6 @@ inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory)
                          gnc::vehicle::process::IAeroGuidanceProvider,
                          gnc::interfaces::IObservable>(
         "vehicle.process.programmed_aoa",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleProcess,
-        ExecutionStage::VehicleProcess,
-        "local_spherical_3dof");
-    factory.registerType<gnc::vehicle::process::CoordinateProbe,
-                         gnc::interfaces::IObservable>(
-        "vehicle.process.coordinate_probe",
         ComponentCategory::Builtin,
         __FILE__,
         ComponentPackageRole::VehicleProcess,

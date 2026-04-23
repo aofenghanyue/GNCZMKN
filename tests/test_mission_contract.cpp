@@ -216,6 +216,142 @@ int main() {
                               "form/environment/vehicle/interaction"),
             "Legacy mission failure did not direct the user to the new top-level layout.");
 
+        const char* global_service_scope_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "global_services": {
+    "coordinate_tree": {
+      "spec": "empty"
+    }
+  },
+  "form": {
+    "components": [
+      {
+        "type": "form.cartesian_3dof.point_mass",
+        "name": "dynamics",
+        "config": {
+          "initial_position": [0.0, 0.0, 1000.0],
+          "initial_velocity": [250.0, 0.0, 0.0]
+        }
+      }
+    ]
+  },
+  "environment": {},
+  "vehicle": {
+    "common": [],
+    "input": [],
+    "process": [],
+    "output": []
+  },
+  "interaction": {
+    "components": [
+      {
+        "type": "interaction.cartesian_3dof.direct_accel",
+        "name": "interaction",
+        "config": {
+          "acceleration_mps2": [0.0, 0.0, -9.81]
+        }
+      }
+    ]
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder global_service_scope_builder;
+        test_support::require(
+            global_service_scope_builder.loadConfigString(global_service_scope_mission),
+            "Global-service-scope mission JSON could not be parsed.");
+
+        bool global_service_scope_failed = false;
+        try {
+            global_service_scope_builder.build();
+        } catch (const std::exception&) {
+            global_service_scope_failed = true;
+        }
+
+        test_support::require(
+            global_service_scope_failed,
+            "coordinate_tree under global_services should fail in v1.");
+        test_support::require(
+            containsSubstring(global_service_scope_builder.getBuildErrors(),
+                              "only supported in scope 'vehicle'"),
+            "Global coordinate_tree service failure did not report the vehicle-only scope.");
+
+        const char* environment_service_scope_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "form": {
+    "components": [
+      {
+        "type": "form.cartesian_3dof.point_mass",
+        "name": "dynamics",
+        "config": {
+          "initial_position": [0.0, 0.0, 1000.0],
+          "initial_velocity": [250.0, 0.0, 0.0]
+        }
+      }
+    ]
+  },
+  "environment": {
+    "services": {
+      "coordinate_tree": {
+        "spec": "empty"
+      }
+    }
+  },
+  "vehicle": {
+    "common": [],
+    "input": [],
+    "process": [],
+    "output": []
+  },
+  "interaction": {
+    "components": [
+      {
+        "type": "interaction.cartesian_3dof.direct_accel",
+        "name": "interaction",
+        "config": {
+          "acceleration_mps2": [0.0, 0.0, -9.81]
+        }
+      }
+    ]
+  },
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder environment_service_scope_builder;
+        test_support::require(
+            environment_service_scope_builder.loadConfigString(
+                environment_service_scope_mission),
+            "Environment-service-scope mission JSON could not be parsed.");
+
+        bool environment_service_scope_failed = false;
+        try {
+            environment_service_scope_builder.build();
+        } catch (const std::exception&) {
+            environment_service_scope_failed = true;
+        }
+
+        test_support::require(
+            environment_service_scope_failed,
+            "coordinate_tree under environment.services should fail in v1.");
+        test_support::require(
+            containsSubstring(environment_service_scope_builder.getBuildErrors(),
+                              "only supported in scope 'vehicle'"),
+            "Environment coordinate_tree service failure did not report the vehicle-only scope.");
+
         const char* architecture_mission = R"json(
 {
   "simulation": {

@@ -25,7 +25,6 @@ int main() {
             "mass.continuous_constant_rate",
             "mass.constant",
             "vehicle.process.programmed_aoa",
-            "vehicle.process.coordinate_probe",
             "form.cartesian_3dof.point_mass",
             "interaction.cartesian_3dof.direct_accel",
             "form.local_spherical_3dof.point_mass",
@@ -41,6 +40,9 @@ int main() {
                               "Hardcoded CAVH mass primitive should no longer be a builtin type.");
         test_support::require(!factory.hasType("cavh.aero_table"),
                               "Hardcoded CAVH aero primitive should no longer be a builtin type.");
+        test_support::require(
+            !factory.hasType("vehicle.process.coordinate_probe"),
+            "Coordinate probe is a demo utility and should not be a builtin package.");
 
         std::cout << "builtin bootstrap inventory checks passed\n";
         return 0;

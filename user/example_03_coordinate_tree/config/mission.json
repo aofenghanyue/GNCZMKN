@@ -76,7 +76,7 @@
                 }
             },
             {
-                "type": "vehicle.process.coordinate_probe",
+                "type": "example.coordinate_probe",
                 "name": "probe",
                 "config": {
                     "from_frame": "L",

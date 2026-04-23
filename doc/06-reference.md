@@ -1,146 +1,116 @@
-# 参考手册
+# Reference
 
-这篇文档用于查细节，不建议作为第一篇阅读材料。配置写法的解释以 [任务配置](03-mission-configuration.md) 为准，这里只保留速查表。
+This file is a quick reference for the current framework. For the mission
+layout overview, start with [03-mission-configuration.md](03-mission-configuration.md).
 
-## 命令行
+## Command Line
 
-| 命令 | 作用 |
+| Command | Purpose |
 | --- | --- |
-| `gnc_sim.exe` | 运行活动项目默认 mission |
-| `gnc_sim.exe <config.json>` | 运行指定 mission |
-| `gnc_sim.exe --config <config.json>` | 运行指定 mission |
-| `gnc_sim.exe --list-components` | 列出已注册组件 type id |
-| `gnc_sim.exe --list-components-verbose` | 列出 type id、接口列表和注册来源 |
-| `gnc_sim.exe --help` | 打印帮助 |
+| `gnc_sim.exe` | Run the active project's default mission |
+| `gnc_sim.exe <config.json>` | Run the given mission file |
+| `gnc_sim.exe --config <config.json>` | Run the given mission file |
+| `gnc_sim.exe --list-components` | List registered component type ids |
+| `gnc_sim.exe --list-components-verbose` | List type ids, interfaces, and registration origins |
+| `gnc_sim.exe --help` | Print command help |
 
-任务路径可以是绝对路径、当前目录相对路径或仓库相对路径。runner 会从当前目录和可执行文件目录向上搜索。
+Mission paths may be absolute, relative to the current directory, or relative
+to the repository root. The runner searches upward from the working directory
+and executable directory.
 
-## CMake 选项
+## Mission Schema
 
-| 选项 | 默认值 | 说明 |
+Active missions use these top-level blocks:
+
+| Path | Type | Purpose |
 | --- | --- | --- |
-| `BUILD_TESTS` | `OFF` | 是否构建测试 |
-| `GNC_ACTIVE_PROJECT` | 空 | 指定 `user/` 下的活动项目名 |
+| `simulation` | object | Runtime step, duration, integrator |
+| `form` | object | Vehicle state/form components |
+| `environment` | object | Environment services and components |
+| `vehicle` | object | Vehicle services and `common/input/process/output` components |
+| `interaction` | object | Form-aware closure from environment/process/output to form input |
+| `outputs` | object | Automatic logging configuration |
+| `stop_conditions` | array | Top-level stop condition list |
+| `global_services` | object | Global service configuration |
 
-若未显式设置 `GNC_ACTIVE_PROJECT`，CMake 会读取 `user/active_project`。
+`entities[]` and legacy root-level `components` / `services` / `vehicles` are
+not supported by the active runtime.
 
-## Mission 字段
+## Common Mission Fields
 
-| 路径 | 类型 | 说明 |
+| Path | Type | Purpose |
 | --- | --- | --- |
-| `simulation.dt` | number | 固定步长，单位秒 |
-| `simulation.duration` | number | 最大仿真时长，单位秒 |
-| `simulation.integrator` | string | `rk4` 或 `euler` |
-| `simulation.stop_conditions` | array | 停机条件 |
-| `outputs.enabled` | bool | 是否启用自动记录器 |
-| `outputs.directory` | string | 输出目录，支持 `{timestamp}` |
-| `outputs.format` | string | 当前只支持 `csv` |
-| `outputs.session_name` | string | 输出文件名前缀 |
-| `outputs.record` | string / array / object | 稳定字段记录规则 |
-| `outputs.exclude` | array | 排除字段。支持完整字段名和 `*.suffix` |
-| `outputs.debug_snapshots` | bool / object | 调试快照配置。对象写法支持 `components`、`session_name`、`precision`、`flush_every_step` |
-| `global_services` | object | 全局服务 |
-| `entities` | array | 实体列表 |
+| `simulation.dt` | number | Fixed step size in seconds |
+| `simulation.duration` | number | Maximum simulation time in seconds |
+| `simulation.integrator` | string | `rk4` or `euler` |
+| `outputs.enabled` | bool | Enable or disable automatic logging |
+| `outputs.directory` | string | Output directory; supports `{timestamp}` |
+| `outputs.format` | string | Currently `csv` |
+| `outputs.session_name` | string | Output filename prefix |
+| `outputs.record` | string / array / object | Stable field recording rule |
+| `outputs.exclude` | array | Full field names or `*.suffix` patterns to skip |
 
-补充约束：
+## Builtin Components
 
-- 顶层必须使用 `entities[]`
-- 旧式根级 `components` / `services` / `vehicles` 已不支持
-
-## Entity 字段
-
-| 路径 | 类型 | 说明 |
+| Type id | Placement | Main interfaces |
 | --- | --- | --- |
-| `entities[].id` | string | 实体标识 |
-| `entities[].role` | string | `environment` 或 `vehicle`，默认 `vehicle` |
-| `entities[].services` | object | 实体局部服务 |
-| `entities[].components` | array | 实体组件 |
-| `components[].type` | string | 组件 type id |
-| `components[].name` | string | 实体内局部组件名 |
-| `components[].config` | object | 组件配置 |
+| `environment.spherical_earth` | `environment.components` | `IEarth` |
+| `environment.wgs84_earth` | `environment.components` | `IEarth` |
+| `environment.standard_atmosphere` | `environment.components` | `IAtmosphere` |
+| `environment.spherical_gravity` | `environment.components` | `IGravity` |
+| `form.cartesian_3dof.point_mass` | `form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
+| `form.local_spherical_3dof.point_mass` | `form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
+| `form.local_spherical_3dof.flight_state_view` | `form.components` | `IFlightStateView`, `IObservable` |
+| `interaction.cartesian_3dof.direct_accel` | `interaction.components` | cartesian `IInputProvider` |
+| `interaction.local_spherical_3dof.direct_accel` | `interaction.components` | local-spherical `IInputProvider` |
+| `interaction.local_spherical_3dof.aero_propulsive` | `interaction.components` | local-spherical `IInputProvider` |
+| `vehicle.process.programmed_aoa` | `vehicle.process` | `IAeroGuidanceProvider`, `IObservable` |
+| `aero.simple_polynomial` | `vehicle.output` | `IAeroModel`, `IObservable` |
+| `aero.table2d` | `vehicle.output` | `IAeroModel`, `IObservable` |
+| `mass.constant` | `vehicle.output` | `IConstantMass`, `IObservable` |
+| `mass.continuous_constant_rate` | `vehicle.output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
 
-## 内置组件
+Project example components are not builtin API. For example,
+`example.coordinate_probe` lives under `user/example_03_coordinate_tree/components/`.
 
-| type id | 插件 | 主要接口 |
+## Builtin Services
+
+| Service id | Placement | Purpose |
 | --- | --- | --- |
-| `environment.wgs84_earth` | `environment` | `IEarth` |
-| `environment.standard_atmosphere` | `environment` | `IAtmosphere` |
-| `environment.spherical_gravity` | `environment` | `IGravity` |
-| `aero.simple_polynomial` | `aero` | `IAeroModel`, `IObservable` |
-| `state_3dof.point_mass_cartesian` | `state_3dof` | `IContinuousSystem`, `IStateSolver3DOF`, `IObservable` |
-| `state_3dof.point_mass_spherical` | `state_3dof` | `IContinuousSystem`, `IStateSolver3DOF`, `ITruthView`, `IObservable` |
+| `coordinate_tree` | `vehicle.services.coordinate_tree` | Installs `ICoordService` for coordinate-frame transforms |
 
-项目示例组件：
+`coordinate_tree` v1 is vehicle-scoped only. `global_services.coordinate_tree`
+and `environment.services.coordinate_tree` are rejected intentionally.
 
-| type id | 位置 | 作用 |
-| --- | --- | --- |
-| `example.programmed_aoa` | `user/example_02_atmospheric_3dof/components/` | 按高度表输出攻角指令 |
-| `example.coordinate_probe` | `user/example_03_coordinate_tree/components/` | 调用坐标树服务并输出探针结果 |
+Supported coordinate-tree specs:
 
-## 内置服务
-
-| 服务名 | 插件 | 作用 |
-| --- | --- | --- |
-| `coordinate_tree` | `coordinate_tree` | 安装 `ICoordService`，提供坐标系转换 |
-
-`coordinate_tree` 配置字段：
-
-| 路径 | 说明 |
+| Spec id | Purpose |
 | --- | --- |
-| `launch.latitude_rad` | 发射点纬度 |
-| `launch.longitude_rad` | 发射点经度 |
-| `launch.azimuth_rad` | 发射方位角 |
-| `launch.launch_time_s` | 发射时间 |
-| `launch.earth_rotation_angle_rad` | 初始地球自转角 |
-| `bindings.earth.name` | 实现 `IEarth` 的组件 |
-| `spec` | 内建坐标树定义，当前支持 `empty` 与 `local_spherical_3dof.launch_track` |
-| `bindings.truth.name` | `ITruthView` 提供者 |
+| `empty` | Root frame `I`, no extra frames or edges |
+| `local_spherical_3dof.launch_track` | Builds the current local-spherical launch/track frame tree |
 
-## 常用组件配置
+`local_spherical_3dof.launch_track` requires:
 
-`aero.simple_polynomial`
-
-| 字段 | 说明 |
+| Path | Purpose |
 | --- | --- |
-| `lift_offset` | 升力系数常量项 |
-| `lift_slope_per_rad` | 升力系数对攻角的斜率 |
-| `drag_zero` | 零攻角阻力系数 |
-| `drag_quadratic` | 阻力系数二次项 |
-| `reference_area_m2` | 参考面积 |
-| `reference_length_m` | 参考长度 |
+| `spec` | Must be `local_spherical_3dof.launch_track` |
+| `bindings.earth.name` | Component implementing `IEarth` |
+| `bindings.truth.name` | Component implementing local-spherical `ITruthView` |
+| `launch.latitude_rad` | Launch latitude |
+| `launch.longitude_rad` | Launch longitude |
+| `launch.azimuth_rad` | Launch azimuth |
+| `launch.launch_time_s` | Launch time |
+| `launch.earth_rotation_angle_rad` | Initial Earth rotation angle |
 
-`state_3dof.point_mass_spherical`
+Coordinate-tree specs are owned by the coordinate-tree service package. Core
+builders do not register or include concrete coordinate-tree specs.
 
-| 字段 | 说明 |
-| --- | --- |
-| `launch_azimuth_rad` | 发射方位角 |
-| `mass_kg` | 质量 |
-| `reference_radius_m` | 无 `IEarth` 时使用的参考半径 |
-| `initial_state.longitude_rad` | 初始经度 |
-| `initial_state.latitude_rad` | 初始纬度 |
-| `initial_state.altitude_m` | 初始高度 |
-| `initial_state.speed_mps` | 初始速度 |
-| `initial_state.flight_path_angle_rad` | 初始航迹倾角 |
-| `initial_state.heading_angle_rad` | 初始航向角 |
+## Naming Rules
 
-`state_3dof.point_mass_cartesian`
-
-| 字段 | 说明 |
-| --- | --- |
-| `initial_position` | 三元数组，初始位置 |
-| `initial_velocity` | 三元数组，初始速度 |
-| `constant_acceleration` | 三元数组，常加速度 |
-| `mass_kg` | 质量 |
-
-## 命名规则
-
-| 对象 | 规则 | 示例 |
+| Object | Rule | Example |
 | --- | --- | --- |
-| 环境组件完整名 | `env.<component_name>` | `env.atmosphere` |
-| 飞行器组件完整名 | `<entity_id>.<component_name>` | `missile.dynamics` |
-| 同实体依赖 | 可在组件代码里写局部名 | `dynamics` |
-| 跨实体依赖 | 使用完整名 | `env.gravity` |
-| 日志和停机条件 | 使用完整名 | `missile.dynamics.altitude_m` |
-> Archived note: entries in this file include removed plugin-era type ids and
-> service names. Do not use them for new code or mission authoring; use
-> [00-current-architecture.md](00-current-architecture.md) instead.
+| Environment component full name | `env.<component_name>` | `env.atmosphere` |
+| Vehicle component full name | `vehicle.<component_name>` | `vehicle.dynamics` |
+| Same-vehicle dependency lookup | Local name or full name | `dynamics` |
+| Cross-scope dependency lookup | Full name | `env.gravity` |
+| Logs and stop conditions | Full component and field names | `vehicle.dynamics.altitude_m` |

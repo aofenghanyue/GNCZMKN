@@ -42,11 +42,14 @@ If you need to add a new coordinate-tree spec, implement it under:
 framework/include/gnc/services/coordinate_tree/specs/
 ```
 
-and register it explicitly in:
+and register it from the coordinate-tree service package bootstrap:
 
 ```text
-framework/include/gnc/services/coordinate_tree/specs/register_builtin_specs.hpp
+framework/include/gnc/services/coordinate_tree/bootstrap/register_service_package.hpp
 ```
+
+Do not wire coordinate-tree specs from `SimulationBuilder` or other core
+assembly headers.
 
 ## Choosing the Correct Vehicle Block
 

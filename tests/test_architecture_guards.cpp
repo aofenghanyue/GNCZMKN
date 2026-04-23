@@ -132,6 +132,43 @@ void requireNoLegacyCoordinateServicePath(const fs::path& root) {
     }
 }
 
+void requireCoreDoesNotOwnConcreteServiceLogic(const fs::path& root) {
+    const fs::path core_root = root / "framework/include/gnc/core";
+    const std::vector<std::string> forbidden = {
+        "coordinate_tree",
+        "CoordinateTreeService",
+        "CoordinateTreeBuilder",
+        "CoordinateTreeSpecRegistry",
+    };
+
+    for (const auto& file : collectFiles(core_root)) {
+        const std::string text = readFile(file);
+        const std::string normalized_file = normalizePath(file);
+        for (const auto& token : forbidden) {
+            test_support::require(
+                text.find(token) == std::string::npos,
+                "Core service assembly should not depend on concrete service logic ('" +
+                    token + "'): " + normalized_file);
+        }
+    }
+}
+
+void requireCoordinateProbeStaysOutOfBuiltins(const fs::path& root) {
+    const fs::path builtin_bootstrap_path =
+        root / "framework/include/gnc/bootstrap/register_builtin_packages.hpp";
+    const std::string bootstrap_text = readFile(builtin_bootstrap_path);
+
+    test_support::require(
+        bootstrap_text.find("coordinate_probe") == std::string::npos,
+        "Coordinate probe is a demo utility and should not be registered as a builtin.");
+    test_support::require(
+        bootstrap_text.find("CoordinateProbe") == std::string::npos,
+        "CoordinateProbe should not be referenced by builtin package bootstrap.");
+    test_support::require(
+        !fs::exists(root / "framework/include/gnc/vehicle/process/components/coordinate_probe.hpp"),
+        "Demo coordinate_probe component should not exist under framework vehicle.process.");
+}
+
 } // namespace
 
 int main() {
@@ -144,6 +181,8 @@ int main() {
         requireNoStaticRegistrationFallback(root);
         requireVehicleInputAndOutputBootstrapHooks(root);
         requireNoLegacyCoordinateServicePath(root);
+        requireCoreDoesNotOwnConcreteServiceLogic(root);
+        requireCoordinateProbeStaysOutOfBuiltins(root);
 
         std::cout << "architecture guard checks passed\n";
         return 0;

@@ -78,14 +78,6 @@ int main() {
           "schedule_altitude_m": [60000, 45000, 30000, 15000],
           "schedule_angle_of_attack_deg": [20, 12, 10, 8]
         }
-      },
-      {
-        "type": "vehicle.process.coordinate_probe",
-        "name": "probe",
-        "config": {
-          "from_frame": "L",
-          "to_frame": "K"
-        }
       }
     ],
     "output": [
@@ -162,6 +154,10 @@ int main() {
         test_support::require(flight_state != nullptr,
                               "Flight-state observer component is missing.");
         simulator.initialize();
+        const auto transformed_axis = coord_service->transform(
+            gnc::math::Vector3::UnitX(), "K", "L", 0.0);
+        test_support::require(transformed_axis.allFinite(),
+                              "Coordinate-tree K -> L transform returned non-finite values.");
         const double initial_altitude = dynamics->getLocalSpherical3DoFTruth().state.altitude_m;
 
         simulator.run();

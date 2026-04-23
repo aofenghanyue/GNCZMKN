@@ -1,14 +1,14 @@
 #pragma once
 
+#include "gnc/bootstrap/register_builtin_service_packages.hpp"
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/integrators/euler_integrator.hpp"
 #include "gnc/core/integrators/rk4_integrator.hpp"
 #include "gnc/core/mission_assembler.hpp"
+#include "gnc/core/service_package_registry.hpp"
 #include "gnc/core/simulator.hpp"
 #include "gnc/core/stop_condition_builder.hpp"
 #include "gnc/core/validation_pipeline.hpp"
-#include "gnc/services/coordinate_tree/internal/coordinate_tree_spec_registry.hpp"
-#include "gnc/services/coordinate_tree/specs/register_builtin_specs.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -18,8 +18,7 @@ namespace gnc::core {
 class SimulationBuilder {
 public:
     SimulationBuilder() {
-        gnc::services::coordinate_tree::specs::registerBuiltinCoordinateTreeSpecs(
-            coordinate_tree_specs_);
+        gnc::bootstrap::registerBuiltinServicePackages(service_packages_);
     }
 
     bool loadConfig(const std::string& filename) {
@@ -40,7 +39,7 @@ public:
             global_services_,
             environment_,
             vehicles_,
-            coordinate_tree_specs_,
+            service_packages_,
             [this](const std::string& message) { addBuildError(message); },
             [this](const std::string& message) { addBuildWarning(message); });
         assembler.reset();
@@ -225,8 +224,7 @@ private:
     ServiceContext global_services_;
     EnvironmentInstance environment_;
     std::vector<VehicleInstance> vehicles_;
-    gnc::services::coordinate_tree::internal::CoordinateTreeSpecRegistry
-        coordinate_tree_specs_;
+    ServicePackageRegistry service_packages_;
     std::vector<std::string> build_errors_;
     std::vector<std::string> build_warnings_;
 };
