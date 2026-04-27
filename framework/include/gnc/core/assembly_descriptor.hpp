@@ -13,6 +13,8 @@ struct AssemblyDescriptor {
     ComponentPackageRole package_role = ComponentPackageRole::Unknown;
     ExecutionStage execution_stage = ExecutionStage::None;
     std::string form_family;
+    std::string scope_id;
+    std::string selected_form_family;
 };
 
 } // namespace gnc::core

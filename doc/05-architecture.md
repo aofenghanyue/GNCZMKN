@@ -53,11 +53,11 @@ flowchart LR
 | Placement | 前缀 | 示例 |
 | --- | --- | --- |
 | `environment.components` | `env.` | `env.atmosphere` |
-| `form.components` | `vehicle.` | `vehicle.dynamics` |
-| `vehicle.common/input/process/output` | `vehicle.` | `vehicle.guidance` |
-| `interaction.components` | `vehicle.` | `vehicle.interaction` |
+| `vehicles[].form.components` | `<id>.` | `cavh.dynamics` |
+| `vehicles[].common/input/process/output` | `<id>.` | `cavh.guidance` |
+| `vehicles[].interaction.components` | `<id>.` | `cavh.interaction` |
 
-当前 runtime 只有一个 vehicle 实例。form、vehicle 和 interaction 都共享 `vehicle.` 作用域，是为了让飞行器侧组件能通过统一 registry 访问状态、命令、output 和 closure。
+当前 runtime 以 `vehicles[]` 条目作为统一实体作用域。每个条目的 form、vehicle groups 和 interaction 共享 `<id>.` 作用域；单飞行器任务只是 `vehicles[]` 中只有一个条目。
 
 ## Placement 校验
 
@@ -92,7 +92,7 @@ flowchart LR
 
 `MissionAssembler::buildServices()` 只做通用流程：查找 service package、校验作用域、创建服务、收集 finalization task。
 
-当前 `coordinate_tree` 只支持 `vehicle.services.coordinate_tree`。如果未来要支持 global 或 environment scope，应先定义跨 vehicle truth、frame 命名和生命周期，再扩展 service scope，而不是放宽现有校验。
+当前 `coordinate_tree` 只支持 `vehicles[].services.coordinate_tree`。如果未来要支持 global 或 environment scope，应先定义跨 vehicle truth、frame 命名和生命周期，再扩展 service scope，而不是放宽现有校验。
 
 ## 调度模型
 
@@ -119,7 +119,7 @@ flowchart LR
 - `exclude` 精确字段或后缀规则。
 - 可选 `debug_snapshots`。
 
-`StopConditionBuilder` 使用相同的 observable 字段体系。停止条件应引用完整组件名，例如 `vehicle.dynamics`。
+`StopConditionBuilder` 使用相同的 observable 字段体系。停止条件应引用完整组件名，例如 `cavh.dynamics`。
 
 ## 维护原则
 

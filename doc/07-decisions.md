@@ -88,7 +88,7 @@
 当前 `coordinate_tree` 只支持：
 
 ```text
-vehicle.services.coordinate_tree
+vehicles[].services.coordinate_tree
 ```
 
 决策：

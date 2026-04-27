@@ -138,24 +138,22 @@ private:
         if (config_.hasEntities()) {
             addBuildError(
                 "Legacy top-level 'entities[]' missions are no longer supported. "
-                "Migrate the mission to the top-level "
-                "'form/environment/vehicle/interaction' layout.");
+                "Migrate the mission to the canonical top-level 'vehicles[]' layout.");
             return;
         }
 
-        if (root.has("components") || root.has("services") || root.has("vehicles")) {
+        if (root.has("components") || root.has("services") || root.has("form") ||
+            root.has("vehicle") || root.has("interaction")) {
             addBuildError(
-                "Legacy root-level mission format ('components' / 'services' / "
-                "'vehicles') is no longer supported. Migrate the mission to the "
-                "top-level 'form/environment/vehicle/interaction' layout.");
+                "Legacy root-level mission blocks ('components' / 'services' / "
+                "'form' / 'vehicle' / 'interaction') are no longer supported. "
+                "Use the canonical top-level 'vehicles[]' layout.");
             return;
         }
 
         if (!config_.hasModernMissionLayout()) {
             addBuildError(
-                "Mission configuration must define a top-level 'form' object and "
-                "should organize optional packages under "
-                "'environment', 'vehicle', and 'interaction'.");
+                "Mission configuration must define a top-level 'vehicles' array.");
             return;
         }
 

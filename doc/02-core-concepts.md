@@ -17,7 +17,7 @@ GNCZMKN 的文档和代码都围绕几个稳定问题组织：谁拥有状态，
 - `form.local_spherical_3dof.point_mass`
 - `form.local_spherical_3dof.flight_state_view`
 
-Form 组件在 registry 中使用 `vehicle.` 前缀。例如名为 `dynamics` 的 form 组件全名是 `vehicle.dynamics`。
+Form 组件在 registry 中使用 `vehicle.` 前缀。例如名为 `dynamics` 的 form 组件全名是 `cavh.dynamics`。
 
 ## Environment
 
@@ -87,17 +87,17 @@ mission 中每个组件都有两个名字：
 | 名称 | 来源 | 用途 |
 | --- | --- | --- |
 | type id | `type` 字段 | 从 factory 创建组件，例如 `aero.table2d` |
-| local name | `name` 字段 | 形成 registry 全名，例如 `vehicle.aero` |
+| local name | `name` 字段 | 形成 registry 全名，例如 `cavh.aero` |
 
 常见全名规则：
 
 | 放置位置 | local name | 全名 |
 | --- | --- | --- |
 | `environment.components` | `earth` | `env.earth` |
-| `form.components` | `dynamics` | `vehicle.dynamics` |
-| `vehicle.process` | `guidance` | `vehicle.guidance` |
-| `vehicle.output` | `aero` | `vehicle.aero` |
-| `interaction.components` | `interaction` | `vehicle.interaction` |
+| `form.components` | `dynamics` | `cavh.dynamics` |
+| `vehicle.process` | `guidance` | `cavh.guidance` |
+| `vehicle.output` | `aero` | `cavh.aero` |
+| `interaction.components` | `interaction` | `cavh.interaction` |
 
 同一 vehicle 作用域内的依赖通常可以写 local name；跨环境引用应写完整名，例如 `env.earth`。
 

@@ -34,7 +34,7 @@
 
 - `user/example_01_minimal_pluginized/config/mission.json`: 当前最小 Cartesian 3DoF 示例，目录名保留历史痕迹。
 - `user/example_02_atmospheric_3dof/config/mission.json`: 当前推荐的 atmospheric local-spherical 3DoF 主示例。
-- `user/example_03_coordinate_tree/config/mission.json`: `vehicle.services.coordinate_tree` 示例。
+- `user/example_03_coordinate_tree/config/mission.json`: `vehicles[].services.coordinate_tree` 示例。
 
 ## 新增组件
 

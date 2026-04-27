@@ -352,8 +352,7 @@ public:
     bool hasEntities() const { return config_.has("entities"); }
 
     bool hasModernMissionLayout() const {
-        return config_.has("form") || config_.has("environment") ||
-               config_.has("vehicle") || config_.has("interaction");
+        return config_.has("vehicles");
     }
     
     /// 检查是否为多飞行器模式

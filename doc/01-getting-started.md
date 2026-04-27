@@ -97,7 +97,7 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
     "format": "csv",
     "session_name": "cavh_3dof",
     "record": {
-      "vehicle.dynamics": "all"
+      "cavh.dynamics": "all"
     }
   }
 }
@@ -124,6 +124,6 @@ build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mis
 | 提示未知组件类型 | 检查 mission 的 `type` 是否等于注册的 type id |
 | 组件放错块 | 检查 type 的 role 和 stage，`--list-components-verbose` 会列出注册元数据 |
 | 没有生成 CSV | 检查 `outputs.enabled`、`outputs.record`，并确认目标组件实现 `IObservable` |
-| 停止条件找不到字段 | 确认 `component` 使用完整组件名，例如 `vehicle.dynamics` |
+| 停止条件找不到字段 | 确认 `component` 使用完整组件名，例如 `cavh.dynamics` |
 
 下一步建议阅读 [核心概念](02-core-concepts.md)，再阅读 [Mission 配置](03-mission-configuration.md)。

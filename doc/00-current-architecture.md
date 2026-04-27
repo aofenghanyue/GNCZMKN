@@ -28,7 +28,7 @@ stop_conditions
 global_services
 ```
 
-`global_services` 可省略。旧式 `entities[]`、根级 `components`、根级 `services` 和根级 `vehicles` 会被当前 runtime 拒绝。
+`global_services` 可省略。旧式 `entities[]`、根级 `components` 和根级 `services` 会被当前 runtime 拒绝。多飞行器任务使用现代 `vehicles[]` 布局，其中每个条目都有自己的 `id`、`form`、`services`、`common/input/process/output` 和 `interaction`；组件注册到 `<id>.<name>`，例如 `chaser.dynamics` 和 `target.dynamics`。
 
 ## Vehicle 分层
 

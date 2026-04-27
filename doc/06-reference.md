@@ -20,15 +20,13 @@
 | Path | Type | 用途 |
 | --- | --- | --- |
 | `simulation` | object | 步长、时长、积分器 |
-| `form` | object | 状态和 form-local 组件 |
+| `vehicles` | array | Canonical entity list; each item contains `id/form/services/common/input/process/output/interaction` |
 | `environment` | object | 环境组件和环境服务 |
-| `vehicle` | object | vehicle 服务和 `common/input/process/output` 组件 |
-| `interaction` | object | 从 environment/process/output 到 form input 的闭合层 |
 | `outputs` | object | 自动记录配置 |
 | `stop_conditions` | array | 停止条件 |
 | `global_services` | object | 全局服务配置，当前很少使用 |
 
-旧式 `entities[]`、根级 `components`、根级 `services` 和根级 `vehicles` 不支持。
+旧式 `entities[]`、根级 `components` 和根级 `services` 不支持。顶层 `vehicles` 是现代多飞行器布局，不能和顶层 `form`、`vehicle`、`interaction` 混用。
 
 ## 常用 Mission 字段
 
@@ -53,17 +51,17 @@
 | `environment.wgs84_earth` | `environment.components` | `IEarth` |
 | `environment.standard_atmosphere` | `environment.components` | `IAtmosphere` |
 | `environment.spherical_gravity` | `environment.components` | `IGravity` |
-| `form.cartesian_3dof.point_mass` | `form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
-| `form.local_spherical_3dof.point_mass` | `form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
-| `form.local_spherical_3dof.flight_state_view` | `form.components` | `IFlightStateView`, `IObservable` |
-| `interaction.cartesian_3dof.direct_accel` | `interaction.components` | Cartesian `IInputProvider` |
-| `interaction.local_spherical_3dof.direct_accel` | `interaction.components` | local-spherical `IInputProvider` |
-| `interaction.local_spherical_3dof.aero_propulsive` | `interaction.components` | local-spherical `IInputProvider` |
-| `vehicle.process.programmed_aoa` | `vehicle.process` | `IAeroGuidanceProvider`, `IObservable` |
-| `aero.simple_polynomial` | `vehicle.output` | `IAeroModel`, `IObservable` |
-| `aero.table2d` | `vehicle.output` | `IAeroModel`, `IObservable` |
-| `mass.constant` | `vehicle.output` | `IConstantMass`, `IObservable` |
-| `mass.continuous_constant_rate` | `vehicle.output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
+| `form.cartesian_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
+| `form.local_spherical_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
+| `form.local_spherical_3dof.flight_state_view` | `vehicles[].form.components` | `IFlightStateView`, `IObservable` |
+| `interaction.cartesian_3dof.direct_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
+| `interaction.local_spherical_3dof.direct_accel` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
+| `interaction.local_spherical_3dof.aero_propulsive` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
+| `vehicle.process.programmed_aoa` | `vehicles[].process` | `IAeroGuidanceProvider`, `IObservable` |
+| `aero.simple_polynomial` | `vehicles[].output` | `IAeroModel`, `IObservable` |
+| `aero.table2d` | `vehicles[].output` | `IAeroModel`, `IObservable` |
+| `mass.constant` | `vehicles[].output` | `IConstantMass`, `IObservable` |
+| `mass.continuous_constant_rate` | `vehicles[].output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
 
 示例项目组件不是稳定 builtin API。例如 `example.coordinate_probe` 位于 `user/example_03_coordinate_tree/components/`，只有该项目作为 active project 并重新构建后才会自动注册。
 
@@ -86,7 +84,7 @@
 
 | Service id | 支持位置 | 用途 |
 | --- | --- | --- |
-| `coordinate_tree` | `vehicle.services.coordinate_tree` | 安装 `ICoordService`，提供坐标系转换 |
+| `coordinate_tree` | `vehicles[].services.coordinate_tree` | 安装 `ICoordService`，提供坐标系转换 |
 
 当前 `coordinate_tree` v1 只支持 vehicle scope。放在 `global_services.coordinate_tree` 或 `environment.services.coordinate_tree` 会失败。
 
@@ -115,12 +113,14 @@
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
 | 环境组件全名 | `env.<name>` | `env.atmosphere` |
-| Form 组件全名 | `vehicle.<name>` | `vehicle.dynamics` |
-| Vehicle 组件全名 | `vehicle.<name>` | `vehicle.guidance` |
-| Interaction 组件全名 | `vehicle.<name>` | `vehicle.interaction` |
-| 同 vehicle 依赖查询 | local name 或 full name | `dynamics` 或 `vehicle.dynamics` |
+| Form 组件全名 | `<id>.<name>` | `cavh.dynamics` |
+| Vehicle 组件全名 | `<id>.<name>` | `cavh.guidance` |
+| Interaction 组件全名 | `<id>.<name>` | `cavh.interaction` |
+| 同 vehicle 依赖查询 | local name 或 full name | `dynamics` 或 `cavh.dynamics` |
 | 跨环境依赖查询 | full name | `env.gravity` |
-| 输出和停止条件 | full name + field | `vehicle.dynamics.altitude_m` |
+| 输出和停止条件 | full name + field | `cavh.dynamics.altitude_m` |
+
+Every `vehicles[]` item owns one `<id>.` registry scope. The `id` must match `[A-Za-z_][A-Za-z0-9_-]*` and must not be `env`; form-family validation is scoped to that id.
 
 ## 输出记录规则
 
@@ -129,7 +129,7 @@
 ```json
 {
   "record": {
-    "vehicle.dynamics": "all"
+    "cavh.dynamics": "all"
   }
 }
 ```
@@ -139,7 +139,7 @@
 ```json
 {
   "record": {
-    "vehicle.dynamics": ["altitude_m", "speed_mps"]
+    "cavh.dynamics": ["altitude_m", "speed_mps"]
   }
 }
 ```
@@ -149,7 +149,7 @@
 ```json
 {
   "exclude": [
-    "vehicle.dynamics.altitude_m",
+    "cavh.dynamics.altitude_m",
     "*.velocity.z"
   ]
 }

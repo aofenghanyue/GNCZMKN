@@ -10,10 +10,13 @@
 #include "gnc/core/simulator.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <exception>
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -55,6 +58,7 @@ public:
         environment_ = EnvironmentInstance{};
         vehicles_.clear();
         selected_form_family_.clear();
+        selected_form_family_by_scope_.clear();
         assembly_descriptors_.clear();
         service_finalization_tasks_.clear();
     }
@@ -70,10 +74,7 @@ public:
 
     void buildMission(const ConfigNode& root) {
         buildEnvironment(root["environment"]);
-        prepareVehicle(root["vehicle"]);
-        buildForm(root["form"]);
-        buildVehicleGroups(root["vehicle"]);
-        buildInteraction(root["interaction"]);
+        buildVehicles(root["vehicles"]);
     }
 
     void finalizeServices() {
@@ -106,6 +107,7 @@ private:
         std::string name_prefix;
         ComponentPackageRole expected_role = ComponentPackageRole::Unknown;
         ExecutionStage execution_stage = ExecutionStage::None;
+        std::string scope_id;
         ServiceContext* local_services = nullptr;
         std::vector<ComponentBase*>* owner_components = nullptr;
     };
@@ -119,6 +121,27 @@ private:
             result += values[i];
         }
         return result.empty() ? "(none)" : result;
+    }
+
+    static bool isValidVehicleId(const std::string& id) {
+        if (id.empty() || id == "env") {
+            return false;
+        }
+        const auto valid_first = [](unsigned char ch) {
+            return std::isalpha(ch) || ch == '_';
+        };
+        const auto valid_rest = [](unsigned char ch) {
+            return std::isalnum(ch) || ch == '_' || ch == '-';
+        };
+
+        if (!valid_first(static_cast<unsigned char>(id.front()))) {
+            return false;
+        }
+        return std::all_of(id.begin() + 1,
+                           id.end(),
+                           [&](char ch) {
+                               return valid_rest(static_cast<unsigned char>(ch));
+                           });
     }
 
     static std::string buildUnknownTypeMessage(const std::string& type_name,
@@ -203,56 +226,113 @@ private:
         registerComponents(environment_config["components"], placement);
     }
 
-    void prepareVehicle(const ConfigNode& vehicle_config) {
-        vehicles_.clear();
-        vehicles_.push_back(VehicleInstance{});
-        auto& vehicle = vehicles_.back();
-        vehicle.id = "vehicle";
-
-        if (vehicle_config.isNull()) {
+    void buildVehicles(const ConfigNode& vehicles_config) {
+        if (!vehicles_config.isArray()) {
+            add_error_("Top-level 'vehicles' must be an array.");
             return;
         }
-        if (!vehicle_config.isObject()) {
-            add_error_("Top-level 'vehicle' must be an object.");
+        if (vehicles_config.size() == 0) {
+            add_error_("Top-level 'vehicles' must contain at least one vehicle.");
             return;
+        }
+
+        std::unordered_set<std::string> vehicle_ids;
+        for (size_t i = 0; i < vehicles_config.size(); ++i) {
+            const auto& vehicle_config = vehicles_config[i];
+            const std::string context = "vehicles[" + std::to_string(i) + "]";
+
+            if (!vehicle_config.isObject()) {
+                add_error_(context + " must be an object.");
+                continue;
+            }
+
+            const std::string vehicle_id = vehicle_config["id"].asString();
+            if (!isValidVehicleId(vehicle_id)) {
+                add_error_(context +
+                           " must define a valid 'id' matching [A-Za-z_][A-Za-z0-9_-]* "
+                           "and not equal to 'env'.");
+                continue;
+            }
+            if (!vehicle_ids.insert(vehicle_id).second) {
+                add_error_("Duplicate vehicle id '" + vehicle_id + "'.");
+                continue;
+            }
+
+            auto* vehicle = prepareVehicle(vehicle_id, vehicle_config, context);
+            buildForm(*vehicle, vehicle_config["form"], context + ".form");
+            buildVehicleGroups(*vehicle, vehicle_config);
+            buildInteraction(*vehicle,
+                             vehicle_config["interaction"],
+                             context + ".interaction");
+        }
+    }
+
+    VehicleInstance* prepareVehicle(const std::string& vehicle_id,
+                                    const ConfigNode& vehicle_config,
+                                    const std::string& config_path) {
+        vehicles_.push_back(VehicleInstance{});
+        auto& vehicle = vehicles_.back();
+        vehicle.id = vehicle_id;
+
+        if (vehicle_config.isNull()) {
+            return &vehicle;
+        }
+        if (!vehicle_config.isObject()) {
+            add_error_("Vehicle block '" + config_path + "' must be an object.");
+            return &vehicle;
         }
 
         buildServices(vehicle_config["services"],
                       vehicle.services,
                       ServiceScopeInfo{ServiceScopeKind::Vehicle,
-                                       "vehicle",
-                                       "vehicle",
-                                       "vehicle.services"});
+                                       vehicle_id,
+                                       vehicle_id,
+                                       config_path + ".services"});
+        return &vehicle;
     }
 
-    void buildForm(const ConfigNode& form_config) {
+    void buildForm(VehicleInstance& vehicle,
+                   const ConfigNode& form_config,
+                   const std::string& context) {
         if (form_config.isNull()) {
-            add_error_("Mission configuration must define a top-level 'form' object.");
+            add_error_("Mission configuration must define a '" + context + "' object.");
             return;
         }
         if (!form_config.isObject()) {
-            add_error_("Top-level 'form' must be an object.");
+            add_error_("Block '" + context + "' must be an object.");
             return;
         }
 
         const std::string declared_family = form_config["family"].asString();
         if (!declared_family.empty()) {
-            selected_form_family_ = declared_family;
+            auto& selected_family = selected_form_family_by_scope_[vehicle.id];
+            if (!selected_family.empty() && selected_family != declared_family) {
+                add_error_("Form block '" + context +
+                           "' declares form family '" + declared_family +
+                           "' but the selected form family for vehicle '" +
+                           vehicle.id + "' is '" + selected_family + "'.");
+            } else {
+                selected_family = declared_family;
+            }
+            if (selected_form_family_.empty()) {
+                selected_form_family_ = declared_family;
+            }
         }
 
         PlacementSpec placement;
-        placement.context = "form";
+        placement.context = context;
         placement.placement = "form";
-        placement.name_prefix = "vehicle.";
+        placement.name_prefix = vehicle.id + ".";
         placement.expected_role = ComponentPackageRole::Form;
         placement.execution_stage = ExecutionStage::Form;
-        placement.local_services = vehicles_.empty() ? nullptr : &vehicles_.back().services;
-        placement.owner_components =
-            vehicles_.empty() ? nullptr : &vehicles_.back().components;
+        placement.scope_id = vehicle.id;
+        placement.local_services = &vehicle.services;
+        placement.owner_components = &vehicle.components;
         registerComponents(form_config["components"], placement);
     }
 
-    void buildVehicleGroups(const ConfigNode& vehicle_config) {
+    void buildVehicleGroups(VehicleInstance& vehicle,
+                            const ConfigNode& vehicle_config) {
         if (vehicle_config.isNull()) {
             return;
         }
@@ -260,72 +340,84 @@ private:
             return;
         }
 
-        auto* vehicle_services =
-            vehicles_.empty() ? nullptr : &vehicles_.back().services;
-        auto* vehicle_components =
-            vehicles_.empty() ? nullptr : &vehicles_.back().components;
+        auto* vehicle_services = &vehicle.services;
+        auto* vehicle_components = &vehicle.components;
+        const std::string vehicle_prefix = vehicle.id + ".";
 
         registerComponents(
             vehicle_config["common"],
             PlacementSpec{"vehicle.common",
                           "vehicle.common",
-                          "vehicle.",
+                          vehicle_prefix,
                           ComponentPackageRole::VehicleCommon,
                           ExecutionStage::None,
+                          vehicle.id,
                           vehicle_services,
                           vehicle_components});
         registerComponents(
             vehicle_config["input"],
             PlacementSpec{"vehicle.input",
                           "vehicle.input",
-                          "vehicle.",
+                          vehicle_prefix,
                           ComponentPackageRole::VehicleInput,
                           ExecutionStage::VehicleInput,
+                          vehicle.id,
                           vehicle_services,
                           vehicle_components});
         registerComponents(
             vehicle_config["process"],
             PlacementSpec{"vehicle.process",
                           "vehicle.process",
-                          "vehicle.",
+                          vehicle_prefix,
                           ComponentPackageRole::VehicleProcess,
                           ExecutionStage::VehicleProcess,
+                          vehicle.id,
                           vehicle_services,
                           vehicle_components});
         registerComponents(
             vehicle_config["output"],
             PlacementSpec{"vehicle.output",
                           "vehicle.output",
-                          "vehicle.",
+                          vehicle_prefix,
                           ComponentPackageRole::VehicleOutput,
                           ExecutionStage::VehicleOutput,
+                          vehicle.id,
                           vehicle_services,
                           vehicle_components});
     }
 
-    void buildInteraction(const ConfigNode& interaction_config) {
+    void buildInteraction(VehicleInstance& vehicle,
+                          const ConfigNode& interaction_config,
+                          const std::string& context) {
         if (interaction_config.isNull()) {
             return;
         }
         if (!interaction_config.isObject()) {
-            add_error_("Top-level 'interaction' must be an object.");
+            add_error_("Block '" + context + "' must be an object.");
             return;
         }
 
-        auto* vehicle_services =
-            vehicles_.empty() ? nullptr : &vehicles_.back().services;
-        auto* vehicle_components =
-            vehicles_.empty() ? nullptr : &vehicles_.back().components;
+        auto* vehicle_services = &vehicle.services;
+        auto* vehicle_components = &vehicle.components;
 
         registerComponents(
             interaction_config["components"],
-            PlacementSpec{"interaction",
+            PlacementSpec{context,
                           "interaction",
-                          "vehicle.",
+                          vehicle.id + ".",
                           ComponentPackageRole::Interaction,
                           ExecutionStage::Interaction,
+                          vehicle.id,
                           vehicle_services,
                           vehicle_components});
+    }
+
+    std::string selectedFormFamilyForScope(const std::string& scope_id) const {
+        const auto it = selected_form_family_by_scope_.find(scope_id);
+        if (it == selected_form_family_by_scope_.end()) {
+            return "";
+        }
+        return it->second;
     }
 
     void validatePlacement(const std::string& type_name,
@@ -361,24 +453,31 @@ private:
         const std::string type_form_family = factory.getFormFamily(type_name);
         if (placement.placement == "form") {
             if (!type_form_family.empty()) {
-                if (selected_form_family_.empty()) {
-                    selected_form_family_ = type_form_family;
-                } else if (selected_form_family_ != type_form_family) {
+                auto& selected_family =
+                    selected_form_family_by_scope_[placement.scope_id];
+                if (selected_family.empty()) {
+                    selected_family = type_form_family;
+                } else if (selected_family != type_form_family) {
                     add_error_("Form component '" + full_name + "' of type '" + type_name +
                                "' advertises form family '" + type_form_family +
-                               "' but the selected form family is '" +
-                               selected_form_family_ + "'.");
+                               "' but the selected form family for vehicle '" +
+                               placement.scope_id + "' is '" + selected_family + "'.");
+                }
+                if (selected_form_family_.empty()) {
+                    selected_form_family_ = selected_family;
                 }
             }
             return;
         }
 
-        if (!selected_form_family_.empty() && !type_form_family.empty() &&
-            type_form_family != selected_form_family_) {
+        const std::string selected_family =
+            selectedFormFamilyForScope(placement.scope_id);
+        if (!selected_family.empty() && !type_form_family.empty() &&
+            type_form_family != selected_family) {
             add_error_("Component '" + full_name + "' of type '" + type_name +
                        "' targets form family '" + type_form_family +
-                       "' but the selected form family is '" +
-                       selected_form_family_ + "'.");
+                       "' but the selected form family for vehicle '" +
+                       placement.scope_id + "' is '" + selected_family + "'.");
         }
     }
 
@@ -447,7 +546,9 @@ private:
                 placement.placement,
                 factory.getPackageRole(type_name),
                 factory.getExecutionStage(type_name),
-                factory.getFormFamily(type_name)});
+                factory.getFormFamily(type_name),
+                placement.scope_id,
+                selectedFormFamilyForScope(placement.scope_id)});
 
             registry.addDynamic(full_name,
                                 std::move(component),
@@ -509,6 +610,7 @@ private:
     DiagnosticReporter add_error_;
     DiagnosticReporter add_warning_;
     std::string selected_form_family_;
+    std::unordered_map<std::string, std::string> selected_form_family_by_scope_;
     std::vector<AssemblyDescriptor> assembly_descriptors_;
     std::vector<std::unique_ptr<IServiceFinalizationTask>> service_finalization_tasks_;
 };

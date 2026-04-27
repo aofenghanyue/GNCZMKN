@@ -213,8 +213,8 @@ int main() {
             "Legacy mission failure did not explain that entities[] is unsupported.");
         test_support::require(
             containsSubstring(legacy_builder.getBuildErrors(),
-                              "form/environment/vehicle/interaction"),
-            "Legacy mission failure did not direct the user to the new top-level layout.");
+                              "canonical top-level 'vehicles[]' layout"),
+            "Legacy mission failure did not direct the user to the canonical vehicles[] layout.");
 
         const char* global_service_scope_mission = R"json(
 {
@@ -227,36 +227,51 @@ int main() {
       "spec": "empty"
     }
   },
-  "form": {
-    "components": [
-      {
-        "type": "form.cartesian_3dof.point_mass",
-        "name": "dynamics",
-        "config": {
-          "initial_position": [0.0, 0.0, 1000.0],
-          "initial_velocity": [250.0, 0.0, 0.0]
-        }
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "interaction.cartesian_3dof.direct_accel",
-        "name": "interaction",
-        "config": {
-          "acceleration_mps2": [0.0, 0.0, -9.81]
-        }
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [
+                0.0,
+                0.0,
+                1000.0
+              ],
+              "initial_velocity": [
+                250.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [
+                0.0,
+                0.0,
+                -9.81
+              ]
+            }
+          }
+        ]
       }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -289,18 +304,6 @@ int main() {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "form.cartesian_3dof.point_mass",
-        "name": "dynamics",
-        "config": {
-          "initial_position": [0.0, 0.0, 1000.0],
-          "initial_velocity": [250.0, 0.0, 0.0]
-        }
-      }
-    ]
-  },
   "environment": {
     "services": {
       "coordinate_tree": {
@@ -308,23 +311,50 @@ int main() {
       }
     }
   },
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "interaction.cartesian_3dof.direct_accel",
-        "name": "interaction",
-        "config": {
-          "acceleration_mps2": [0.0, 0.0, -9.81]
-        }
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [
+                0.0,
+                0.0,
+                1000.0
+              ],
+              "initial_velocity": [
+                250.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [
+                0.0,
+                0.0,
+                -9.81
+              ]
+            }
+          }
+        ]
       }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -359,36 +389,51 @@ int main() {
     "duration": 0.2,
     "integrator": "rk4"
   },
-  "form": {
-    "components": [
-      {
-        "type": "form.cartesian_3dof.point_mass",
-        "name": "dynamics",
-        "config": {
-          "initial_position": [0.0, 0.0, 1000.0],
-          "initial_velocity": [250.0, 0.0, 0.0]
-        }
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "interaction.cartesian_3dof.direct_accel",
-        "name": "interaction",
-        "config": {
-          "acceleration_mps2": [0.0, 0.0, -9.81]
-        }
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [
+                0.0,
+                0.0,
+                1000.0
+              ],
+              "initial_velocity": [
+                250.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [
+                0.0,
+                0.0,
+                -9.81
+              ]
+            }
+          }
+        ]
       }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -410,37 +455,257 @@ int main() {
                 component_names.end(),
             "Missions should not register bare component names under the new schema.");
 
+        const char* multi_vehicle_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.5,
+    "integrator": "rk4"
+  },
+  "environment": {},
+  "vehicles": [
+    {
+      "id": "chaser",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [0.0, 0.0, 1000.0],
+              "initial_velocity": [250.0, 0.0, 0.0]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [0.0, 0.0, -9.81]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "target",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [1000.0, 0.0, 2000.0],
+              "initial_velocity": [100.0, 0.0, 10.0]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [0.0, 0.0, 0.0]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder multi_vehicle_builder;
+        test_support::require(
+            multi_vehicle_builder.loadConfigString(multi_vehicle_mission),
+            "Multi-vehicle mission JSON could not be parsed.");
+
+        auto& multi_vehicle_simulator = multi_vehicle_builder.build();
+        test_support::require(multi_vehicle_builder.getVehicles().size() == 2,
+                              "Multi-vehicle mission did not create two vehicle scopes.");
+
+        auto* chaser_dynamics =
+            multi_vehicle_simulator.getRegistry().get<gnc::forms::cartesian_3dof::ITruthView>(
+                "chaser.dynamics");
+        auto* target_dynamics =
+            multi_vehicle_simulator.getRegistry().get<gnc::forms::cartesian_3dof::ITruthView>(
+                "target.dynamics");
+        test_support::require(chaser_dynamics != nullptr,
+                              "Multi-vehicle mission did not register chaser.dynamics.");
+        test_support::require(target_dynamics != nullptr,
+                              "Multi-vehicle mission did not register target.dynamics.");
+
+        multi_vehicle_simulator.initialize();
+        const double initial_chaser_altitude =
+            chaser_dynamics->getCartesian3DoFTruth().state.position_m.z();
+        const double initial_target_altitude =
+            target_dynamics->getCartesian3DoFTruth().state.position_m.z();
+
+        multi_vehicle_simulator.run();
+
+        test_support::require(
+            chaser_dynamics->getCartesian3DoFTruth().state.position_m.z() <
+                initial_chaser_altitude,
+            "Chaser dynamics did not integrate with its own acceleration input.");
+        test_support::require(
+            target_dynamics->getCartesian3DoFTruth().state.position_m.z() >
+                initial_target_altitude,
+            "Target dynamics did not integrate independently in its own vehicle scope.");
+
+        const char* heterogeneous_vehicle_forms_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1,
+    "integrator": "rk4"
+  },
+  "environment": {
+    "components": [
+      { "type": "environment.spherical_earth", "name": "earth", "config": {} }
+    ]
+  },
+  "vehicles": [
+    {
+      "id": "cart",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [0.0, 0.0, 1000.0],
+              "initial_velocity": [100.0, 0.0, 0.0]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [0.0, 0.0, -9.81]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "spherical",
+      "form": {
+        "components": [
+          {
+            "type": "form.local_spherical_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_state": {
+                "longitude_rad": 0.0,
+                "latitude_rad": 0.0,
+                "altitude_m": 10000.0,
+                "speed_mps": 500.0,
+                "flight_path_angle_rad": -0.05,
+                "heading_angle_rad": 0.0
+              }
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.local_spherical_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "enabled": false
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder heterogeneous_vehicle_forms_builder;
+        test_support::require(
+            heterogeneous_vehicle_forms_builder.loadConfigString(
+                heterogeneous_vehicle_forms_mission),
+            "Heterogeneous multi-vehicle mission JSON could not be parsed.");
+
+        auto& heterogeneous_vehicle_forms_simulator =
+            heterogeneous_vehicle_forms_builder.build();
+        test_support::require(
+            heterogeneous_vehicle_forms_simulator.getRegistry()
+                .get<gnc::forms::cartesian_3dof::ITruthView>("cart.dynamics") != nullptr,
+            "Multi-vehicle mission rejected a cartesian form in one vehicle scope.");
+        test_support::require(
+            heterogeneous_vehicle_forms_simulator.getRegistry()
+                .get<gnc::forms::local_spherical_3dof::ITruthView>(
+                    "spherical.dynamics") != nullptr,
+            "Multi-vehicle mission rejected a local-spherical form in another vehicle scope.");
+
         const char* project_wrong_block_mission = R"json(
 {
   "simulation": {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "test.form_probe",
-        "name": "dynamics",
-        "config": {}
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-        "process": [
-      {
-        "type": "test_fixture.output_probe",
-        "name": "misplaced_output",
-        "config": {}
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [
+        {
+          "type": "test_fixture.output_probe",
+          "name": "misplaced_output",
+          "config": {}
+        }
+      ],
+      "output": [],
+      "interaction": {
+        "components": []
       }
-    ],
-    "output": []
-  },
-  "interaction": {
-    "components": []
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -474,31 +739,34 @@ int main() {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "test.form_probe",
-        "name": "dynamics",
-        "config": {}
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-        "process": [
-      {
-        "type": "test_fixture.process_wrong_stage_probe",
-        "name": "bad_stage",
-        "config": {}
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [
+        {
+          "type": "test_fixture.process_wrong_stage_probe",
+          "name": "bad_stage",
+          "config": {}
+        }
+      ],
+      "output": [],
+      "interaction": {
+        "components": []
       }
-    ],
-    "output": []
-  },
-  "interaction": {
-    "components": []
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -535,31 +803,34 @@ int main() {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "test.form_probe",
-        "name": "dynamics",
-        "config": {}
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": [
-      {
-        "type": "test_fixture.local_spherical_output_probe",
-        "name": "family_specific_output",
-        "config": {}
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [
+        {
+          "type": "test_fixture.local_spherical_output_probe",
+          "name": "family_specific_output",
+          "config": {}
+        }
+      ],
+      "interaction": {
+        "components": []
       }
-    ]
-  },
-  "interaction": {
-    "components": []
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -597,15 +868,6 @@ int main() {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "test.form_probe",
-        "name": "dynamics",
-        "config": {}
-      }
-    ]
-  },
   "environment": {
     "components": [
       {
@@ -615,45 +877,57 @@ int main() {
       }
     ]
   },
-  "vehicle": {
-    "common": [
-      {
-        "type": "test.common_probe",
-        "name": "common_data",
-        "config": {}
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [
+        {
+          "type": "test.common_probe",
+          "name": "common_data",
+          "config": {}
+        }
+      ],
+      "input": [
+        {
+          "type": "test.input_probe",
+          "name": "sensor",
+          "config": {}
+        }
+      ],
+      "process": [
+        {
+          "type": "test.process_probe",
+          "name": "guidance",
+          "config": {}
+        }
+      ],
+      "output": [
+        {
+          "type": "test.output_probe",
+          "name": "actuator",
+          "config": {}
+        }
+      ],
+      "interaction": {
+        "components": [
+          {
+            "type": "test.interaction_probe",
+            "name": "bridge",
+            "config": {}
+          }
+        ]
       }
-    ],
-    "input": [
-      {
-        "type": "test.input_probe",
-        "name": "sensor",
-        "config": {}
-      }
-    ],
-    "process": [
-      {
-        "type": "test.process_probe",
-        "name": "guidance",
-        "config": {}
-      }
-    ],
-    "output": [
-      {
-        "type": "test.output_probe",
-        "name": "actuator",
-        "config": {}
-      }
-    ]
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "test.interaction_probe",
-        "name": "bridge",
-        "config": {}
-      }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -681,31 +955,34 @@ int main() {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "test.form_probe",
-        "name": "dynamics",
-        "config": {}
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [
-      {
-        "type": "test.common_stage_leak_probe",
-        "name": "common_data",
-        "config": {}
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [
+        {
+          "type": "test.common_stage_leak_probe",
+          "name": "common_data",
+          "config": {}
+        }
+      ],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": []
       }
-    ],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": []
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -738,31 +1015,34 @@ int main() {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "test.form_probe",
-        "name": "dynamics",
-        "config": {}
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "test.interaction_probe_other_family",
-        "name": "bridge",
-        "config": {}
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "test.interaction_probe_other_family",
+            "name": "bridge",
+            "config": {}
+          }
+        ]
       }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -792,36 +1072,51 @@ int main() {
     "dt": 0.1,
     "duration": 0.1
   },
-  "form": {
-    "components": [
-      {
-        "type": "form.cartesian_3dof.point_mass",
-        "name": "dynamics",
-        "config": {
-          "initial_position": [0.0, 0.0, 1000.0],
-          "initial_velocity": [250.0, 0.0, 0.0]
-        }
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "interaction.local_spherical_3dof.direct_accel",
-        "name": "interaction",
-        "config": {
-          "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
-        }
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [
+                0.0,
+                0.0,
+                1000.0
+              ],
+              "initial_velocity": [
+                250.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.local_spherical_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "local_acceleration_nue_mps2": [
+                0.0,
+                -9.80665,
+                0.0
+              ]
+            }
+          }
+        ]
       }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -854,53 +1149,68 @@ int main() {
     "duration": 0.5,
     "integrator": "rk4"
   },
-  "form": {
+  "environment": {
     "components": [
       {
-        "type": "form.local_spherical_3dof.point_mass",
-        "name": "dynamics",
-        "config": {
-          "launch_azimuth_rad": 1.5707963267948966,
-          "initial_state": {
-            "longitude_rad": 1.9198621771937625,
-            "latitude_rad": 0.5235987755982988,
-            "altitude_m": 10000.0,
-            "speed_mps": 500.0,
-            "flight_path_angle_rad": -0.05,
-            "heading_angle_rad": -1.5707963267948966
-          }
-        }
+        "type": "environment.spherical_earth",
+        "name": "earth",
+        "config": {}
       },
       {
-        "type": "form.local_spherical_3dof.flight_state_view",
-        "name": "flight_state",
+        "type": "environment.standard_atmosphere",
+        "name": "atmosphere",
         "config": {}
       }
     ]
   },
-  "environment": {
-    "components": [
-      { "type": "environment.spherical_earth", "name": "earth", "config": {} },
-      { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} }
-    ]
-  },
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "interaction.local_spherical_3dof.direct_accel",
-        "name": "interaction",
-        "config": {
-          "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
-        }
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.local_spherical_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "launch_azimuth_rad": 1.5707963267948966,
+              "initial_state": {
+                "longitude_rad": 1.9198621771937625,
+                "latitude_rad": 0.5235987755982988,
+                "altitude_m": 10000.0,
+                "speed_mps": 500.0,
+                "flight_path_angle_rad": -0.05,
+                "heading_angle_rad": -1.5707963267948966
+              }
+            }
+          },
+          {
+            "type": "form.local_spherical_3dof.flight_state_view",
+            "name": "flight_state",
+            "config": {}
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.local_spherical_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "local_acceleration_nue_mps2": [
+                0.0,
+                -9.80665,
+                0.0
+              ]
+            }
+          }
+        ]
       }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   }
@@ -943,36 +1253,51 @@ int main() {
     "duration": 0.5,
     "integrator": "rk4"
   },
-  "form": {
-    "components": [
-      {
-        "type": "form.cartesian_3dof.point_mass",
-        "name": "dynamics",
-        "config": {
-          "initial_position": [0.0, 0.0, 1000.0],
-          "initial_velocity": [250.0, 0.0, 0.0]
-        }
-      }
-    ]
-  },
   "environment": {},
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {
-    "components": [
-      {
-        "type": "interaction.cartesian_3dof.direct_accel",
-        "name": "interaction",
-        "config": {
-          "acceleration_mps2": [0.0, 0.0, -9.81]
-        }
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [
+                0.0,
+                0.0,
+                1000.0
+              ],
+              "initial_velocity": [
+                250.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [
+                0.0,
+                0.0,
+                -9.81
+              ]
+            }
+          }
+        ]
       }
-    ]
-  },
+    }
+  ],
   "outputs": {
     "enabled": false
   },

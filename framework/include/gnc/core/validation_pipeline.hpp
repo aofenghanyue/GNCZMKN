@@ -151,13 +151,17 @@ private:
                     "' which runs at stage '" + stageLabel(expected_stage) + "'.");
             }
 
-            if (!selected_form_family.empty() && !descriptor.form_family.empty() &&
-                descriptor.form_family != selected_form_family &&
+            const std::string expected_form_family =
+                descriptor.selected_form_family.empty()
+                    ? selected_form_family
+                    : descriptor.selected_form_family;
+            if (!expected_form_family.empty() && !descriptor.form_family.empty() &&
+                descriptor.form_family != expected_form_family &&
                 descriptor.placement != "environment") {
                 result.errors.push_back(
                     "Component '" + descriptor.name + "' of type '" + descriptor.type_name +
                     "' targets form family '" + descriptor.form_family +
-                    "' but the selected form family is '" + selected_form_family + "'.");
+                    "' but the selected form family is '" + expected_form_family + "'.");
             }
         }
 

@@ -4,25 +4,6 @@
         "duration": 5.0,
         "integrator": "rk4"
     },
-    "form": {
-        "components": [
-            {
-                "type": "form.local_spherical_3dof.point_mass",
-                "name": "dynamics",
-                "config": {
-                    "launch_azimuth_rad": 1.5707963267948966,
-                    "initial_state": {
-                        "longitude_rad": 1.9198621771937625,
-                        "latitude_rad": 0.5235987755982988,
-                        "altitude_m": 50000.0,
-                        "speed_mps": 1500.0,
-                        "flight_path_angle_rad": -0.017453292519943295,
-                        "heading_angle_rad": -1.3962634015954636
-                    }
-                }
-            }
-        ]
-    },
     "environment": {
         "components": [
             {
@@ -42,72 +23,100 @@
             }
         ]
     },
-    "vehicle": {
-        "services": {
-            "coordinate_tree": {
-                "spec": "local_spherical_3dof.launch_track",
-                "bindings": {
-                    "earth": {
-                        "name": "env.earth"
+    "vehicles": [
+        {
+            "id": "vehicle",
+            "form": {
+                "components": [
+                    {
+                        "type": "form.local_spherical_3dof.point_mass",
+                        "name": "dynamics",
+                        "config": {
+                            "launch_azimuth_rad": 1.5707963267948966,
+                            "initial_state": {
+                                "longitude_rad": 1.9198621771937625,
+                                "latitude_rad": 0.5235987755982988,
+                                "altitude_m": 50000.0,
+                                "speed_mps": 1500.0,
+                                "flight_path_angle_rad": -0.017453292519943295,
+                                "heading_angle_rad": -1.3962634015954636
+                            }
+                        }
+                    }
+                ]
+            },
+            "services": {
+                "coordinate_tree": {
+                    "spec": "local_spherical_3dof.launch_track",
+                    "bindings": {
+                        "earth": {
+                            "name": "env.earth"
+                        },
+                        "truth": {
+                            "name": "dynamics"
+                        }
                     },
-                    "truth": {
-                        "name": "dynamics"
+                    "launch": {
+                        "latitude_rad": 0.5235987755982988,
+                        "longitude_rad": 1.9198621771937625,
+                        "azimuth_rad": 1.5707963267948966,
+                        "launch_time_s": 0.0,
+                        "earth_rotation_angle_rad": 0.0
+                    }
+                }
+            },
+            "common": [],
+            "input": [],
+            "process": [
+                {
+                    "type": "vehicle.process.programmed_aoa",
+                    "name": "guidance",
+                    "config": {
+                        "bank_angle_deg": 0.0,
+                        "schedule_altitude_m": [
+                            50000,
+                            40000
+                        ],
+                        "schedule_angle_of_attack_deg": [
+                            12,
+                            12
+                        ]
                     }
                 },
-                "launch": {
-                    "latitude_rad": 0.5235987755982988,
-                    "longitude_rad": 1.9198621771937625,
-                    "azimuth_rad": 1.5707963267948966,
-                    "launch_time_s": 0.0,
-                    "earth_rotation_angle_rad": 0.0
+                {
+                    "type": "example.coordinate_probe",
+                    "name": "probe",
+                    "config": {
+                        "from_frame": "L",
+                        "to_frame": "K"
+                    }
                 }
-            }
-        },
-        "common": [],
-        "input": [],
-        "process": [
-            {
-                "type": "vehicle.process.programmed_aoa",
-                "name": "guidance",
-                "config": {
-                    "bank_angle_deg": 0.0,
-                    "schedule_altitude_m": [50000, 40000],
-                    "schedule_angle_of_attack_deg": [12, 12]
+            ],
+            "output": [
+                {
+                    "type": "mass.constant",
+                    "name": "mass",
+                    "config": {
+                        "asset_file": "framework/data/vehicles/cavh/output/mass_coordinate_tree_demo.json"
+                    }
+                },
+                {
+                    "type": "aero.simple_polynomial",
+                    "name": "aero",
+                    "config": {}
                 }
-            },
-            {
-                "type": "example.coordinate_probe",
-                "name": "probe",
-                "config": {
-                    "from_frame": "L",
-                    "to_frame": "K"
-                }
+            ],
+            "interaction": {
+                "components": [
+                    {
+                        "type": "interaction.local_spherical_3dof.aero_propulsive",
+                        "name": "interaction",
+                        "config": {}
+                    }
+                ]
             }
-        ],
-        "output": [
-            {
-                "type": "mass.constant",
-                "name": "mass",
-                "config": {
-                    "asset_file": "framework/data/vehicles/cavh/output/mass_coordinate_tree_demo.json"
-                }
-            },
-            {
-                "type": "aero.simple_polynomial",
-                "name": "aero",
-                "config": {}
-            }
-        ]
-    },
-    "interaction": {
-        "components": [
-            {
-                "type": "interaction.local_spherical_3dof.aero_propulsive",
-                "name": "interaction",
-                "config": {}
-            }
-        ]
-    },
+        }
+    ],
     "outputs": {
         "directory": "user/outputs/{timestamp}",
         "format": "csv",

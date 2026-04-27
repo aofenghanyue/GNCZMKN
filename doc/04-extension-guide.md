@@ -203,7 +203,7 @@ framework/include/gnc/
 当前 `coordinate_tree` 是 vehicle-scoped v1 服务：
 
 ```text
-vehicle.services.coordinate_tree
+vehicles[].services.coordinate_tree
 ```
 
 不要把 coordinate-tree spec 当作项目组件自动注册。当前 specs 由 coordinate-tree 服务包拥有：

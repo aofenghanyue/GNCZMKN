@@ -9,23 +9,79 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 ```json
 {
   "simulation": {},
-  "form": {},
   "environment": {},
-  "vehicle": {
-    "services": {},
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  },
-  "interaction": {},
+  "vehicles": [
+    {
+      "id": "vehicle_id",
+      "form": {},
+      "services": {},
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {}
+    }
+  ],
   "outputs": {},
   "stop_conditions": [],
   "global_services": {}
 }
 ```
 
-`vehicle.services`、`stop_conditions` 和 `global_services` 可按需省略。旧式 `entities[]` 和根级 `components/services/vehicles` 不属于当前 schema。
+`stop_conditions` 和 `global_services` 可按需省略。旧式 `entities[]`、根级 `components/services`，以及根级 `form`、`vehicle`、`interaction` 不属于当前 schema。mission 必须使用顶层 `vehicles` 数组。单飞行器任务就是 `vehicles` 中只有一个条目。
+
+每个 `vehicles[]` 条目代表一个自成一体的广义飞行器实体，可以是飞行器、目标点或其他拥有自身状态和能力边界的对象。该条目的 `form`、`services`、`common/input/process/output` 和 `interaction` 共用同一个作用域，组件全名使用 `<id>.<name>`：
+
+```json
+{
+  "simulation": {},
+  "environment": {},
+  "vehicles": [
+    {
+      "id": "chaser",
+      "form": {
+        "components": [
+          { "type": "form.cartesian_3dof.point_mass", "name": "dynamics", "config": {} }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          { "type": "interaction.cartesian_3dof.direct_accel", "name": "interaction", "config": {} }
+        ]
+      }
+    },
+    {
+      "id": "target",
+      "form": {
+        "components": [
+          { "type": "form.cartesian_3dof.point_mass", "name": "dynamics", "config": {} }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          { "type": "interaction.cartesian_3dof.direct_accel", "name": "interaction", "config": {} }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "record": {
+      "chaser.dynamics": "all",
+      "target.dynamics": "all"
+    }
+  }
+}
+```
+
+`id` 必须是 `[A-Za-z_][A-Za-z0-9_-]*`，且不能是 `env`。同一飞行器内部依赖仍可写 local name，例如 `dynamics` 或 `interaction` 会在该飞行器作用域内解析；跨环境依赖继续写完整名，例如 `env.earth`。form-family 校验按 vehicle 作用域执行，因此不同飞行器可以选择不同 form family。
 
 ## Simulation
 
@@ -55,6 +111,7 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 
 ```json
 {
+  "id": "cavh",
   "form": {
     "components": [
       {
@@ -82,7 +139,7 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 }
 ```
 
-这两个组件的 registry 全名分别是 `vehicle.dynamics` 和 `vehicle.flight_state`。
+这两个组件的 registry 全名分别是 `cavh.dynamics` 和 `cavh.flight_state`。
 
 ## Environment
 
@@ -108,12 +165,11 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 
 ```json
 {
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [],
-    "output": []
-  }
+  "id": "cavh",
+  "common": [],
+  "input": [],
+  "process": [],
+  "output": []
 }
 ```
 
@@ -130,10 +186,10 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 
 ```json
 {
-  "vehicle": {
-    "common": [],
-    "input": [],
-    "process": [
+  "id": "cavh",
+  "common": [],
+  "input": [],
+  "process": [
       {
         "type": "vehicle.process.programmed_aoa",
         "name": "guidance",
@@ -143,8 +199,8 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
           "schedule_angle_of_attack_deg": [20, 12, 10, 8]
         }
       }
-    ],
-    "output": [
+  ],
+  "output": [
       {
         "type": "mass.constant",
         "name": "mass",
@@ -159,8 +215,7 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
           "asset_file": "framework/data/vehicles/cavh/output/aero_table2d.json"
         }
       }
-    ]
-  }
+  ]
 }
 ```
 
@@ -170,6 +225,7 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 
 ```json
 {
+  "id": "cavh",
   "interaction": {
     "components": [
       {
@@ -182,7 +238,7 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 }
 ```
 
-这个组件读取 local-spherical truth、环境能力、`vehicle.guidance` 命令、`vehicle.mass` 和 `vehicle.aero` 等 output 能力，然后写入 form input。
+这个组件读取 local-spherical truth、环境能力、同作用域内的 `guidance` 命令、`mass` 和 `aero` 等 output 能力，然后写入 form input。
 
 ## Outputs
 
@@ -195,11 +251,11 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
     "format": "csv",
     "session_name": "cavh_3dof",
     "record": {
-      "vehicle.dynamics": "all",
-      "vehicle.guidance": "all",
-      "vehicle.aero": "all",
-      "vehicle.mass": "all",
-      "vehicle.flight_state": "all"
+      "cavh.dynamics": "all",
+      "cavh.guidance": "all",
+      "cavh.aero": "all",
+      "cavh.mass": "all",
+      "cavh.flight_state": "all"
     }
   }
 }
@@ -228,7 +284,7 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
   "stop_conditions": [
     {
       "type": "component_field_below",
-      "component": "vehicle.dynamics",
+      "component": "cavh.dynamics",
       "field": "altitude_m",
       "value": 10000.0,
       "description": "Terminate below 10 km altitude"
@@ -241,25 +297,24 @@ mission 是 GNCZMKN 的装配入口。它声明仿真参数、form、环境、�
 
 ## Coordinate Tree 服务
 
-`coordinate_tree` 当前 v1 只支持 `vehicle.services.coordinate_tree`：
+`coordinate_tree` 当前 v1 只支持 `vehicles[].services.coordinate_tree`：
 
 ```json
 {
-  "vehicle": {
-    "services": {
-      "coordinate_tree": {
-        "spec": "local_spherical_3dof.launch_track",
-        "bindings": {
-          "earth": { "name": "env.earth" },
-          "truth": { "name": "dynamics" }
-        },
-        "launch": {
-          "latitude_rad": 0.5235987755982988,
-          "longitude_rad": 1.9198621771937625,
-          "azimuth_rad": 1.5707963267948966,
-          "launch_time_s": 0.0,
-          "earth_rotation_angle_rad": 0.0
-        }
+  "id": "cavh",
+  "services": {
+    "coordinate_tree": {
+      "spec": "local_spherical_3dof.launch_track",
+      "bindings": {
+        "earth": { "name": "env.earth" },
+        "truth": { "name": "dynamics" }
+      },
+      "launch": {
+        "latitude_rad": 0.5235987755982988,
+        "longitude_rad": 1.9198621771937625,
+        "azimuth_rad": 1.5707963267948966,
+        "launch_time_s": 0.0,
+        "earth_rotation_angle_rad": 0.0
       }
     }
   }
