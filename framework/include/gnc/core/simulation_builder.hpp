@@ -2,6 +2,7 @@
 
 #include "gnc/bootstrap/register_builtin_service_packages.hpp"
 #include "gnc/core/config_manager.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/integrators/euler_integrator.hpp"
 #include "gnc/core/integrators/rk4_integrator.hpp"
 #include "gnc/core/mission_assembler.hpp"
@@ -11,7 +12,9 @@
 #include "gnc/core/validation_pipeline.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <sstream>
+#include <unordered_set>
 
 namespace gnc::core {
 
@@ -45,11 +48,20 @@ public:
         assembler.reset();
 
         const auto& simulation = config_.simulation();
+        simulation.resetAccessTracking();
+        ConfigReader simulation_reader(simulation, "simulation");
         SimulatorConfig simulator_config;
-        simulator_config.dt = simulation["dt"].asDouble(0.01);
-        simulator_config.duration = simulation["duration"].asDouble(10.0);
+        std::string integrator_name = "rk4";
+        try {
+            simulator_config.dt = simulation_reader.requiredDouble("dt");
+            simulator_config.duration = simulation_reader.requiredDouble("duration");
+            integrator_name = simulation_reader.optionalString("integrator", "rk4");
+            validateSimulationConfig(simulator_config, simulation_reader);
+        } catch (const std::exception& e) {
+            addBuildError(e.what());
+        }
         simulator_.configure(simulator_config);
-        buildIntegrator();
+        buildIntegrator(integrator_name);
 
         assembler.installGlobalServices(config_.globalServices());
         buildMissionArchitecture(assembler);
@@ -67,12 +79,13 @@ public:
         }
 
         StopConditionBuilder stop_conditions(
-            simulator_, [this](const std::string& message) { addBuildWarning(message); });
+            simulator_, [this](const std::string& message) { addBuildError(message); });
         stop_conditions.build(config_.stopConditions());
 
         if (!simulator_.initializeAutoDataLogger(config_.outputs())) {
             addBuildError("AutoDataLogger initialization failed during simulation build.");
         }
+        warnUnknownOutputsKeys(config_.outputs());
 
         if (!reportBuildDiagnostics()) {
             throw std::runtime_error("Simulation build failed with " +
@@ -160,9 +173,30 @@ private:
         assembler.buildMission(root);
     }
 
-    void buildIntegrator() {
-        const std::string integrator_name =
-            config_.simulation()["integrator"].asString("rk4");
+    void validateSimulationConfig(const SimulatorConfig& config,
+                                  const ConfigReader& reader) {
+        if (config.dt <= 0.0) {
+            addBuildError("simulation.dt must be > 0.");
+        }
+        if (config.duration < 0.0) {
+            addBuildError("simulation.duration must be >= 0.");
+        }
+        if (config.dt > 0.0 && config.duration >= 0.0) {
+            const double steps = config.duration / config.dt;
+            const double rounded_steps = std::round(steps);
+            const double tolerance = 1.0e-9 * std::max(1.0, std::abs(steps));
+            if (std::abs(steps - rounded_steps) > tolerance) {
+                addBuildError("simulation.duration / simulation.dt must be an integer step count.");
+            }
+        }
+        try {
+            reader.validateNoUnknownKeys();
+        } catch (const std::exception& e) {
+            addBuildError(e.what());
+        }
+    }
+
+    void buildIntegrator(const std::string& integrator_name) {
         if (integrator_name == "rk4") {
             simulator_.setIntegrator(std::make_unique<RK4Integrator>());
             return;
@@ -172,9 +206,39 @@ private:
             return;
         }
 
-        addBuildWarning("Unknown integrator '" + integrator_name +
-                        "'. Falling back to RK4.");
+        addBuildError("Unknown integrator '" + integrator_name +
+                      "'. Expected 'rk4' or 'euler'.");
         simulator_.setIntegrator(std::make_unique<RK4Integrator>());
+    }
+
+    void warnUnknownOutputsKeys(const ConfigNode& outputs) {
+        if (outputs.isNull() || !outputs.isObject()) {
+            return;
+        }
+
+        static const std::unordered_set<std::string> kKnownOutputKeys = {
+            "enabled",
+            "directory",
+            "format",
+            "session_name",
+            "precision",
+            "flush_every_step",
+            "record_initial_state",
+            "record",
+            "exclude",
+            "debug_snapshots"};
+
+        std::vector<std::string> unknown;
+        for (const auto& [key, _] : outputs) {
+            if (kKnownOutputKeys.count(key) == 0) {
+                unknown.push_back("outputs." + key);
+            }
+        }
+
+        if (!unknown.empty()) {
+            addBuildWarning("Outputs configuration has unrecognized key(s): " +
+                            joinStrings(unknown) + ".");
+        }
     }
 
     void addBuildError(const std::string& message) {

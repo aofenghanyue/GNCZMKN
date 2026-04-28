@@ -3,6 +3,7 @@
 #include "gnc/common/math/eigen_types.hpp"
 #include "gnc/common/math/interp.hpp"
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
 #include "gnc/vehicle/common/assets/json_asset_loader.hpp"
@@ -25,6 +26,11 @@ public:
           drag_table_({0.0, 1.0}, {0.0, 1.0}, {{0.0, 0.0}, {0.0, 0.0}}) {}
 
     void configure(const gnc::core::ConfigNode& config) override {
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
         const bool using_asset_file =
             gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
         const auto source =
@@ -36,68 +42,35 @@ public:
                       gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
                           .generic_string() +
                       "'"
-                : "aero.table2d inline config";
+                : config_path;
 
-        if (using_asset_file) {
-            reference_area_m2_ =
-                readRequiredNumber(source["reference_area_m2"],
-                                   "reference_area_m2",
-                                   source_description);
-            reference_length_m_ =
-                readRequiredNumber(source["reference_length_m"],
-                                   "reference_length_m",
-                                   source_description);
-            const auto alpha_breaks_rad =
-                readDoubleArray(source["alpha_breaks_rad"],
-                                "alpha_breaks_rad",
-                                source_description);
-            const auto mach_breaks =
-                readDoubleArray(source["mach_breaks"],
-                                "mach_breaks",
-                                source_description);
-            const auto lift_coefficients =
-                readTable(source["lift_coefficients"],
-                          alpha_breaks_rad.size(),
-                          mach_breaks.size(),
-                          "lift_coefficients",
-                          source_description);
-            const auto drag_coefficients =
-                readTable(source["drag_coefficients"],
-                          alpha_breaks_rad.size(),
-                          mach_breaks.size(),
-                          "drag_coefficients",
-                          source_description);
-
-            configureTables(alpha_breaks_rad,
-                            mach_breaks,
-                            lift_coefficients,
-                            drag_coefficients);
-            return;
+        gnc::core::ConfigReader reader(source, source_description);
+        reference_area_m2_ = reader.requiredDouble("reference_area_m2");
+        reference_length_m_ = reader.requiredDouble("reference_length_m");
+        const auto alpha_breaks_rad =
+            reader.requiredDoubleArray("alpha_breaks_rad");
+        const auto mach_breaks = reader.requiredDoubleArray("mach_breaks");
+        if (alpha_breaks_rad.size() < 2) {
+            throw std::runtime_error(source_description +
+                                     ".alpha_breaks_rad must contain at least 2 numbers.");
         }
-
-        reference_area_m2_ = source["reference_area_m2"].asDouble(reference_area_m2_);
-        reference_length_m_ = source["reference_length_m"].asDouble(reference_length_m_);
-
-        if (!source.has("alpha_breaks_rad") &&
-            !source.has("mach_breaks") &&
-            !source.has("lift_coefficients") &&
-            !source.has("drag_coefficients")) {
-            return;
+        if (mach_breaks.size() < 2) {
+            throw std::runtime_error(source_description +
+                                     ".mach_breaks must contain at least 2 numbers.");
         }
-
-        const auto alpha_breaks_rad = readDoubleArray(source["alpha_breaks_rad"],
-                                                      "alpha_breaks_rad");
-        const auto mach_breaks = readDoubleArray(source["mach_breaks"], "mach_breaks");
         const auto lift_coefficients =
             readTable(source["lift_coefficients"],
                       alpha_breaks_rad.size(),
                       mach_breaks.size(),
-                      "lift_coefficients");
+                      "lift_coefficients",
+                      source_description);
         const auto drag_coefficients =
             readTable(source["drag_coefficients"],
                       alpha_breaks_rad.size(),
                       mach_breaks.size(),
-                      "drag_coefficients");
+                      "drag_coefficients",
+                      source_description);
+        reader.validateNoUnknownKeys();
 
         configureTables(alpha_breaks_rad,
                         mach_breaks,
@@ -144,35 +117,6 @@ public:
     }
 
 private:
-    static double readRequiredNumber(const gnc::core::ConfigNode& node,
-                                     const std::string& field_name,
-                                     const std::string& source_description) {
-        if (!node.isNumber()) {
-            throw std::runtime_error(source_description +
-                                     " must define numeric field '" +
-                                     field_name + "'.");
-        }
-        return node.asDouble();
-    }
-
-    static std::vector<double> readDoubleArray(const gnc::core::ConfigNode& node,
-                                               const std::string& field_name,
-                                               const std::string& source_description =
-                                                   "aero.table2d") {
-        if (!node.isArray() || node.size() < 2) {
-            throw std::runtime_error(source_description +
-                                     " requires array field '" + field_name +
-                                     "' with at least 2 entries.");
-        }
-
-        std::vector<double> values;
-        values.reserve(node.size());
-        for (size_t i = 0; i < node.size(); ++i) {
-            values.push_back(node[i].asDouble());
-        }
-        return values;
-    }
-
     static std::vector<std::vector<double>> readTable(const gnc::core::ConfigNode& node,
                                                       size_t expected_rows,
                                                       size_t expected_columns,
@@ -199,6 +143,13 @@ private:
             std::vector<double> values;
             values.reserve(expected_columns);
             for (size_t column = 0; column < row_node.size(); ++column) {
+                if (!row_node[column].isNumber()) {
+                    throw std::runtime_error(source_description + " field '" +
+                                             field_name + "' row " +
+                                             std::to_string(row) + " column " +
+                                             std::to_string(column) +
+                                             " must be a number.");
+                }
                 values.push_back(row_node[column].asDouble());
             }
             table.push_back(std::move(values));

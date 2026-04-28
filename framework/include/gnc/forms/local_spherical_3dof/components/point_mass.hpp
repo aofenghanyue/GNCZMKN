@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/state_layout.hpp"
 #include "gnc/environment/interfaces/i_earth.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
@@ -31,20 +32,35 @@ public:
     }
 
     void configure(const gnc::core::ConfigNode& config) override {
-        const auto& initial_state = config["initial_state"];
-        initial_state_vector_[longitude_index_] = initial_state["longitude_rad"].asDouble(0.0);
-        initial_state_vector_[latitude_index_] = initial_state["latitude_rad"].asDouble(0.0);
-        initial_state_vector_[altitude_index_] = initial_state["altitude_m"].asDouble(30000.0);
-        initial_state_vector_[speed_index_] = initial_state["speed_mps"].asDouble(3500.0);
-        initial_state_vector_[flight_path_index_] =
-            initial_state["flight_path_angle_rad"].asDouble(-0.05);
-        initial_state_vector_[heading_index_] =
-            initial_state["heading_angle_rad"].asDouble(0.0);
+        configure(config, "config");
+    }
 
-        earth_lookup_name_ = config["earth_lookup_name"].asString(earth_lookup_name_);
-        input_lookup_name_ = config["input_lookup_name"].asString(input_lookup_name_);
-        launch_azimuth_rad_ = config["launch_azimuth_rad"].asDouble(launch_azimuth_rad_);
-        reference_radius_m_ = config["reference_radius_m"].asDouble(reference_radius_m_);
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader reader(config, config_path);
+        const auto initial_state = reader.requiredObject("initial_state");
+        initial_state_vector_[longitude_index_] =
+            initial_state.requiredDouble("longitude_rad");
+        initial_state_vector_[latitude_index_] =
+            initial_state.requiredDouble("latitude_rad");
+        initial_state_vector_[altitude_index_] =
+            initial_state.requiredDouble("altitude_m");
+        initial_state_vector_[speed_index_] =
+            initial_state.requiredDouble("speed_mps");
+        initial_state_vector_[flight_path_index_] =
+            initial_state.requiredDouble("flight_path_angle_rad");
+        initial_state_vector_[heading_index_] =
+            initial_state.requiredDouble("heading_angle_rad");
+        initial_state.validateNoUnknownKeys();
+
+        earth_lookup_name_ = reader.optionalString("earth_lookup_name",
+                                                   earth_lookup_name_);
+        input_lookup_name_ = reader.optionalString("input_lookup_name",
+                                                   input_lookup_name_);
+        launch_azimuth_rad_ = reader.requiredDouble("launch_azimuth_rad");
+        reference_radius_m_ = reader.optionalDouble("reference_radius_m",
+                                                   reference_radius_m_);
+        reader.validateNoUnknownKeys();
         state_vector_ = initial_state_vector_;
     }
 
@@ -53,9 +69,11 @@ public:
         input_provider_ = registry.requireByName<IInputProvider>(input_lookup_name_);
     }
 
-    void initialize() override { refreshTruth(getSimTime()); }
+    void initialize() override { publish(getSimTime()); }
 
-    void update(double dt) override { refreshTruth(getSimTime() + dt); }
+    void publish(double time) override { refreshTruth(time); }
+
+    void update(double) override {}
 
     const gnc::core::StateLayout& getStateLayout() const override { return layout_; }
 

@@ -1,59 +1,39 @@
 # 参考手册
 
-这篇文档用于快速查命令、mission 字段、builtin type id、服务和命名规则。概念解释请看 [核心概念](02-core-concepts.md)，配置示例请看 [Mission 配置](03-mission-configuration.md)。
+## Mission 顶层字段
 
-## 命令行
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `simulation` | object | 必填；固定步长、时长、积分器 |
+| `environment` | object | 可省略或为空；环境组件和服务 |
+| `vehicles` | array | 必填；每项包含 `id/form/services/common/input/process/output/interaction` |
+| `outputs` | object | 可省略；CSV 输出配置 |
+| `stop_conditions` | array | 可省略；发布态停止条件 |
 
-| 命令 | 用途 |
+旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 不支持。
+
+## Simulation 字段
+
+| 字段 | 规则 |
 | --- | --- |
-| `gnc_sim.exe` | 运行 active project 的默认 mission |
-| `gnc_sim.exe <config.json>` | 运行指定 mission |
-| `gnc_sim.exe --config <config.json>` | 运行指定 mission |
-| `gnc_sim.exe --list-components` | 列出注册组件 type id |
-| `gnc_sim.exe --list-components-verbose` | 列出 type id、接口、role、stage、form family 和注册来源 |
-| `gnc_sim.exe --help` | 打印命令帮助 |
+| `dt` | 必填 number，`> 0` |
+| `duration` | 必填 number，`>= 0` |
+| `integrator` | string，`rk4` 或 `euler`，默认 `rk4` |
 
-路径可以是绝对路径、当前目录相对路径或仓库根相对路径。runner 会从当前工作目录和可执行文件目录向上搜索。
+`duration / dt` 必须是整数步数。
 
-## Mission 顶层块
+## Component Entry 字段
 
-| Path | Type | 用途 |
+每个组件条目支持 `type`、`name`、可选 `priority` 和 `config`。
+`priority` 是整数式 number。同一 runtime stage 或 publish phase 内，较小 priority 先执行；priority 相同保持 JSON 顺序。小数 priority 会作为 build error。默认 publish phase 顺序仍是 state owner、view / observer、普通组件。
+
+## Builtin 组件
+
+| Type id | Mission 位置 | 主要接口 |
 | --- | --- | --- |
-| `simulation` | object | 步长、时长、积分器 |
-| `vehicles` | array | Canonical entity list; each item contains `id/form/services/common/input/process/output/interaction` |
-| `environment` | object | 环境组件和环境服务 |
-| `outputs` | object | 自动记录配置 |
-| `stop_conditions` | array | 停止条件 |
-| `global_services` | object | 全局服务配置，当前很少使用 |
-
-旧式 `entities[]`、根级 `components` 和根级 `services` 不支持。顶层 `vehicles` 是现代多飞行器布局，不能和顶层 `form`、`vehicle`、`interaction` 混用。
-
-## 常用 Mission 字段
-
-| Path | Type | 用途 |
-| --- | --- | --- |
-| `simulation.dt` | number | 固定步长，单位秒 |
-| `simulation.duration` | number | 最大仿真时长，单位秒 |
-| `simulation.integrator` | string | `rk4` 或 `euler` |
-| `outputs.enabled` | bool | 是否启用自动记录 |
-| `outputs.directory` | string | 输出目录，支持 `{timestamp}` |
-| `outputs.format` | string | 当前使用 `csv` |
-| `outputs.session_name` | string | 输出文件名前缀 |
-| `outputs.record` | string/array/object | stable observable 字段记录规则 |
-| `outputs.exclude` | array | 完整字段名或 `*.suffix` 排除规则 |
-| `outputs.debug_snapshots` | bool/object | debug snapshot 记录规则 |
-
-## Builtin Components
-
-| Type id | 放置位置 | 主要接口 |
-| --- | --- | --- |
-| `environment.spherical_earth` | `environment.components` | `IEarth` |
-| `environment.wgs84_earth` | `environment.components` | `IEarth` |
-| `environment.standard_atmosphere` | `environment.components` | `IAtmosphere` |
-| `environment.spherical_gravity` | `environment.components` | `IGravity` |
-| `form.cartesian_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
-| `form.local_spherical_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, `ITruthView`, `IObservable` |
-| `form.local_spherical_3dof.flight_state_view` | `vehicles[].form.components` | `IFlightStateView`, `IObservable` |
+| `form.cartesian_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, Cartesian `ITruthView`, `IObservable` |
+| `form.local_spherical_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, local-spherical `ITruthView`, `IObservable` |
+| `form.local_spherical_3dof.flight_state_view` | `vehicles[].form.components` | truth/form `IFlightStateView`, `IObservable` |
 | `interaction.cartesian_3dof.direct_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
 | `interaction.local_spherical_3dof.direct_accel` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
 | `interaction.local_spherical_3dof.aero_propulsive` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
@@ -63,113 +43,63 @@
 | `mass.constant` | `vehicles[].output` | `IConstantMass`, `IObservable` |
 | `mass.continuous_constant_rate` | `vehicles[].output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
 
-示例项目组件不是稳定 builtin API。例如 `example.coordinate_probe` 位于 `user/example_03_coordinate_tree/components/`，只有该项目作为 active project 并重新构建后才会自动注册。
+## 常用配置字段
 
-## Role 和 Stage 标签
+`form.cartesian_3dof.point_mass`:
 
-`--list-components-verbose` 中常见标签：
-
-| 标签 | 含义 |
+| 字段 | 规则 |
 | --- | --- |
-| `environment` | 环境组件和环境 stage |
-| `form` | form 组件和 form stage |
-| `vehicle_common` | vehicle common，非调度 |
-| `vehicle_input` | vehicle input stage |
-| `vehicle_process` | vehicle process stage |
-| `vehicle_output` | vehicle output stage |
-| `interaction` | interaction stage |
-| `none` | 不参与 stage 调度 |
+| `initial_position` | 必填，3 个 number |
+| `initial_velocity` | 必填，3 个 number |
+| `input_lookup_name` | 可选，默认 `interaction` |
 
-## Builtin Services
+`form.local_spherical_3dof.point_mass`:
 
-| Service id | 支持位置 | 用途 |
+| 字段 | 规则 |
+| --- | --- |
+| `launch_azimuth_rad` | 必填 number |
+| `initial_state.longitude_rad` | 必填 number |
+| `initial_state.latitude_rad` | 必填 number |
+| `initial_state.altitude_m` | 必填 number |
+| `initial_state.speed_mps` | 必填 number |
+| `initial_state.flight_path_angle_rad` | 必填 number |
+| `initial_state.heading_angle_rad` | 必填 number |
+| `earth_lookup_name` | 可选，默认 `env.earth` |
+| `input_lookup_name` | 可选，默认 `interaction` |
+
+`mass.constant` 要求 `mass_kg`，可来自 inline config 或 JSON asset。
+
+`aero.table2d` 要求 `reference_area_m2`、`reference_length_m`、`alpha_breaks_rad`、`mach_breaks`、`lift_coefficients`、`drag_coefficients`。
+
+## Outputs
+
+| 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `coordinate_tree` | `vehicles[].services.coordinate_tree` | 安装 `ICoordService`，提供坐标系转换 |
+| `enabled` | `true` | `false` 时关闭自动记录 |
+| `directory` | `user/outputs` | 支持 `{timestamp}` |
+| `format` | `csv` | 当前仅支持 CSV |
+| `session_name` | `simulation_data` | 输出文件名前缀 |
+| `record_initial_state` | `true` | 是否记录 t0 发布态 |
+| `record` | `all` | 记录规则 |
+| `exclude` | `[]` | 排除完整字段或 `*.suffix` |
+| `debug_snapshots` | disabled | 调试快照 |
 
-当前 `coordinate_tree` v1 只支持 vehicle scope。放在 `global_services.coordinate_tree` 或 `environment.services.coordinate_tree` 会失败。
+CSV `time` 列表示发布态物理时间。
 
-## Coordinate-tree Specs
+CSV 行在 `update(t_k)` 之后写出：form/dynamics/truth view 字段是周期开始发布态 `x_k` 及其真实派生量；input/process/guidance/output 字段是 record 时刻组件暴露的本周期离散输出。`t0` 行包含初始状态 `x_0` 和基于 `x_0` 计算出的第一周期离散输出。框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。`outputs` 顶层未知字段只产生 build warning，不作为 build error。
+## Stop Conditions
 
-| Spec id | 用途 |
+支持：
+
+- `component_field_below`
+- `component_field_above`
+
+字段：
+
+| 字段 | 规则 |
 | --- | --- |
-| `empty` | 只创建 root frame `I` |
-| `local_spherical_3dof.launch_track` | 构建当前 local-spherical launch/track frame tree |
-
-`local_spherical_3dof.launch_track` 常用字段：
-
-| Path | 用途 |
-| --- | --- |
-| `spec` | 必须是 `local_spherical_3dof.launch_track` |
-| `bindings.earth.name` | 实现 `IEarth` 的组件名，通常是 `env.earth` |
-| `bindings.truth.name` | local-spherical `ITruthView` 组件名，vehicle scope 内可写 `dynamics` |
-| `launch.latitude_rad` | 发射纬度 |
-| `launch.longitude_rad` | 发射经度 |
-| `launch.azimuth_rad` | 发射方位角 |
-| `launch.launch_time_s` | 发射时间 |
-| `launch.earth_rotation_angle_rad` | 初始地球自转角 |
-
-## 命名规则
-
-| 对象 | 规则 | 示例 |
-| --- | --- | --- |
-| 环境组件全名 | `env.<name>` | `env.atmosphere` |
-| Form 组件全名 | `<id>.<name>` | `cavh.dynamics` |
-| Vehicle 组件全名 | `<id>.<name>` | `cavh.guidance` |
-| Interaction 组件全名 | `<id>.<name>` | `cavh.interaction` |
-| 同 vehicle 依赖查询 | local name 或 full name | `dynamics` 或 `cavh.dynamics` |
-| 跨环境依赖查询 | full name | `env.gravity` |
-| 输出和停止条件 | full name + field | `cavh.dynamics.altitude_m` |
-
-Every `vehicles[]` item owns one `<id>.` registry scope. The `id` must match `[A-Za-z_][A-Za-z0-9_-]*` and must not be `env`; form-family validation is scoped to that id.
-
-## 输出记录规则
-
-记录一个组件全部字段：
-
-```json
-{
-  "record": {
-    "cavh.dynamics": "all"
-  }
-}
-```
-
-记录字段列表：
-
-```json
-{
-  "record": {
-    "cavh.dynamics": ["altitude_m", "speed_mps"]
-  }
-}
-```
-
-排除字段：
-
-```json
-{
-  "exclude": [
-    "cavh.dynamics.altitude_m",
-    "*.velocity.z"
-  ]
-}
-```
-
-关闭输出：
-
-```json
-{
-  "outputs": {
-    "enabled": false
-  }
-}
-```
-
-## 示例 Mission
-
-| 路径 | 用途 |
-| --- | --- |
-| `user/config/missions/default.json` | repository fallback mission |
-| `user/example_01_minimal_pluginized/config/mission.json` | 最小 Cartesian 3DoF 示例，目录名保留历史痕迹 |
-| `user/example_02_atmospheric_3dof/config/mission.json` | 推荐 atmospheric local-spherical 3DoF 示例 |
-| `user/example_03_coordinate_tree/config/mission.json` | coordinate-tree 服务示例 |
+| `type` | 必填 string |
+| `component` | 必填完整组件名 |
+| `field` | 必填 observable/state 字段 |
+| `value` | 必填 number |
+| `description` | 可选 string |

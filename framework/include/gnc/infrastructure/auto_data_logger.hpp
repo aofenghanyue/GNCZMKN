@@ -42,6 +42,7 @@ public:
         debug_snapshot_components_.clear();
         debug_snapshot_path_.clear();
         debug_snapshots_enabled_ = false;
+        record_initial_state_ = true;
         if (debug_snapshot_file_.is_open()) {
             debug_snapshot_file_.close();
         }
@@ -65,6 +66,7 @@ public:
         const std::string session_name = config["session_name"].asString("simulation_data");
         const int precision = config["precision"].asInt(12);
         const bool flush_every_step = config["flush_every_step"].asBool(false);
+        record_initial_state_ = config["record_initial_state"].asBool(true);
 
         RecordRule rule = parseRecordRule(config);
         std::vector<std::string> excludes = parseExcludeList(config);
@@ -161,6 +163,10 @@ public:
 
     bool isDebugSnapshotsEnabled() const {
         return debug_snapshots_enabled_;
+    }
+
+    bool shouldRecordInitialState() const {
+        return record_initial_state_;
     }
 
     const std::string& getDebugSnapshotPath() const {
@@ -540,6 +546,7 @@ private:
     int debug_snapshot_precision_ = 12;
     bool debug_snapshot_flush_every_step_ = false;
     bool debug_snapshots_enabled_ = false;
+    bool record_initial_state_ = true;
     std::string output_dir_;
     bool enabled_ = false;
 };

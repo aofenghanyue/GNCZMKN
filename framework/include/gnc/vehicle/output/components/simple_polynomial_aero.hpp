@@ -1,12 +1,14 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
 #include "gnc/vehicle/common/assets/json_asset_loader.hpp"
 #include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
 
 #include <cmath>
+#include <string>
 
 namespace gnc::vehicle::output {
 
@@ -17,21 +19,32 @@ public:
     SimplePolynomialAero() : ComponentBase("SimplePolynomialAero") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
         const auto source =
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(
                 config,
                 "aero.simple_polynomial");
-        if (source.isNull()) {
-            return;
-        }
-        lift_offset_ = source["lift_offset"].asDouble(lift_offset_);
-        lift_slope_per_rad_ =
-            source["lift_slope_per_rad"].asDouble(lift_slope_per_rad_);
-        drag_zero_ = source["drag_zero"].asDouble(drag_zero_);
-        drag_quadratic_ = source["drag_quadratic"].asDouble(drag_quadratic_);
-        reference_area_m2_ = source["reference_area_m2"].asDouble(reference_area_m2_);
-        reference_length_m_ =
-            source["reference_length_m"].asDouble(reference_length_m_);
+        const bool using_asset_file =
+            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
+        const std::string source_path =
+            using_asset_file
+                ? "aero.simple_polynomial asset '" +
+                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
+                          .generic_string() +
+                      "'"
+                : config_path;
+        gnc::core::ConfigReader reader(source, source_path);
+        lift_offset_ = reader.requiredDouble("lift_offset");
+        lift_slope_per_rad_ = reader.requiredDouble("lift_slope_per_rad");
+        drag_zero_ = reader.requiredDouble("drag_zero");
+        drag_quadratic_ = reader.requiredDouble("drag_quadratic");
+        reference_area_m2_ = reader.requiredDouble("reference_area_m2");
+        reference_length_m_ = reader.requiredDouble("reference_length_m");
+        reader.validateNoUnknownKeys();
     }
 
     void update(double) override {}

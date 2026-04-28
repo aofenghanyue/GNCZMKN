@@ -2,6 +2,7 @@
 
 #include "gnc/common/math/eigen_types.hpp"
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
@@ -9,6 +10,7 @@
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 
 #include <algorithm>
+#include <string>
 #include <vector>
 
 namespace gnc::vehicle::process {
@@ -23,15 +25,27 @@ public:
     }
 
     void configure(const gnc::core::ConfigNode& config) override {
-        bank_angle_deg_ = config["bank_angle_deg"].asDouble(bank_angle_deg_);
-        readSchedule(config["schedule_altitude_m"], schedule_altitude_m_);
-        readSchedule(config["schedule_angle_of_attack_deg"], schedule_alpha_deg_);
+        configure(config, "config");
+    }
 
-        if (schedule_altitude_m_.empty() ||
-            schedule_altitude_m_.size() != schedule_alpha_deg_.size()) {
-            schedule_altitude_m_ = {60000.0, 45000.0, 30000.0, 15000.0};
-            schedule_alpha_deg_ = {20.0, 12.0, 10.0, 8.0};
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader reader(config, config_path);
+        bank_angle_deg_ = reader.requiredDouble("bank_angle_deg");
+        schedule_altitude_m_ = reader.requiredDoubleArray("schedule_altitude_m");
+        schedule_alpha_deg_ =
+            reader.requiredDoubleArray("schedule_angle_of_attack_deg");
+
+        if (schedule_altitude_m_.empty()) {
+            throw std::runtime_error(config_path +
+                                     ".schedule_altitude_m must contain at least 1 number.");
         }
+        if (schedule_altitude_m_.size() != schedule_alpha_deg_.size()) {
+            throw std::runtime_error(
+                config_path +
+                ".schedule_altitude_m and .schedule_angle_of_attack_deg must have the same length.");
+        }
+        reader.validateNoUnknownKeys();
     }
 
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
@@ -64,17 +78,6 @@ public:
     }
 
 private:
-    static void readSchedule(const gnc::core::ConfigNode& node,
-                             std::vector<double>& output) {
-        output.clear();
-        if (!node.isArray()) {
-            return;
-        }
-        for (size_t i = 0; i < node.size(); ++i) {
-            output.push_back(node[i].asDouble());
-        }
-    }
-
     double interpolateAngleOfAttackDeg(double altitude_m) const {
         if (schedule_altitude_m_.size() == 1) {
             return schedule_alpha_deg_.front();

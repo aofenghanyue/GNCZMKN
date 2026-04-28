@@ -15,11 +15,13 @@
 #include "gnc/interfaces/i_integrator.hpp"
 #include "gnc/common/logger.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace gnc::core {
@@ -167,33 +169,48 @@ public:
         LOG_INFO("Starting simulation: dt={}, duration={}", config_.dt, config_.duration);
         phase_manager_.transitionTo(ExecutionPhaseManager::Phase::Running);
 
-        const int total_steps = static_cast<int>(config_.duration / config_.dt);
+        if (config_.dt <= 0.0 || config_.duration < 0.0) {
+            throw std::runtime_error(
+                "Simulator requires dt > 0 and duration >= 0 before run().");
+        }
+
+        const int total_steps =
+            static_cast<int>(std::llround(config_.duration / config_.dt));
         int executed_steps = 0;
         termination_reason_ = "completed";
         const auto wall_start = std::chrono::steady_clock::now();
 
-        for (int step = 0; step < total_steps; ++step) {
+        for (int step = 0; step <= total_steps; ++step) {
+            current_time_ = step * config_.dt;
+            publishCurrentState(step, current_time_);
+
             for (auto& callback : before_step_callbacks_) {
                 callback(step, current_time_, config_.dt);
             }
 
-            this->step(step);
-            auto_logger_.recordStep(current_time_);
+            executeDiscreteStages(step);
+
+            if (step > 0 || auto_logger_.shouldRecordInitialState()) {
+                auto_logger_.recordStep(current_time_);
+            }
+
+            if (checkTerminationConditions(step, current_time_)) {
+                executed_steps = step;
+                goto simulation_end;
+            }
+
+            if (step == total_steps) {
+                executed_steps = step;
+                break;
+            }
+
+            integrateContinuousSystems(step);
+            executed_steps = step + 1;
+            current_time_ = executed_steps * config_.dt;
+            setComponentTimes(current_time_, executed_steps);
 
             for (auto& callback : after_step_callbacks_) {
                 callback(step, current_time_, config_.dt);
-            }
-
-            current_time_ += config_.dt;
-            executed_steps = step + 1;
-
-            for (const auto& condition : termination_conditions_) {
-                if (condition.condition(step, current_time_)) {
-                    termination_reason_ = condition.name;
-                    LOG_INFO("Simulation terminated early by condition '{}' at t={} s, step={}",
-                             condition.name, current_time_, step);
-                    goto simulation_end;
-                }
             }
         }
 
@@ -223,9 +240,8 @@ simulation_end:
     
     /// 单步执行
     void step(int step_index) {
-        for (const auto stage : orderedStages()) {
-            executeStage(stage, step_index);
-        }
+        executeDiscreteStages(step_index);
+        integrateContinuousSystems(step_index);
     }
     
     /// 终结仿真
@@ -281,7 +297,7 @@ private:
             return;
         }
 
-        for (auto* component : stage_buckets_[static_cast<size_t>(index)]) {
+        for (auto* component : orderedComponentsInBucket(static_cast<size_t>(index))) {
             executeComponent(component, step_index);
         }
     }
@@ -294,27 +310,143 @@ private:
         }
 
         auto* continuous_system = dynamic_cast<interfaces::IContinuousSystem*>(component);
-        if (continuous_system && integrator_) {
-            Eigen::VectorXd x = continuous_system->getState();
-            integrator_->step(
-                [continuous_system](double t,
-                                    const Eigen::VectorXd& state,
-                                    Eigen::VectorXd& dxdt) {
-                    continuous_system->computeDerivatives(t, state, dxdt);
-                },
-                current_time_,
-                x,
-                config_.dt);
-            continuous_system->setState(x);
-            component->update(config_.dt);
+        if (continuous_system) {
             return;
         }
 
         component->update(config_.dt);
     }
 
+    void executeDiscreteStages(int step_index) {
+        for (const auto stage : orderedStages()) {
+            executeStage(stage, step_index);
+        }
+    }
+
+    void integrateContinuousSystems(int step_index) {
+        if (!integrator_) {
+            return;
+        }
+
+        struct PendingState {
+            interfaces::IContinuousSystem* system = nullptr;
+            Eigen::VectorXd state;
+        };
+
+        std::vector<PendingState> pending_states;
+
+        for (const auto stage : orderedStages()) {
+            const auto index = stageBucketIndex(stage);
+            if (index < 0) {
+                continue;
+            }
+
+            for (auto* component : orderedComponentsInBucket(static_cast<size_t>(index))) {
+                if (!component) {
+                    continue;
+                }
+                component->setSimTimeInternal_(current_time_, step_index);
+                if (!component->shouldExecute(step_index)) {
+                    continue;
+                }
+
+                auto* continuous_system =
+                    dynamic_cast<interfaces::IContinuousSystem*>(component);
+                if (!continuous_system) {
+                    continue;
+                }
+
+                Eigen::VectorXd next_state = continuous_system->getState();
+                integrator_->step(
+                    [continuous_system](double t,
+                                        const Eigen::VectorXd& state,
+                                        Eigen::VectorXd& dxdt) {
+                        continuous_system->computeDerivatives(t, state, dxdt);
+                    },
+                    current_time_,
+                    next_state,
+                    config_.dt);
+                pending_states.push_back({continuous_system, std::move(next_state)});
+            }
+        }
+
+        for (auto& pending : pending_states) {
+            pending.system->setState(pending.state);
+        }
+    }
+
+    void setComponentTimes(double time, int step_index) {
+        for (auto* component : registry_.getAllComponents()) {
+            if (component) {
+                component->setSimTimeInternal_(time, step_index);
+            }
+        }
+    }
+
+    void publishCurrentState(int step_index, double time) {
+        setComponentTimes(time, step_index);
+
+        auto components = registry_.getAllComponents();
+        std::stable_sort(components.begin(),
+                         components.end(),
+                         [this](const ComponentBase* lhs,
+                                const ComponentBase* rhs) {
+                             const int lhs_phase = publishPhaseRank(publishPhaseFor(lhs));
+                             const int rhs_phase = publishPhaseRank(publishPhaseFor(rhs));
+                             if (lhs_phase != rhs_phase) {
+                                 return lhs_phase < rhs_phase;
+                             }
+                             return lhs->getPriority() < rhs->getPriority();
+                         });
+
+        for (auto* component : components) {
+            if (component) {
+                component->publish(time);
+            }
+        }
+    }
+
+    std::vector<ComponentBase*> orderedComponentsInBucket(size_t index) const {
+        auto components = stage_buckets_[index];
+        std::stable_sort(components.begin(),
+                         components.end(),
+                         [](const ComponentBase* lhs, const ComponentBase* rhs) {
+                             return lhs->getPriority() < rhs->getPriority();
+                         });
+        return components;
+    }
+
+    PublishPhase publishPhaseFor(const ComponentBase* component) const {
+        if (!component) {
+            return PublishPhase::Ordinary;
+        }
+        if (dynamic_cast<const interfaces::IContinuousSystem*>(component)) {
+            return PublishPhase::StateOwner;
+        }
+        return component->getPublishPhase();
+    }
+
+    static int publishPhaseRank(PublishPhase phase) {
+        return static_cast<int>(phase);
+    }
+
+    bool checkTerminationConditions(int step_index, double time) {
+        for (const auto& condition : termination_conditions_) {
+            if (condition.condition(step_index, time)) {
+                termination_reason_ = condition.name;
+                LOG_INFO("Simulation terminated early by condition '{}' at t={} s, step={}",
+                         condition.name, time, step_index);
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// 根据频率计算各组件的步长间隔
     void computeStepIntervals() {
+        if (config_.dt <= 0.0) {
+            return;
+        }
         double sim_freq = 1.0 / config_.dt;
         
         for (auto* component : registry_.getAllComponents()) {

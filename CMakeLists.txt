@@ -248,6 +248,8 @@ if(BUILD_TESTS)
     add_gnc_test(test_component_listing tests/test_component_listing.cpp)
     add_gnc_test(test_architecture_guards tests/test_architecture_guards.cpp)
     add_gnc_test(test_auto_data_logger tests/test_auto_data_logger.cpp)
+    add_gnc_test(test_publish_semantics tests/test_publish_semantics.cpp)
+    add_gnc_test(test_strict_config tests/test_strict_config.cpp)
 
     list(LENGTH TEST_PROJECT_COMPONENT_FILES TEST_PROJECT_COMPONENT_COUNT)
     message(STATUS

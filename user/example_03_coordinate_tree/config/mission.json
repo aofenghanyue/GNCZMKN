@@ -103,7 +103,14 @@
                 {
                     "type": "aero.simple_polynomial",
                     "name": "aero",
-                    "config": {}
+                    "config": {
+                        "lift_offset": 0.0,
+                        "lift_slope_per_rad": 1.6,
+                        "drag_zero": 0.08,
+                        "drag_quadratic": 1.25,
+                        "reference_area_m2": 0.48,
+                        "reference_length_m": 2.5
+                    }
                 }
             ],
             "interaction": {

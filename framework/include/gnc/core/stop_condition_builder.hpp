@@ -2,6 +2,7 @@
 
 #include "gnc/common/string_utils.hpp"
 #include "gnc/core/config_manager.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/simulator.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
@@ -18,15 +19,15 @@ class StopConditionBuilder {
 public:
     using DiagnosticReporter = std::function<void(const std::string&)>;
 
-    StopConditionBuilder(Simulator& simulator, DiagnosticReporter add_warning)
-        : simulator_(simulator), add_warning_(std::move(add_warning)) {}
+    StopConditionBuilder(Simulator& simulator, DiagnosticReporter add_error)
+        : simulator_(simulator), add_error_(std::move(add_error)) {}
 
     bool build(const ConfigNode& conditions) {
         if (conditions.isNull()) {
             return true;
         }
         if (!conditions.isArray()) {
-            add_warning_("stop_conditions must be an array.");
+            add_error_("stop_conditions must be an array.");
             return false;
         }
 
@@ -35,17 +36,27 @@ public:
 
         for (size_t i = 0; i < conditions.size(); ++i) {
             const auto& condition = conditions[i];
-            const std::string type = condition["type"].asString();
-            const std::string component_name = condition["component"].asString();
-            const std::string field_name = condition["field"].asString();
-            const double threshold = condition["value"].asDouble(0.0);
-            const std::string description = condition["description"].asString(
-                type + "(" + component_name + "." + field_name + ", " +
-                std::to_string(threshold) + ")");
+            const std::string path = "stop_conditions[" + std::to_string(i) + "]";
+            condition.resetAccessTracking();
 
-            if (type.empty() || component_name.empty() || field_name.empty()) {
-                add_warning_("Stop condition at index " + std::to_string(i) +
-                             " is missing required fields.");
+            std::string type;
+            std::string component_name;
+            std::string field_name;
+            double threshold = 0.0;
+            std::string description;
+            try {
+                ConfigReader reader(condition, path);
+                type = reader.requiredString("type");
+                component_name = reader.requiredString("component");
+                field_name = reader.requiredString("field");
+                threshold = reader.requiredDouble("value");
+                description = reader.optionalString(
+                    "description",
+                    type + "(" + component_name + "." + field_name + ", " +
+                        std::to_string(threshold) + ")");
+                reader.validateNoUnknownKeys();
+            } catch (const std::exception& e) {
+                add_error_(e.what());
                 success = false;
                 continue;
             }
@@ -59,7 +70,7 @@ public:
                 if (!suggestion.empty()) {
                     message += " Did you mean '" + suggestion + "'?";
                 }
-                add_warning_(message);
+                add_error_(message);
                 success = false;
                 continue;
             }
@@ -118,7 +129,7 @@ public:
                 if (!suggestion.empty()) {
                     message += " Did you mean '" + suggestion + "'?";
                 }
-                add_warning_(message);
+                add_error_(message);
                 success = false;
                 continue;
             }
@@ -132,7 +143,7 @@ public:
                     description,
                     [getter, threshold](int, double) { return getter() > threshold; });
             } else {
-                add_warning_("Unknown stop condition type '" + type + "'.");
+                add_error_("Unknown stop condition type '" + type + "'.");
                 success = false;
             }
         }
@@ -171,7 +182,7 @@ private:
     }
 
     Simulator& simulator_;
-    DiagnosticReporter add_warning_;
+    DiagnosticReporter add_error_;
 };
 
 } // namespace gnc::core

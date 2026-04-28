@@ -11,8 +11,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -190,13 +192,20 @@ private:
 
     void checkUnusedConfigKeys(const std::string& component_name,
                                const std::string& type_name,
-                               const ConfigNode& config) const {
+                               const ConfigNode& config,
+                               bool strict) const {
         auto unused = config.getUnusedKeys();
         if (unused.empty()) {
             return;
         }
-        add_warning_("Component '" + component_name + "' (type: " + type_name +
-                     ") has unrecognized config keys: " + joinStrings(unused) + ".");
+        const std::string message =
+            "Component '" + component_name + "' (type: " + type_name +
+            ") has unrecognized config keys: " + joinStrings(unused) + ".";
+        if (strict) {
+            add_error_(message);
+        } else {
+            add_warning_(message);
+        }
     }
 
     void buildEnvironment(const ConfigNode& environment_config) {
@@ -217,7 +226,7 @@ private:
                                        "environment.services"});
 
         PlacementSpec placement;
-        placement.context = "environment";
+        placement.context = "environment.components";
         placement.placement = "environment";
         placement.name_prefix = "env.";
         placement.expected_role = ComponentPackageRole::Environment;
@@ -260,7 +269,7 @@ private:
 
             auto* vehicle = prepareVehicle(vehicle_id, vehicle_config, context);
             buildForm(*vehicle, vehicle_config["form"], context + ".form");
-            buildVehicleGroups(*vehicle, vehicle_config);
+            buildVehicleGroups(*vehicle, vehicle_config, context);
             buildInteraction(*vehicle,
                              vehicle_config["interaction"],
                              context + ".interaction");
@@ -320,7 +329,7 @@ private:
         }
 
         PlacementSpec placement;
-        placement.context = context;
+        placement.context = context + ".components";
         placement.placement = "form";
         placement.name_prefix = vehicle.id + ".";
         placement.expected_role = ComponentPackageRole::Form;
@@ -332,7 +341,8 @@ private:
     }
 
     void buildVehicleGroups(VehicleInstance& vehicle,
-                            const ConfigNode& vehicle_config) {
+                            const ConfigNode& vehicle_config,
+                            const std::string& context) {
         if (vehicle_config.isNull()) {
             return;
         }
@@ -346,7 +356,7 @@ private:
 
         registerComponents(
             vehicle_config["common"],
-            PlacementSpec{"vehicle.common",
+            PlacementSpec{context + ".common",
                           "vehicle.common",
                           vehicle_prefix,
                           ComponentPackageRole::VehicleCommon,
@@ -356,7 +366,7 @@ private:
                           vehicle_components});
         registerComponents(
             vehicle_config["input"],
-            PlacementSpec{"vehicle.input",
+            PlacementSpec{context + ".input",
                           "vehicle.input",
                           vehicle_prefix,
                           ComponentPackageRole::VehicleInput,
@@ -366,7 +376,7 @@ private:
                           vehicle_components});
         registerComponents(
             vehicle_config["process"],
-            PlacementSpec{"vehicle.process",
+            PlacementSpec{context + ".process",
                           "vehicle.process",
                           vehicle_prefix,
                           ComponentPackageRole::VehicleProcess,
@@ -376,7 +386,7 @@ private:
                           vehicle_components});
         registerComponents(
             vehicle_config["output"],
-            PlacementSpec{"vehicle.output",
+            PlacementSpec{context + ".output",
                           "vehicle.output",
                           vehicle_prefix,
                           ComponentPackageRole::VehicleOutput,
@@ -402,7 +412,7 @@ private:
 
         registerComponents(
             interaction_config["components"],
-            PlacementSpec{context,
+            PlacementSpec{context + ".components",
                           "interaction",
                           vehicle.id + ".",
                           ComponentPackageRole::Interaction,
@@ -451,6 +461,13 @@ private:
         }
 
         const std::string type_form_family = factory.getFormFamily(type_name);
+        if (placement.placement == "interaction" && type_form_family.empty()) {
+            add_error_("Interaction component '" + full_name + "' of type '" +
+                       type_name +
+                       "' must declare a non-empty form family because interaction "
+                       "is a form-specific closure that produces form input.");
+        }
+
         if (placement.placement == "form") {
             if (!type_form_family.empty()) {
                 auto& selected_family =
@@ -499,6 +516,9 @@ private:
             const std::string type_name = component_config["type"].asString();
             const std::string base_name = component_config["name"].asString();
             const std::string full_name = placement.name_prefix + base_name;
+            const std::string component_path =
+                placement.context + "[" + std::to_string(i) + "]";
+            const std::string config_path = component_path + ".config";
 
             if (type_name.empty() || base_name.empty()) {
                 add_error_("Component at index " + std::to_string(i) +
@@ -524,15 +544,51 @@ private:
             auto* component_ptr = component.get();
             annotateComponentMetadata(component_ptr, type_name, factory);
 
+            int priority = 0;
+            const auto& priority_node = component_config["priority"];
+            if (!priority_node.isNull()) {
+                if (!priority_node.isNumber()) {
+                    add_error_(component_path + ".priority must be an integer number.");
+                    continue;
+                }
+                const double raw_priority = priority_node.asDouble();
+                if (!std::isfinite(raw_priority) ||
+                    std::floor(raw_priority) != raw_priority ||
+                    raw_priority < static_cast<double>(std::numeric_limits<int>::min()) ||
+                    raw_priority > static_cast<double>(std::numeric_limits<int>::max())) {
+                    add_error_(component_path + ".priority must be an integer number.");
+                    continue;
+                }
+                priority = static_cast<int>(raw_priority);
+            }
+            component_ptr->setPriorityInternal_(priority);
+
             const auto& config = component_config["config"];
             config.resetAccessTracking();
-            component_ptr->configure(config);
-            checkUnusedConfigKeys(full_name, type_name, config);
+            try {
+                component_ptr->configure(config, config_path);
+            } catch (const std::exception& e) {
+                add_error_("Component '" + full_name + "' of type '" + type_name +
+                           "' failed to configure at " + config_path + ": " +
+                           e.what());
+                continue;
+            }
+            checkUnusedConfigKeys(full_name,
+                                  type_name,
+                                  config,
+                                  factory.getCategory(type_name) ==
+                                      ComponentCategory::Builtin);
 
-            component_ptr->injectServices(global_services_);
-            component_ptr->injectServices(environment_.services);
-            if (placement.local_services) {
-                component_ptr->injectServices(*placement.local_services);
+            try {
+                component_ptr->injectServices(global_services_);
+                component_ptr->injectServices(environment_.services);
+                if (placement.local_services) {
+                    component_ptr->injectServices(*placement.local_services);
+                }
+            } catch (const std::exception& e) {
+                add_error_("Component '" + full_name + "' of type '" + type_name +
+                           "' failed service injection: " + e.what());
+                continue;
             }
 
             if (placement.owner_components) {

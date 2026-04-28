@@ -1,12 +1,15 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/state_layout.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
 #include "gnc/vehicle/common/assets/json_asset_loader.hpp"
 #include "gnc/vehicle/output/interfaces/i_continuous_mass.hpp"
+
+#include <string>
 
 namespace gnc::vehicle::output {
 
@@ -22,18 +25,28 @@ public:
     }
 
     void configure(const gnc::core::ConfigNode& config) override {
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
         const auto source =
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(
                 config,
                 "mass.continuous_constant_rate");
-        if (!source.has("initial_mass_kg")) {
-            throw std::runtime_error(
-                "mass.continuous_constant_rate requires 'initial_mass_kg' to be "
-                "provided by config or asset.");
-        }
-        initial_state_[mass_index_] = source["initial_mass_kg"].asDouble();
-        mass_rate_kg_per_s_ =
-            source["mass_rate_kg_per_s"].asDouble(mass_rate_kg_per_s_);
+        const bool using_asset_file =
+            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
+        const std::string source_path =
+            using_asset_file
+                ? "mass.continuous_constant_rate asset '" +
+                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
+                          .generic_string() +
+                      "'"
+                : config_path;
+        gnc::core::ConfigReader reader(source, source_path);
+        initial_state_[mass_index_] = reader.requiredDouble("initial_mass_kg");
+        mass_rate_kg_per_s_ = reader.requiredDouble("mass_rate_kg_per_s");
+        reader.validateNoUnknownKeys();
         state_ = initial_state_;
     }
 

@@ -1,168 +1,62 @@
 # 设计决策
 
-这篇文档记录当前仍约束实现和文档的架构决策。它不是迁移日志，也不为旧实现保留兼容目标。
+## ADR-001: Mission 使用 `vehicles[]`
 
-## ADR-001: Mission 使用显式架构块
+当前有效 mission schema 使用顶层 `vehicles[]`。单飞行器任务也是 `vehicles` 中一个条目。
 
-**Status:** Accepted
-
-当前 mission 顶层围绕下列块组织：
-
-- `simulation`
-- `form`
-- `environment`
-- `vehicle`
-- `interaction`
-- `outputs`
-- `stop_conditions`
-- `global_services`
-
-这个结构直接暴露运行时职责边界。`form` 拥有状态，`environment` 提供环境能力，`vehicle` 组织飞行器侧组件，`interaction` 负责闭合成 form input。
-
-决策：
+决定：
 
 - 不支持旧式 `entities[]`。
-- 不支持旧式根级 `components/services/vehicles`。
-- 不为了历史示例恢复旧 schema 分支。
+- 不支持根级 `components/services`。
+- 不支持根级 `form/vehicle/interaction`。
+- 每个 vehicle 条目拥有独立 `<id>.` 作用域。
 
-## ADR-002: Vehicle 分成 common/input/process/output
+## ADR-002: 周期开始发布态
 
-**Status:** Accepted
-
-`vehicle` 内部使用四个用户可见分区：
-
-- `common`
-- `input`
-- `process`
-- `output`
-
-决策：
-
-- `common` 是静态资产、profile、参数包和被动初始化数据层。
-- `input` 是测量侧输入层。
-- `process` 是导航、制导、控制和命令生成层。
-- `output` 是气动、质量、推进、分离和构型切换等运行时效应层。
-- `common` 不参与 stage 调度，也不能承载运行时物理行为。
-
-## ADR-003: 资产、Loader 和 Runtime Component 分离
-
-**Status:** Accepted
-
-资产文件、loader/parser 和 runtime component 是三个不同职责。
-
-决策：
-
-- 资产文件放在 `framework/data/` 或项目数据目录中。
-- loader/parser 是工具代码，不注册为组件。
-- runtime component 暴露仿真时接口，并按 role/stage 调度。
-- 气动和质量等运行时能力属于 `vehicle.output`。
-
-## ADR-004: Interaction 保持 form-aware closure
-
-**Status:** Accepted
-
-`Interaction` 的职责是把 form truth、environment 查询、process 命令和 output 能力闭合成 form input。
-
-决策：
-
-- interaction 不拥有气动表、质量定义或推进模型。
-- interaction 可以消费 `IAeroModel`、`IConstantMass`、`IContinuousMass` 等 output 接口。
-- form-specific interaction 必须声明 form family。
-
-## ADR-005: 服务由 Service Package 声明作用域
-
-**Status:** Accepted
-
-服务通过 `ServicePackageRegistry` 注册，不在 `MissionAssembler` 中为每个服务写特殊装配分支。
-
-决策：
-
-- service package 声明 service id、支持 scope、创建逻辑和 finalization task。
-- generic assembler 只负责查找 package、校验 scope、创建服务、收集 finalization task。
-- 服务内部语义留在 service package 边界内。
-
-## ADR-006: Coordinate Tree v1 只支持 Vehicle Scope
-
-**Status:** Accepted
-
-当前 `coordinate_tree` 只支持：
+固定步长循环以周期开始发布态为唯一记录和停止条件时间点：
 
 ```text
-vehicles[].services.coordinate_tree
+publish/refresh t_k -> before_step(t_k) -> update(t_k)
+-> record t_k -> stop check t_k
+-> synchronized independent integration to t_{k+1}
 ```
 
-决策：
+原因：
 
-- `global_services.coordinate_tree` 会失败。
-- `environment.services.coordinate_tree` 会失败。
-- 当前 frame tree 语义绑定 vehicle-local truth、launch 和 track。
-- 如果未来需要 global/environment coordinate tree，应先设计跨 vehicle truth、共享 frame 命名和生命周期。
+- CSV `time` 与状态字段严格对应。
+- form/dynamics/truth view 字段是周期开始发布态 `x_k` 及其真实派生量。
+- input/process/guidance/output 字段是 record 时刻组件暴露的本周期离散输出，因为 record 发生在 `update(t_k)` 之后。
+- `t0` 行包含初始状态 `x_0` 和基于 `x_0` 计算出的第一周期离散输出。
+- 框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。
+- form `FlightStateView` 是 truth/form 层真实飞行状态视图；机上导航或估计飞行状态应由 `vehicle.process` 组件产生。
+- 触发停止条件的状态会保留在最后一行。
+- GNC 离散算法读取的是已发布的采样状态。
 
-## ADR-007: Coordinate-tree Specs 由服务包内置管理
+## ADR-003: 同步发布点的独立连续积分
 
-**Status:** Accepted
+当前不实现全局联合 ODE。连续系统按组件独立积分，但每步统一提交 next state。
 
-`ICoordinateTreeSpec` 不是项目侧自动注册扩展点。
+这保留了轻量组件式结构，同时避免同一步内其他连续组件先提交导致导数读取到部分新状态。未来若需要强耦合，应新增明确的 coupled group。
 
-决策：
+## ADR-004: `update()` 是离散入口
 
-- specs 放在 `framework/include/gnc/services/coordinate_tree/specs/`。
-- spec 注册入口位于 coordinate-tree service package bootstrap。
-- `SimulationBuilder` 和 generic assembler 不包含具体 spec 清单。
+`update()` 保留为统一离散入口。它读取 t_k 发布态，产生 `[t_k, t_{k+1}]` 的本周期保持输出，不负责连续积分。连续刷新使用 `publish()`。
 
-## ADR-008: SimulationBuilder 只做高层编排
+## ADR-005: Interaction 是高级 closure
 
-**Status:** Accepted
+`interaction` 保留为高级扩展点，但普通用户应优先配置内置 interaction。气动、质量、推进模型属于 `vehicle.output`；interaction 只做组合和闭合，并且必须声明 form family。
 
-`SimulationBuilder` 负责高层流程，不积累具体组件、服务或示例语义。
+## ADR-006: 配置严格化
 
-职责边界：
+builtin 使用严格配置读取：
 
-| 类型 | 职责 |
-| --- | --- |
-| `SimulationBuilder` | 加载 mission、设置仿真参数、触发装配、验证、停止条件和 logger 初始化 |
-| `MissionAssembler` | 按当前 schema 装配服务和组件 |
-| `ServicePackageRegistry` | 保存 service package 并隔离服务创建逻辑 |
-| `ValidationPipeline` | 执行 build 期契约检查和依赖预检 |
-| `StopConditionBuilder` | 解析停止条件并绑定 observable 字段 |
+- 物理参数 required，不静默默认。
+- unknown key 是 build error。
+- 类型错误是 build error。
+- 错误消息包含 mission 路径。
 
-## ADR-009: 当前运行循环使用固定步长
+安全默认值仍可保留，例如 `integrator = rk4`。
 
-**Status:** Accepted
+## ADR-007: 多飞行器 snapshot 后置
 
-当前运行循环围绕 `simulation.dt` 组织。固定步长同时驱动：
-
-- integrator
-- stage update
-- auto logger
-- stop condition 检查
-
-决策：
-
-- 当前不支持可变步长 integrator。
-- 引入自适应步长时，需要同时重新定义调度、日志采样和停止条件语义。
-
-## ADR-010: 注册模型以显式 Bootstrap 为准
-
-**Status:** Accepted
-
-当前框架不依赖隐藏静态注册兜底路径。
-
-决策：
-
-- framework builtins 通过显式 bootstrap 注册。
-- service builtins 通过 service package bootstrap 注册。
-- project components 通过构建系统生成的 active project 注册入口纳入编译。
-- 示例组件和测试夹具不属于稳定 builtin API。
-
-## ADR-011: 当前文档只服务当前架构
-
-**Status:** Accepted
-
-公开文档应服务当前用户和维护者，不再把历史迁移材料作为入门路径或兼容目标。
-
-决策：
-
-- 顶层 README 和 `doc/` 是当前文档入口。
-- 历史材料只作追溯，不约束当前 runtime。
-- 当旧文档、旧示例或历史评审材料与当前代码冲突时，优先更新文档和测试来反映当前实现。
+本阶段只文档化跨 vehicle 读取应理解为发布态读取，不实现 world snapshot API，也不禁止现有 direct lookup。snapshot API 和 direct lookup 限制作为第二阶段单独设计。

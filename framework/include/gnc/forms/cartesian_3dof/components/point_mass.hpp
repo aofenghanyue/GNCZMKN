@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/core/state_layout.hpp"
 #include "gnc/forms/cartesian_3dof/interfaces/i_input_provider.hpp"
@@ -8,6 +9,8 @@
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
+
+#include <string>
 
 namespace gnc::forms::cartesian_3dof {
 
@@ -28,21 +31,25 @@ public:
     }
 
     void configure(const gnc::core::ConfigNode& config) override {
-        const auto& initial_position = config["initial_position"];
-        if (initial_position.isArray() && initial_position.size() >= 3) {
-            initial_state_vector_[position_x_index_] = initial_position[0].asDouble(0.0);
-            initial_state_vector_[position_y_index_] = initial_position[1].asDouble(0.0);
-            initial_state_vector_[position_z_index_] = initial_position[2].asDouble(0.0);
-        }
+        configure(config, "config");
+    }
 
-        const auto& initial_velocity = config["initial_velocity"];
-        if (initial_velocity.isArray() && initial_velocity.size() >= 3) {
-            initial_state_vector_[velocity_x_index_] = initial_velocity[0].asDouble(0.0);
-            initial_state_vector_[velocity_y_index_] = initial_velocity[1].asDouble(0.0);
-            initial_state_vector_[velocity_z_index_] = initial_velocity[2].asDouble(0.0);
-        }
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader reader(config, config_path);
+        const auto initial_position = reader.requiredDoubleArray("initial_position", 3);
+        initial_state_vector_[position_x_index_] = initial_position[0];
+        initial_state_vector_[position_y_index_] = initial_position[1];
+        initial_state_vector_[position_z_index_] = initial_position[2];
 
-        input_lookup_name_ = config["input_lookup_name"].asString(input_lookup_name_);
+        const auto initial_velocity = reader.requiredDoubleArray("initial_velocity", 3);
+        initial_state_vector_[velocity_x_index_] = initial_velocity[0];
+        initial_state_vector_[velocity_y_index_] = initial_velocity[1];
+        initial_state_vector_[velocity_z_index_] = initial_velocity[2];
+
+        input_lookup_name_ = reader.optionalString("input_lookup_name",
+                                                   input_lookup_name_);
+        reader.validateNoUnknownKeys();
         state_vector_ = initial_state_vector_;
     }
 
@@ -50,9 +57,11 @@ public:
         registry.bindAll(gnc::core::bind(input_provider_, input_lookup_name_));
     }
 
-    void initialize() override { refreshTruth(getSimTime()); }
+    void initialize() override { publish(getSimTime()); }
 
-    void update(double dt) override { refreshTruth(getSimTime() + dt); }
+    void publish(double time) override { refreshTruth(time); }
+
+    void update(double) override {}
 
     const gnc::core::StateLayout& getStateLayout() const override { return layout_; }
 

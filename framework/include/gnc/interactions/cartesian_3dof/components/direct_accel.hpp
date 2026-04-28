@@ -1,7 +1,10 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/forms/cartesian_3dof/interfaces/i_input_provider.hpp"
+
+#include <string>
 
 namespace gnc::interactions::cartesian_3dof {
 
@@ -11,28 +14,30 @@ public:
     DirectAccel() : ComponentBase("Cartesian3DoFDirectAccel") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
-        const auto& acceleration = config["acceleration_mps2"];
-        if (acceleration.isArray() && acceleration.size() >= 3) {
-            configured_input_.acceleration_mps2 = gnc::math::Vector3(
-                acceleration[0].asDouble(0.0),
-                acceleration[1].asDouble(0.0),
-                acceleration[2].asDouble(0.0));
-            return;
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader reader(config, config_path);
+        std::vector<double> acceleration;
+        if (reader.has("acceleration_mps2")) {
+            acceleration = reader.requiredDoubleArray("acceleration_mps2", 3);
+        } else if (reader.has("constant_acceleration")) {
+            acceleration = reader.requiredDoubleArray("constant_acceleration", 3);
+        } else if (reader.has("ax_mps2") || reader.has("ay_mps2") ||
+                   reader.has("az_mps2")) {
+            acceleration = {reader.requiredDouble("ax_mps2"),
+                            reader.requiredDouble("ay_mps2"),
+                            reader.requiredDouble("az_mps2")};
+        } else {
+            throw std::runtime_error(config_path +
+                                     ".acceleration_mps2 is required and must contain exactly 3 numbers.");
         }
 
-        const auto& legacy_acceleration = config["constant_acceleration"];
-        if (legacy_acceleration.isArray() && legacy_acceleration.size() >= 3) {
-            configured_input_.acceleration_mps2 = gnc::math::Vector3(
-                legacy_acceleration[0].asDouble(0.0),
-                legacy_acceleration[1].asDouble(0.0),
-                legacy_acceleration[2].asDouble(0.0));
-            return;
-        }
-
-        configured_input_.acceleration_mps2 = gnc::math::Vector3(
-            config["ax_mps2"].asDouble(0.0),
-            config["ay_mps2"].asDouble(0.0),
-            config["az_mps2"].asDouble(0.0));
+        configured_input_.acceleration_mps2 =
+            gnc::math::Vector3(acceleration[0], acceleration[1], acceleration[2]);
+        reader.validateNoUnknownKeys();
     }
 
     void update(double) override {}

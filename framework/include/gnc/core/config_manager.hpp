@@ -293,12 +293,15 @@ public:
     /// 获取仿真配置
     const ConfigNode& simulation() const { return config_["simulation"]; }
 
+    [[deprecated("Use top-level vehicles[] mission layout instead of root form.")]]
     const ConfigNode& form() const { return config_["form"]; }
 
     const ConfigNode& environment() const { return config_["environment"]; }
 
+    [[deprecated("Use top-level vehicles[] mission layout instead of root vehicle.")]]
     const ConfigNode& vehicle() const { return config_["vehicle"]; }
 
+    [[deprecated("Use vehicles[].interaction instead of root interaction.")]]
     const ConfigNode& interaction() const { return config_["interaction"]; }
 
     const ConfigNode& outputs() const { return config_["outputs"]; }
@@ -311,14 +314,17 @@ public:
     }
     
     /// 获取组件配置列表
+    [[deprecated("Use vehicles[].form/common/input/process/output/interaction components.")]]
     const ConfigNode& components() const { return config_["components"]; }
 
     /// 获取实体配置列表
+    [[deprecated("Legacy entities[] missions are unsupported; use vehicles[].")]]
     const ConfigNode& entities() const { return config_["entities"]; }
     
     /// 获取指定组件的配置
+    [[deprecated("Legacy component lookup is unsupported for vehicles[] missions.")]]
     const ConfigNode& componentConfig(const std::string& name) const {
-        const auto& entity_list = entities();
+        const auto& entity_list = config_["entities"];
         if (entity_list.isArray()) {
             for (size_t entity_index = 0; entity_index < entity_list.size(); ++entity_index) {
                 const auto& comps = entity_list[entity_index]["components"];
@@ -330,7 +336,7 @@ public:
             }
         }
 
-        const auto& comps = components();
+        const auto& comps = config_["components"];
         for (size_t i = 0; i < comps.size(); ++i) {
             if (comps[i]["name"].asString() == name) {
                 return comps[i]["config"];

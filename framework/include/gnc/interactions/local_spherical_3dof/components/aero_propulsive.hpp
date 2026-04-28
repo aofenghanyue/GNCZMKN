@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/environment/interfaces/i_atmosphere.hpp"
 #include "gnc/environment/interfaces/i_gravity.hpp"
@@ -21,6 +22,15 @@ class AeroPropulsive final
       public gnc::forms::local_spherical_3dof::IInputProvider {
 public:
     AeroPropulsive() : ComponentBase("LocalSpherical3DoFAeroPropulsive") {}
+
+    void configure(const gnc::core::ConfigNode& config) override {
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader(config, config_path).validateNoUnknownKeys();
+    }
 
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
         registry.bindAll(

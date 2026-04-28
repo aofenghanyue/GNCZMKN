@@ -14,6 +14,12 @@ namespace gnc::core {
 
 class ScopedRegistry;
 
+enum class PublishPhase {
+    StateOwner = 0,
+    View = 1,
+    Ordinary = 2
+};
+
 /**
  * @brief 组件基类
  * 
@@ -38,9 +44,17 @@ public:
     
     /// 初始化（在所有组件注册后、首次更新前调用）
     virtual void initialize() {}
+
+    /// 发布当前周期开始的状态视图。
+    ///
+    /// Simulator 在每个固定步周期开始调用该钩子，并保证组件的 sim time
+    /// 已设置为该周期发布时刻 t_k。连续组件和 observer 应在这里刷新
+    /// truth/view/派生量；该钩子不应推进连续状态。
+    virtual void publish(double time) { (void)time; }
     
-    /// 更新（每个仿真步调用，由调度器根据频率决定是否调用）
-    /// 对连续动力学组件，该钩子适合放积分后的后处理逻辑，而不应再次积分
+    /// 更新（每个仿真周期最多调用一次，由调度器根据频率决定是否调用）。
+    /// update 读取已发布的 t_k 状态，产生用于 [t_k, t_{k+1}] 的本周期离散输出。
+    /// 连续状态推进由积分器通过 IContinuousSystem 完成，不应在 update 中积分。
     virtual void update(double dt) = 0;
     
     /// 终结（仿真结束时调用）
@@ -50,6 +64,13 @@ public:
     
     /// 从JSON配置节点加载组件参数（由MissionAssembler在构建期调用，先于注册完成）
     virtual void configure(const ConfigNode& config) { (void)config; }
+
+    /// 带配置路径的加载入口。新组件可覆盖该函数以生成更精确的诊断；
+    /// 旧组件继续覆盖 configure(config) 即可。
+    virtual void configure(const ConfigNode& config, const std::string& config_path) {
+        (void)config_path;
+        configure(config);
+    }
     
     // --- 依赖注入 ---
     
@@ -67,6 +88,8 @@ public:
     const std::string& getTypeName() const { return type_name_; }
     const std::string& getComponentCategory() const { return component_category_; }
     const std::string& getRegistrationOrigin() const { return registration_origin_; }
+    virtual PublishPhase getPublishPhase() const { return PublishPhase::Ordinary; }
+    int getPriority() const { return priority_; }
 
     /// 获取当前步由组件主动写入的调试快照
     const std::map<std::string, double>& getDebugSnapshot() const {
@@ -113,6 +136,10 @@ public:
         registration_origin_ = origin;
     }
 
+    void setPriorityInternal_(int priority) {
+        priority_ = priority;
+    }
+
     void clearDebugSnapshotInternal_() {
         debug_snapshot_.clear();
     }
@@ -140,6 +167,7 @@ private:
     std::string type_name_;
     std::string component_category_ = "project";
     std::string registration_origin_;
+    int priority_ = 0;
     double freq_hz_ = 0.0;      // 0表示每步执行
     int step_interval_ = 1;      // 执行步长间隔
     double sim_time_ = 0.0;

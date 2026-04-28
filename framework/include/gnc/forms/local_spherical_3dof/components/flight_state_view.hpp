@@ -1,13 +1,13 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/environment/interfaces/i_atmosphere.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 
 #include <algorithm>
 
@@ -19,16 +19,30 @@ class FlightStateView final : public gnc::core::ComponentBase,
 public:
     FlightStateView() : ComponentBase("LocalSpherical3DoFFlightStateView") {}
 
+    void configure(const gnc::core::ConfigNode& config) override {
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader(config, config_path).validateNoUnknownKeys();
+    }
+
     void injectDependencies(gnc::core::ScopedRegistry& registry) override {
         registry.bindAll(
             gnc::core::bind(truth_view_, "dynamics"),
-            gnc::core::bind(atmosphere_, "env.atmosphere"),
-            gnc::core::bindIfPresent(command_provider_, "guidance"));
+            gnc::core::bind(atmosphere_, "env.atmosphere"));
     }
 
-    void initialize() override { refreshSample(); }
+    void initialize() override { publish(getSimTime()); }
 
-    void update(double) override { refreshSample(); }
+    void publish(double) override { refreshSample(); }
+
+    void update(double) override {}
+
+    gnc::core::PublishPhase getPublishPhase() const override {
+        return gnc::core::PublishPhase::View;
+    }
 
     const FlightState& getFlightState() const override {
         return sample_;
@@ -51,9 +65,6 @@ public:
                            [this]() -> const gnc::math::Vector3& {
                                return sample_.local_acceleration_nue_mps2;
                            });
-        builder.addScalar("angle_of_attack_rad",
-                          [this]() { return sample_.angle_of_attack_rad; });
-        builder.addScalar("bank_angle_rad", [this]() { return sample_.bank_angle_rad; });
         builder.addScalar("dynamic_pressure_pa",
                           [this]() { return sample_.dynamic_pressure_pa; });
         builder.addScalar("density_kg_per_m3",
@@ -67,17 +78,9 @@ public:
     }
 
 private:
-    gnc::vehicle::process::AeroGuidanceCommand currentCommand() const {
-        if (command_provider_ && command_provider_->isGuidanceActive()) {
-            return command_provider_->getAeroGuidanceCommand();
-        }
-        return {};
-    }
-
     void refreshSample() {
         const auto& truth = truth_view_->getLocalSpherical3DoFTruth();
         const auto atmosphere_sample = atmosphere_->sample(truth.state.altitude_m);
-        const auto command = currentCommand();
 
         sample_.longitude_rad = truth.state.longitude_rad;
         sample_.latitude_rad = truth.state.latitude_rad;
@@ -87,8 +90,6 @@ private:
         sample_.heading_angle_rad = truth.state.heading_angle_rad;
         sample_.local_velocity_nue_mps = truth.local_velocity_nue_mps;
         sample_.local_acceleration_nue_mps2 = truth.local_acceleration_nue_mps2;
-        sample_.angle_of_attack_rad = command.angle_of_attack_rad;
-        sample_.bank_angle_rad = command.bank_angle_rad;
         sample_.density_kg_per_m3 = atmosphere_sample.density_kg_per_m3;
         sample_.pressure_pa = atmosphere_sample.pressure_pa;
         sample_.temperature_k = atmosphere_sample.temperature_k;
@@ -101,7 +102,6 @@ private:
 
     ITruthView* truth_view_ = nullptr;
     gnc::environment::IAtmosphere* atmosphere_ = nullptr;
-    gnc::vehicle::process::IAeroGuidanceProvider* command_provider_ = nullptr;
     FlightState sample_{};
 };
 

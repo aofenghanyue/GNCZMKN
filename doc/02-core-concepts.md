@@ -1,112 +1,62 @@
 # 核心概念
 
-GNCZMKN 的文档和代码都围绕几个稳定问题组织：谁拥有状态，谁提供环境能力，谁代表飞行器侧能力，谁把这些能力闭合成状态输入。
-
 ## Form
 
-`Form` 是状态和积分方程所在的位置。它负责：
-
-- 定义状态变量和状态导数。
-- 暴露 truth view，例如 Cartesian 或 local-spherical truth。
-- 接收 form input。
-- 提供 form-local math 和 observable 字段。
-
-内置示例：
+`Form` 是连续状态和导数方程所在的位置。它负责定义状态变量、计算导数、发布 truth view，并消费 form input。内置示例包括：
 
 - `form.cartesian_3dof.point_mass`
 - `form.local_spherical_3dof.point_mass`
 - `form.local_spherical_3dof.flight_state_view`
 
-Form 组件在 registry 中使用 `vehicle.` 前缀。例如名为 `dynamics` 的 form 组件全名是 `cavh.dynamics`。
+连续 form 在周期开始的 `publish()` 中刷新 truth/view；连续状态推进由积分器调用 `computeDerivatives()` 完成。`form.local_spherical_3dof.flight_state_view` 是 truth/form 层真实飞行状态视图，也在 publish 阶段刷新。机上导航或估计飞行状态应放在 `vehicle.process` 组件中，而不是混入 form truth view。
 
 ## Environment
 
-`Environment` 提供世界侧查询能力，例如：
-
-- 地球模型: `IEarth`
-- 大气模型: `IAtmosphere`
-- 重力模型: `IGravity`
-
-环境组件使用 `env.` 前缀。例如名为 `atmosphere` 的组件全名是 `env.atmosphere`。
+`Environment` 提供世界侧查询能力，例如 `IEarth`、`IAtmosphere`、`IGravity`。环境查询应尽量是只读计算，不在查询函数中推进离散状态。
 
 ## Vehicle
 
-`Vehicle` 组织飞行器侧能力。它不是一个单一大类，而是四个用户可见分区：
+`Vehicle` 按职责拆成四个用户可见分区：
 
 | 分区 | 职责 |
 | --- | --- |
-| `common` | 静态资产、profile、参数包、被动初始化数据 |
+| `common` | 静态资产、profile、参数包；不参与 runtime stage |
 | `input` | 传感器和测量侧硬件 |
-| `process` | 导航、制导、控制和命令生成 |
-| `output` | 气动、质量、推进、分离和构型切换等运行时效应 |
+| `process` | 导航、制导、控制、时序逻辑和命令生成 |
+| `output` | 气动、质量、推进、分离和构型切换等运行时能力 |
 
-`common` 不参与每步调度。`input/process/output` 分别映射到运行时 stage。
+气动表、质量定义、推进模型属于 `vehicle.output`，不属于 `interaction`。
 
 ## Interaction
 
-`Interaction` 是 form-aware closure 层。它读取：
+`Interaction` 是 form-aware closure。它读取 form truth、环境查询、`vehicle.process` 命令和 `vehicle.output` 能力，然后生成 selected form input。
 
-- form truth
-- environment 查询
-- `vehicle.process` 命令
-- `vehicle.output` 运行时能力
+普通用户应优先配置内置 interaction，例如 direct acceleration 或 aero-propulsive closure。自定义 interaction 必须声明非空 form family，因为它直接生成某个 form 的 input。
 
-然后写入 selected form input。
+## Update 契约
 
-这意味着 interaction 不应该拥有气动表、质量定义或推进模型。它消费这些 output 组件暴露的接口。
+`update(dt)` 是离散周期入口：
 
-## 资产、Loader 与运行时组件
+```text
+update 在每个周期最多调用一次。
+update 读取 t_k 发布态。
+update 产生用于 [t_k, t_{k+1}] 的本周期离散输出。
+update 不负责连续状态积分。
+```
 
-这三类对象不要混淆：
+连续组件若保留 `update()`，不应在里面推进状态；刷新 truth/view/observer 派生量应放在 `publish(time)`。
 
-| 类型 | 例子 | 是否是组件 |
-| --- | --- | --- |
-| 资产文件 | `framework/data/vehicles/cavh/output/aero_table2d.json` | 否 |
-| loader/parser | 读取 JSON 或 CSV 的工具代码 | 否 |
-| 运行时组件 | `aero.table2d`、`mass.constant` | 是 |
+## Publish 顺序
 
-资产文件可以被组件在 `configure()` 或 `initialize()` 中加载，但资产文件本身不进入调度，也不暴露接口。
+publish 先按 phase 分组：state owner 先发布，view / observer 随后，普通组件最后。可选 `priority` 只在同一 phase 或 execution stage 内排序；priority 相同保持 mission 顺序。
 
-## 执行顺序
+## 记录和停止条件
 
-每个仿真步按固定顺序执行：
+固定步长循环在周期开始记录发布态：
 
-1. `environment`
-2. `vehicle.input`
-3. `vehicle.process`
-4. `vehicle.output`
-5. `interaction`
-6. `form`
+```text
+publish/refresh t_k -> before_step(t_k) -> update(t_k)
+-> record t_k -> stop check t_k
+```
 
-自动记录和停止条件检查发生在 step 层。当前运行循环围绕固定步长 `simulation.dt` 组织。
-
-## 组件名和 Type Id
-
-mission 中每个组件都有两个名字：
-
-| 名称 | 来源 | 用途 |
-| --- | --- | --- |
-| type id | `type` 字段 | 从 factory 创建组件，例如 `aero.table2d` |
-| local name | `name` 字段 | 形成 registry 全名，例如 `cavh.aero` |
-
-常见全名规则：
-
-| 放置位置 | local name | 全名 |
-| --- | --- | --- |
-| `environment.components` | `earth` | `env.earth` |
-| `form.components` | `dynamics` | `cavh.dynamics` |
-| `vehicle.process` | `guidance` | `cavh.guidance` |
-| `vehicle.output` | `aero` | `cavh.aero` |
-| `interaction.components` | `interaction` | `cavh.interaction` |
-
-同一 vehicle 作用域内的依赖通常可以写 local name；跨环境引用应写完整名，例如 `env.earth`。
-
-## Role、Stage 与 Form Family
-
-每个注册组件可以声明：
-
-- `ComponentPackageRole`: 组件应该放在哪个 mission 块。
-- `ExecutionStage`: 组件在哪个 stage 执行，或 `None`。
-- `form_family`: 组件适配的 form family，或空字符串表示 form-neutral。
-
-assembly 会检查 mission 放置位置与注册元数据是否一致。例如把 `aero.table2d` 放进 `vehicle.process` 会失败，因为它注册为 `vehicle_output`。
+CSV 的 `time` 列就是该行状态的物理时间。form/dynamics/truth view 字段来自周期开始发布态 `x_k` 及其真实派生量；input/process/guidance/output 字段来自 `update(t_k)` 后组件当前暴露的本周期离散输出。`t0` 行包含初始状态 `x_0` 和基于 `x_0` 计算出的第一周期离散输出。框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。停止条件使用同一个发布态，并在 record 之后检查，因此触发停止的状态默认会出现在最后一行 CSV 中。

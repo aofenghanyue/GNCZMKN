@@ -349,12 +349,8 @@ int main() {
         test_support::require(interaction_acceleration.norm() > 1.0,
                               "Interaction acceleration should include gravity and aerodynamic terms.");
 
-        observer_ptr->update(0.0);
+        observer_ptr->publish(0.0);
         const auto& flight_state = observer_ptr->getFlightState();
-        test_support::requireNear(flight_state.angle_of_attack_rad,
-                                  15.0 * gnc::math::constants::DEG_TO_RAD,
-                                  1e-9,
-                                  "Observer lost the commanded angle of attack.");
         test_support::require(flight_state.mach_number > 5.0,
                               "Observer Mach number is inconsistent with the initial state.");
         test_support::require(flight_state.dynamic_pressure_pa > 0.0,

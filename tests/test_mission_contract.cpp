@@ -619,6 +619,7 @@ int main() {
             "type": "form.local_spherical_3dof.point_mass",
             "name": "dynamics",
             "config": {
+              "launch_azimuth_rad": 0.0,
               "initial_state": {
                 "longitude_rad": 0.0,
                 "latitude_rad": 0.0,
@@ -945,9 +946,20 @@ int main() {
         const std::vector<std::string> expected_trace = {
             "environment", "input", "process", "output", "interaction", "form"};
         test_support::require(
-            g_stage_trace == expected_trace,
-            "Execution stages no longer run in the expected environment -> input -> "
-            "process -> output -> interaction -> form order.");
+            !g_stage_trace.empty() &&
+                (g_stage_trace.size() % expected_trace.size()) == 0,
+            "Execution stage trace length is not a whole number of cycles.");
+        for (size_t offset = 0; offset < g_stage_trace.size();
+             offset += expected_trace.size()) {
+            const std::vector<std::string> cycle_trace(
+                g_stage_trace.begin() + static_cast<std::ptrdiff_t>(offset),
+                g_stage_trace.begin() +
+                    static_cast<std::ptrdiff_t>(offset + expected_trace.size()));
+            test_support::require(
+                cycle_trace == expected_trace,
+                "Execution stages no longer run in the expected environment -> input -> "
+                "process -> output -> interaction -> form order.");
+        }
 
         const char* invalid_common_stage_mission = R"json(
 {

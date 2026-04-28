@@ -1,10 +1,13 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/infrastructure/observable_helpers.hpp"
 #include "gnc/interfaces/i_observable.hpp"
 #include "gnc/vehicle/common/assets/json_asset_loader.hpp"
 #include "gnc/vehicle/output/interfaces/i_constant_mass.hpp"
+
+#include <string>
 
 namespace gnc::vehicle::output {
 
@@ -15,20 +18,26 @@ public:
     ConstantMass() : ComponentBase("ConstantMass") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
         const bool using_asset_file =
             gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
         const auto source =
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(config,
                                                                   "mass.constant");
-        if (using_asset_file &&
-            (!source.has("mass_kg") || !source["mass_kg"].isNumber())) {
-            throw std::runtime_error(
-                "mass.constant asset '" +
-                gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
-                    .generic_string() +
-                "' must define numeric field 'mass_kg'.");
-        }
-        mass_kg_ = source["mass_kg"].asDouble(mass_kg_);
+        const std::string source_path =
+            using_asset_file
+                ? "mass.constant asset '" +
+                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
+                          .generic_string() +
+                      "'"
+                : config_path;
+        gnc::core::ConfigReader reader(source, source_path);
+        mass_kg_ = reader.requiredDouble("mass_kg");
+        reader.validateNoUnknownKeys();
     }
 
     void update(double) override {}

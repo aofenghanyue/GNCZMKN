@@ -42,8 +42,6 @@ struct FlightState {
     double heading_angle_rad = 0.0;
     gnc::math::Vector3 local_velocity_nue_mps = gnc::math::Vector3::Zero();
     gnc::math::Vector3 local_acceleration_nue_mps2 = gnc::math::Vector3::Zero();
-    double angle_of_attack_rad = 0.0;
-    double bank_angle_rad = 0.0;
     double dynamic_pressure_pa = 0.0;
     double density_kg_per_m3 = 0.0;
     double pressure_pa = 0.0;
