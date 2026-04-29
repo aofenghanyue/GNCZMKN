@@ -89,6 +89,29 @@ int main() {
                 gnc::core::ExecutionStage::VehicleOutput,
             "mass.continuous_constant_rate should execute in the vehicle.output stage.");
 
+        const auto force_it = findInfo("force.constant");
+        test_support::require(force_it != infos.end(),
+                              "Constant force builtin was not registered.");
+        test_support::require(
+            containsValue(force_it->interface_names, "IForceProvider"),
+            "force.constant should advertise IForceProvider.");
+        test_support::require(
+            force_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
+            "force.constant should be labeled as a vehicle.output package.");
+        test_support::require(
+            force_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
+            "force.constant should execute in the vehicle.output stage.");
+
+        const auto force_accel_it = findInfo("interaction.cartesian_3dof.force_accel");
+        test_support::require(force_accel_it != infos.end(),
+                              "Cartesian force_accel interaction was not registered.");
+        test_support::require(
+            force_accel_it->package_role == gnc::core::ComponentPackageRole::Interaction,
+            "force_accel should be labeled as an interaction package.");
+        test_support::require(
+            force_accel_it->form_family == "cartesian_3dof",
+            "force_accel should advertise the cartesian_3dof form family.");
+
         const auto simple_aero_it = findInfo("aero.simple_polynomial");
         test_support::require(simple_aero_it != infos.end(),
                               "Simple polynomial aero builtin was not registered.");

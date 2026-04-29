@@ -131,6 +131,12 @@ private:
         for (const auto& descriptor : descriptors) {
             if (descriptor.placement == "form") {
                 has_form_component = true;
+                if (descriptor.form_family.empty()) {
+                    result.errors.push_back(
+                        "Form component '" + descriptor.name + "' of type '" +
+                        descriptor.type_name +
+                        "' must declare a non-empty form family.");
+                }
             }
 
             const auto expected_role = expectedRoleForPlacement(descriptor.placement);

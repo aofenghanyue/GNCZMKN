@@ -49,11 +49,13 @@ replaced as whole arrays.
 | `form.local_spherical_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, local-spherical `ITruthView`, `IObservable` |
 | `form.local_spherical_3dof.flight_state_view` | `vehicles[].form.components` | truth/form `IFlightStateView`, `IObservable` |
 | `interaction.cartesian_3dof.direct_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
+| `interaction.cartesian_3dof.force_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
 | `interaction.local_spherical_3dof.direct_accel` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
 | `interaction.local_spherical_3dof.aero_propulsive` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
 | `vehicle.process.programmed_aoa` | `vehicles[].process` | `IAeroGuidanceProvider`, `IObservable` |
 | `aero.simple_polynomial` | `vehicles[].output` | `IAeroModel`, `IObservable` |
 | `aero.table2d` | `vehicles[].output` | `IAeroModel`, `IObservable` |
+| `force.constant` | `vehicles[].output` | `IForceProvider`, `IObservable` |
 | `mass.constant` | `vehicles[].output` | `IConstantMass`, `IObservable` |
 | `mass.continuous_constant_rate` | `vehicles[].output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
 | `termination.component_field_below` | `termination` | `ITerminationEvaluator` |
@@ -84,6 +86,8 @@ replaced as whole arrays.
 | `input_lookup_name` | 可选，默认 `interaction` |
 
 `mass.constant` 要求 `mass_kg`，可来自 inline config 或 JSON asset。
+`force.constant` requires `force_n`, exactly 3 numbers.
+`interaction.cartesian_3dof.force_accel` accepts optional `force_lookup_name` and `mass_lookup_name`; defaults are `force` and `mass`. The force lookup must resolve to `IForceProvider`, and the mass lookup must resolve to exactly one of `IConstantMass` or `IContinuousMass`.
 
 `aero.table2d` 要求 `reference_area_m2`、`reference_length_m`、`alpha_breaks_rad`、`mach_breaks`、`lift_coefficients`、`drag_coefficients`。
 

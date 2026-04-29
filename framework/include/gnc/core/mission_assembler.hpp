@@ -517,6 +517,12 @@ private:
         }
 
         if (placement.placement == "form") {
+            if (type_form_family.empty()) {
+                add_error_("Form component '" + full_name + "' of type '" +
+                           type_name +
+                           "' must declare a non-empty form family.");
+                return;
+            }
             if (!type_form_family.empty()) {
                 auto& selected_family =
                     selected_form_family_by_scope_[placement.scope_id];

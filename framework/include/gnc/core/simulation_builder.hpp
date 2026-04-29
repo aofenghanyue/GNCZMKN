@@ -12,14 +12,21 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <sstream>
 #include <unordered_set>
+#include <utility>
 
 namespace gnc::core {
 
 class SimulationBuilder {
 public:
     SimulationBuilder() {
+        gnc::bootstrap::registerBuiltinServicePackages(service_packages_);
+    }
+
+    explicit SimulationBuilder(std::unique_ptr<IConfigParser> parser)
+        : config_(std::move(parser)) {
         gnc::bootstrap::registerBuiltinServicePackages(service_packages_);
     }
 

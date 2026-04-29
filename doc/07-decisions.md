@@ -1,5 +1,35 @@
 # 设计决策
 
+## ADR-008: P2 Form Extension Contract
+
+New form families must publish an explicit contract before they are used in a mission. The minimum contract is: form-family id, state layout, truth view interface, input provider interface, `IContinuousSystem` ownership, publish-phase behavior, observable fields, and the way interaction components close environment / process / output data into form input.
+
+Decision:
+- Every component assembled in `vehicles[].form.components` must declare a non-empty form family.
+- A single vehicle may select exactly one form family.
+- Interaction components remain form-specific closures and must continue to declare a non-empty form family.
+- P2 uses `contract_6dof` only as a test fixture and extension example; it is not a builtin physical 6DoF model.
+
+## ADR-009: Hybrid Continuous/Discrete Boundary
+
+P2 does not introduce `IHybridSystem`. `update()` remains the discrete entrypoint, and continuous state advancement remains owned by `IContinuousSystem::computeDerivatives()` plus the configured integrator.
+
+Decision:
+- Continuous actuator, filter, mass, or mechanism state should live in an `IContinuousSystem` component.
+- Discrete sampling, commands, state machines, and mode switching should live in process/output components.
+- The two sides communicate through explicit project interfaces.
+- A future hybrid API must be designed as a separate, explicit two-entry contract instead of changing `update()` semantics.
+
+## ADR-010: Service And Controlflow Boundary
+
+Services are infrastructure. They may reduce repeated setup for stable framework-owned capabilities, but they must not absorb mission physics, software-process logic, output capability logic, or interaction closure logic.
+
+Decision:
+- Controlflow should be modeled as a project `vehicle.process` component, optionally using `gnc::libraries::StateMachine`.
+- P2 does not add a builtin controlflow service.
+- P2 does not open project service package registration.
+- Guidance/control outputs must still enter equations through a form-specific interaction component.
+
 ## ADR-001: Mission 使用 `vehicles[]`
 
 当前有效 mission schema 使用顶层 `vehicles[]`。单飞行器任务也是 `vehicles` 中一个条目。

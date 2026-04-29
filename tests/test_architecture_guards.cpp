@@ -245,6 +245,67 @@ void requireConfigParsingFacadeAndNewUserRoots(const fs::path& root) {
         "Runner should emit a clear error when no active project default mission exists.");
 }
 
+void requireP2ExtensionBoundaries(const fs::path& root) {
+    const std::string decisions_text = readFile(root / "doc/07-decisions.md");
+    const std::string extension_text = readFile(root / "doc/04-extension-guide.md");
+    const std::string mission_assembler_text =
+        readFile(root / "framework/include/gnc/core/mission_assembler.hpp");
+
+    test_support::require(
+        decisions_text.find("ADR-008: P2 Form Extension Contract") != std::string::npos,
+        "P2 form extension contract ADR should be documented.");
+    test_support::require(
+        decisions_text.find("P2 does not introduce `IHybridSystem`") != std::string::npos,
+        "P2 hybrid boundary should explicitly avoid a generic IHybridSystem.");
+    test_support::require(
+        decisions_text.find("P2 does not open project service package registration") !=
+            std::string::npos,
+        "P2 service boundary should keep project service package registration closed.");
+    test_support::require(
+        extension_text.find("New Form Family Contract") != std::string::npos,
+        "Extension guide should document the new form family contract.");
+    test_support::require(
+        extension_text.find("Controlflow is a process-level concern") != std::string::npos,
+        "Extension guide should keep controlflow in project process components.");
+    test_support::require(
+        mission_assembler_text.find("must declare a non-empty form family") !=
+            std::string::npos,
+        "Mission assembly should require form components to declare a form family.");
+
+    const std::vector<fs::path> roots = {
+        root / "framework/include/gnc",
+        root / "src",
+        root / "tests",
+    };
+    const std::string self_path = normalizePath(fs::path(__FILE__));
+    const std::vector<std::string> forbidden_symbols = {
+        "class IHybridSystem",
+        "struct IHybridSystem",
+        "IWorldSnapshot",
+        "WorldSnapshot",
+        "GenericGuidanceCommandProvider",
+        "IProjectServicePackage",
+        "registerProjectServicePackage",
+    };
+
+    for (const auto& scan_root : roots) {
+        for (const auto& file : collectFiles(scan_root)) {
+            const std::string normalized_file = normalizePath(file);
+            if (normalized_file == self_path) {
+                continue;
+            }
+
+            const std::string text = readFile(file);
+            for (const auto& symbol : forbidden_symbols) {
+                test_support::require(
+                    text.find(symbol) == std::string::npos,
+                    "P2 should not introduce broad deferred API '" + symbol +
+                        "': " + normalized_file);
+            }
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -262,6 +323,7 @@ int main() {
         requireTerminationIsComponentized(root);
         requireProjectPrivateIncludeContract(root);
         requireConfigParsingFacadeAndNewUserRoots(root);
+        requireP2ExtensionBoundaries(root);
 
         std::cout << "architecture guard checks passed\n";
         return 0;

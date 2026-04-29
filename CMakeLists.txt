@@ -295,6 +295,9 @@ if(BUILD_TESTS)
     add_gnc_test(test_publish_semantics tests/test_publish_semantics.cpp)
     add_gnc_test(test_strict_config tests/test_strict_config.cpp)
     add_gnc_test(test_config_preprocessor tests/test_config_preprocessor.cpp)
+    add_gnc_test(test_parser_facade tests/test_parser_facade.cpp)
+    add_gnc_test(test_interaction_routes tests/test_interaction_routes.cpp)
+    add_gnc_test(test_form_extension_contract tests/test_form_extension_contract.cpp)
 
     list(LENGTH TEST_PROJECT_COMPONENT_FILES TEST_PROJECT_COMPONENT_COUNT)
     message(STATUS

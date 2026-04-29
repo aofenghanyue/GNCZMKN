@@ -19,12 +19,14 @@
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
+#include "gnc/interactions/cartesian_3dof/components/force_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
 #include "gnc/interfaces/i_termination_evaluator.hpp"
 #include "gnc/termination/components/component_field_threshold.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
+#include "gnc/vehicle/output/components/constant_force.hpp"
 #include "gnc/vehicle/output/components/constant_mass.hpp"
 #include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
 #include "gnc/vehicle/output/components/simple_polynomial_aero.hpp"
@@ -32,6 +34,7 @@
 #include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
 #include "gnc/vehicle/output/interfaces/i_constant_mass.hpp"
 #include "gnc/vehicle/output/interfaces/i_continuous_mass.hpp"
+#include "gnc/vehicle/output/interfaces/i_force_provider.hpp"
 
 namespace gnc::bootstrap {
 
@@ -123,6 +126,14 @@ inline void registerVehicleOutputPackages(gnc::core::ComponentFactory& factory) 
         __FILE__,
         ComponentPackageRole::VehicleOutput,
         ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::ConstantForce,
+                         gnc::vehicle::output::IForceProvider,
+                         gnc::interfaces::IObservable>(
+        "force.constant",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
 }
 
 inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
@@ -155,6 +166,14 @@ inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
     factory.registerType<gnc::interactions::cartesian_3dof::DirectAccel,
                          gnc::forms::cartesian_3dof::IInputProvider>(
         "interaction.cartesian_3dof.direct_accel",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Interaction,
+        ExecutionStage::Interaction,
+        "cartesian_3dof");
+    factory.registerType<gnc::interactions::cartesian_3dof::ForceAccel,
+                         gnc::forms::cartesian_3dof::IInputProvider>(
+        "interaction.cartesian_3dof.force_accel",
         ComponentCategory::Builtin,
         __FILE__,
         ComponentPackageRole::Interaction,

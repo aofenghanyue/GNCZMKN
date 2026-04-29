@@ -39,6 +39,30 @@ GNC_REGISTER_COMPONENT_TYPE(TypeId,
 `interaction` 必须声明非空 form family，因为它是 form-specific closure。
 `termination` 必须实现 `ITerminationEvaluator`；`summary` 必须实现 `ISummaryObserver`。
 
+## New Form Family Contract
+
+A project may define a new form family, including an experimental 6DoF form, but the family must be explicit. A complete form family contract contains:
+
+- A stable form-family id, for example `contract_6dof` or `my_project_6dof`.
+- Public `types.hpp`-style state, truth, and input data structures.
+- A form-specific `ITruthView` interface exposed by the form component.
+- A form-specific `IInputProvider` interface implemented by interaction components.
+- A state owner implementing `IContinuousSystem`, with a clear `StateLayout`.
+- `publish(double time)` behavior that refreshes truth/view data without integrating state.
+- `IObservable` fields for the state and derived quantities the mission may record.
+- A documented interaction closure that reads project process/output providers and produces the form input.
+
+Rules enforced by the framework:
+
+- Components placed under `vehicles[].form.components` must declare a non-empty form family.
+- All form components in one vehicle must use the same form family.
+- Interaction components must declare a non-empty form family and must match the selected vehicle form.
+- Guidance/control components must not bypass interaction to drive a form directly.
+
+For mixed continuous/discrete behavior, split the model: continuous state belongs in an `IContinuousSystem`; discrete sampling, commands, and mode logic belong in `vehicle.process` or `vehicle.output`; connect them with project interfaces.
+
+Controlflow is a process-level concern. Use `gnc::libraries::StateMachine` inside a project process component when a mission needs mode or phase logic; do not model mission controlflow as a framework service.
+
 ## 生命周期
 
 普通离散组件主要实现 `update(double dt)`：
