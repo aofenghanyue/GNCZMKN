@@ -4,6 +4,7 @@
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulator.hpp"
 #include "gnc/forms/cartesian_3dof/components/point_mass.hpp"
+#include "gnc/interfaces/i_summary_observer.hpp"
 #include "gnc/vehicle/output/interfaces/i_continuous_mass.hpp"
 
 #include <cmath>
@@ -42,6 +43,16 @@ std::vector<std::vector<std::string>> readCsv(const fs::path& path) {
         rows.push_back(splitCsvLine(line));
     }
     return rows;
+}
+
+std::string readText(const fs::path& path) {
+    std::ifstream file(path);
+    test_support::require(file.is_open(),
+                          "Expected text file was not created: " + path.generic_string());
+
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
 }
 
 size_t columnIndex(const std::vector<std::string>& header,
@@ -126,16 +137,17 @@ std::string cartesianMission(const std::string& output_dir,
 
     if (include_stop) {
         json << R"json(,
-  "stop_conditions": [
-    {
-      "type": "component_field_below",
+  "termination": {
+    "type": "termination.component_field_below",
+    "name": "termination",
+    "config": {
       "component": "vehicle.dynamics",
       "field": "altitude",
       "value": )json"
              << stop_threshold << R"json(,
       "description": "stop at t0"
     }
-  ])json";
+  })json";
     }
 
     json << "\n}\n";
@@ -213,6 +225,7 @@ std::string localSphericalMission(const std::string& output_dir,
         {
           "type": "vehicle.process.programmed_aoa",
           "name": "guidance",
+          "rate_hz": 10.0,
           "config": {
             "bank_angle_deg": 0.0,
             "schedule_altitude_m": [60000.0, 45000.0],
@@ -347,6 +360,21 @@ public:
     }
 };
 
+class SummaryProbe final : public gnc::core::ComponentBase,
+                           public gnc::interfaces::ISummaryObserver {
+public:
+    SummaryProbe() : ComponentBase("SummaryProbe") {}
+
+    void update(double) override { ++updates_; }
+
+    void writeSummary(std::ostream& out) const override {
+        out << "  updates: " << updates_ << "\n";
+    }
+
+private:
+    int updates_ = 0;
+};
+
 void registerPublishSemanticsTestTypes() {
     auto& factory = gnc::core::ComponentFactory::instance();
     if (!factory.hasType("test.publish_order_probe")) {
@@ -356,6 +384,15 @@ void registerPublishSemanticsTestTypes() {
             __FILE__,
             gnc::core::ComponentPackageRole::VehicleProcess,
             gnc::core::ExecutionStage::VehicleProcess);
+    }
+    if (!factory.hasType("test.summary_probe")) {
+        factory.registerType<SummaryProbe,
+                             gnc::interfaces::ISummaryObserver>(
+            "test.summary_probe",
+            gnc::core::ComponentCategory::Project,
+            __FILE__,
+            gnc::core::ComponentPackageRole::Summary,
+            gnc::core::ExecutionStage::Summary);
     }
 }
 
@@ -455,6 +492,78 @@ int main() {
             const auto time_col = columnIndex(rows.front(), "time");
             test_support::requireNear(csvNumber(rows[1], time_col), 0.0, 1e-12,
                                       "t0 stop row must be recorded at time zero.");
+        }
+
+        {
+            const auto output_dir = root / "summary_observer";
+            std::ostringstream mission;
+            mission << R"json(
+{
+  "simulation": { "dt": 0.5, "duration": 0.5, "integrator": "rk4" },
+  "environment": {},
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [0.0, 0.0, 1000.0],
+              "initial_velocity": [0.0, 0.0, 0.0]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [0.0, 0.0, 0.0]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "directory": ")json"
+                    << output_dir.generic_string() << R"json(",
+    "session_name": "summary_observer",
+    "record": {
+      "vehicle.dynamics": "all"
+    }
+  },
+  "summary": {
+    "type": "test.summary_probe",
+    "name": "summary",
+    "config": {}
+  }
+}
+)json";
+
+            gnc::core::SimulationBuilder builder;
+            test_support::require(builder.loadConfigString(mission.str()),
+                                  "Summary observer mission JSON could not be parsed.");
+            builder.build().run();
+
+            const std::string summary_text = readText(output_dir / "summary.txt");
+            test_support::require(
+                summary_text.find("--- Project Summary ---") != std::string::npos,
+                "Simulation summary did not include project summary section.");
+            test_support::require(
+                summary_text.find("[mission.summary]") != std::string::npos,
+                "Simulation summary did not identify the mission summary component.");
+            test_support::require(
+                summary_text.find("updates: 2") != std::string::npos,
+                "Summary observer did not write its accumulated metrics.");
         }
 
         {

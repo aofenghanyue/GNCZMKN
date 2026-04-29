@@ -57,6 +57,17 @@ builtin 使用严格配置读取：
 
 安全默认值仍可保留，例如 `integrator = rk4`。
 
+## ADR-006B: 配置解析与预处理解耦
+配置输入分为 parser facade 和预处理层。`ConfigManager` 不直接依赖内建
+JSON parser；它只接收 `IConfigParser` 输出的 `ConfigNode`，再执行
+`$include` 展开和 deep-merge。
+
+决定：
+- `loadFromFile()` 支持相对 include、`repo://`、`project://`、`user-data://`。
+- 多 include 按顺序 deep-merge，本地字段覆盖 include，数组整体替换。
+- `loadFromString()` 不支持 filesystem include。
+- 第三方 JSON/YAML parser 接入时应替换 parser 实现，不改变 mission assembly。
+
 ## ADR-007: 多飞行器 snapshot 后置
 
 本阶段只文档化跨 vehicle 读取应理解为发布态读取，不实现 world snapshot API，也不禁止现有 direct lookup。snapshot API 和 direct lookup 限制作为第二阶段单独设计。

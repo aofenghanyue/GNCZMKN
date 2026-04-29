@@ -169,6 +169,82 @@ void requireCoordinateProbeStaysOutOfBuiltins(const fs::path& root) {
         "Demo coordinate_probe component should not exist under framework vehicle.process.");
 }
 
+void requireTerminationIsComponentized(const fs::path& root) {
+    test_support::require(
+        !fs::exists(root / "framework/include/gnc/core/stop_condition_builder.hpp"),
+        "StopConditionBuilder should not remain as a core assembly path.");
+
+    const fs::path simulation_builder_path =
+        root / "framework/include/gnc/core/simulation_builder.hpp";
+    const std::string simulation_builder_text = readFile(simulation_builder_path);
+    test_support::require(
+        simulation_builder_text.find("StopConditionBuilder") == std::string::npos,
+        "SimulationBuilder should not bind legacy stop_conditions through StopConditionBuilder.");
+    test_support::require(
+        simulation_builder_text.find("top-level 'termination' component") != std::string::npos,
+        "SimulationBuilder should reject stop_conditions and direct users to termination components.");
+}
+
+void requireProjectPrivateIncludeContract(const fs::path& root) {
+    const std::string cmake_text = readFile(root / "CMakeLists.txt");
+
+    test_support::require(
+        cmake_text.find("GNC_REGISTER_COMPONENT_TYPE") != std::string::npos,
+        "CMake should reject non-registrable headers under user/<project>/components/.");
+    test_support::require(
+        cmake_text.find("${USER_PROJECT_DIR}/interfaces") != std::string::npos,
+        "gnc_sim should include the active project's interfaces/ directory.");
+    test_support::require(
+        cmake_text.find("${USER_PROJECT_DIR}/common") != std::string::npos,
+        "gnc_sim should include the active project's common/ directory.");
+    test_support::require(
+        cmake_text.find("${USER_PROJECT_DIR}/include") != std::string::npos,
+        "gnc_sim should include the active project's include/ directory.");
+}
+
+void requireConfigParsingFacadeAndNewUserRoots(const fs::path& root) {
+    const std::string config_text =
+        readFile(root / "framework/include/gnc/core/config_manager.hpp");
+    const std::string cmake_text = readFile(root / "CMakeLists.txt");
+    const std::string runner_text = readFile(root / "src/runner.cpp");
+
+    test_support::require(config_text.find("class IConfigParser") != std::string::npos,
+                          "Config parsing should be hidden behind IConfigParser.");
+    test_support::require(
+        config_text.find("class BuiltinJsonConfigParser") != std::string::npos,
+        "The builtin JSON parser should implement the parser facade.");
+    test_support::require(
+        config_text.find("class ConfigPreprocessor") != std::string::npos,
+        "ConfigManager should use an explicit preprocessing layer.");
+    test_support::require(config_text.find("class JsonParser") == std::string::npos,
+                          "ConfigManager should not expose the old JsonParser type.");
+    test_support::require(
+        config_text.find("Config loaded from string cannot use filesystem $include") !=
+            std::string::npos,
+        "loadFromString should reject filesystem $include directives.");
+
+    test_support::require(!fs::exists(root / "user/config"),
+                          "Root-level user/config should not exist.");
+    test_support::require(!fs::exists(root / "user/components"),
+                          "Root-level user/components should not exist.");
+    test_support::require(fs::exists(root / "user/data"),
+                          "user/data should be the cross-project data root.");
+
+    test_support::require(
+        cmake_text.find("user/config/missions/default.json") == std::string::npos,
+        "CMake should not keep a root-level user/config fallback mission.");
+    test_support::require(
+        cmake_text.find("GNC_ACTIVE_PROJECT_FROM_FILE") != std::string::npos,
+        "CMake should read user/active_project as an explicit fallback.");
+    test_support::require(
+        cmake_text.find("GNC_ACTIVE_PROJECT cache value") != std::string::npos &&
+            cmake_text.find("user/active_project value") != std::string::npos,
+        "CMake should warn when the cache active project overrides user/active_project.");
+    test_support::require(
+        runner_text.find("No default mission is configured") != std::string::npos,
+        "Runner should emit a clear error when no active project default mission exists.");
+}
+
 } // namespace
 
 int main() {
@@ -183,6 +259,9 @@ int main() {
         requireNoLegacyCoordinateServicePath(root);
         requireCoreDoesNotOwnConcreteServiceLogic(root);
         requireCoordinateProbeStaysOutOfBuiltins(root);
+        requireTerminationIsComponentized(root);
+        requireProjectPrivateIncludeContract(root);
+        requireConfigParsingFacadeAndNewUserRoots(root);
 
         std::cout << "architecture guard checks passed\n";
         return 0;

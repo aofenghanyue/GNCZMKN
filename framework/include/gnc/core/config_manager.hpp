@@ -7,14 +7,19 @@
 #pragma once
 
 #include "gnc/common/logger.hpp"
+#include <algorithm>
 #include <cctype>
-#include <string>
+#include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
+#include <stdexcept>
+#include <string>
+#include <system_error>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
-#include <stdexcept>
 
 namespace gnc::core {
 
@@ -139,14 +144,22 @@ private:
 /**
  * @brief 简单 JSON 解析器
  */
-class JsonParser {
+class IConfigParser {
 public:
-    static ConfigNode parse(const std::string& json) {
+    virtual ~IConfigParser() = default;
+
+    virtual ConfigNode parseFile(const std::string& filename) = 0;
+    virtual ConfigNode parseString(const std::string& text) = 0;
+};
+
+class BuiltinJsonConfigParser final : public IConfigParser {
+public:
+    ConfigNode parseString(const std::string& json) override {
         size_t pos = 0;
         return parseValue(json, pos);
     }
     
-    static ConfigNode parseFile(const std::string& filename) {
+    ConfigNode parseFile(const std::string& filename) override {
         std::ifstream file(filename);
         if (!file.is_open()) {
             LOG_ERROR("Failed to open config file: {}", filename);
@@ -154,7 +167,7 @@ public:
         }
         std::stringstream buffer;
         buffer << file.rdbuf();
-        return parse(buffer.str());
+        return parseString(buffer.str());
     }
     
 private:
@@ -169,7 +182,7 @@ private:
         char c = json[pos];
         if (c == '{') return parseObject(json, pos);
         if (c == '[') return parseArray(json, pos);
-        if (c == '"') return parseString(json, pos);
+        if (c == '"') return parseStringToken(json, pos);
         if (c == 't' || c == 'f') return parseBool(json, pos);
         if (c == 'n') { pos += 4; return ConfigNode(); } // null
         if (c == '-' || std::isdigit(c)) return parseNumber(json, pos);
@@ -185,7 +198,7 @@ private:
         while (pos < json.size() && json[pos] != '}') {
             skipWhitespace(json, pos);
             if (json[pos] == '"') {
-                auto key = parseString(json, pos).asString();
+                auto key = parseStringToken(json, pos).asString();
                 skipWhitespace(json, pos);
                 if (json[pos] == ':') pos++;
                 skipWhitespace(json, pos);
@@ -213,7 +226,7 @@ private:
         return node;
     }
     
-    static ConfigNode parseString(const std::string& json, size_t& pos) {
+    static ConfigNode parseStringToken(const std::string& json, size_t& pos) {
         pos++; // skip opening '"'
         std::string result;
         while (pos < json.size() && json[pos] != '"') {
@@ -260,21 +273,392 @@ private:
 };
 
 /**
+ * @brief Expands filesystem includes and merges configuration fragments.
+ */
+class ConfigPreprocessor {
+public:
+    ConfigPreprocessor(IConfigParser& parser, const std::string& root_file)
+        : parser_(parser) {
+        std::error_code ec;
+        root_file_ = std::filesystem::absolute(std::filesystem::path(root_file), ec);
+        if (ec) {
+            root_file_ = std::filesystem::path(root_file);
+        }
+        root_file_ = root_file_.lexically_normal();
+        repo_root_ = findRepoRoot(root_file_);
+        project_root_ = findProjectRoot(root_file_, repo_root_);
+    }
+
+    ConfigNode preprocess(const ConfigNode& root) {
+        std::vector<std::string> include_stack;
+        include_stack.push_back(stackKey(root_file_));
+        return preprocessNode(root, root_file_, include_stack, "$");
+    }
+
+    static bool containsIncludeDirective(const ConfigNode& node) {
+        if (node.isObject()) {
+            if (node.has("$include")) {
+                return true;
+            }
+            for (const auto& entry : node) {
+                if (containsIncludeDirective(entry.second)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node.isArray()) {
+            for (size_t i = 0; i < node.size(); ++i) {
+                if (containsIncludeDirective(node[i])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+private:
+    using fs_path = std::filesystem::path;
+
+    static std::string normalize(const fs_path& path) {
+        return path.lexically_normal().generic_string();
+    }
+
+    static bool startsWith(const std::string& text, const std::string& prefix) {
+        return text.rfind(prefix, 0) == 0;
+    }
+
+    static fs_path findRepoRoot(const fs_path& config_file) {
+        std::error_code ec;
+        fs_path current = config_file.has_parent_path()
+                              ? config_file.parent_path()
+                              : std::filesystem::current_path(ec);
+        if (ec) {
+            current = ".";
+        }
+        current = current.lexically_normal();
+
+        while (!current.empty()) {
+            ec.clear();
+            const bool has_cmake =
+                std::filesystem::exists(current / "CMakeLists.txt", ec) && !ec;
+            ec.clear();
+            const bool has_framework =
+                std::filesystem::exists(current / "framework", ec) && !ec;
+            if (has_cmake && has_framework) {
+                return current;
+            }
+
+            const fs_path parent = current.parent_path();
+            if (parent == current) {
+                break;
+            }
+            current = parent;
+        }
+
+        ec.clear();
+        return std::filesystem::current_path(ec).lexically_normal();
+    }
+
+    static fs_path findProjectRoot(const fs_path& config_file,
+                                   const fs_path& repo_root) {
+        std::error_code ec;
+        const fs_path relative = std::filesystem::relative(config_file, repo_root, ec);
+        if (ec) {
+            return {};
+        }
+
+        auto it = relative.begin();
+        if (it == relative.end() || it->generic_string() != "user") {
+            return {};
+        }
+        ++it;
+        if (it == relative.end()) {
+            return {};
+        }
+
+        const std::string project_name = it->generic_string();
+        if (project_name.empty() || project_name == "data" ||
+            project_name == "outputs") {
+            return {};
+        }
+
+        const fs_path candidate = repo_root / "user" / project_name;
+        ec.clear();
+        if (!std::filesystem::is_directory(candidate, ec) || ec) {
+            return {};
+        }
+        return candidate.lexically_normal();
+    }
+
+    static std::string stackKey(const fs_path& path) {
+        std::error_code ec;
+        fs_path absolute = std::filesystem::absolute(path, ec);
+        if (ec) {
+            absolute = path;
+        }
+
+        ec.clear();
+        const fs_path canonical = std::filesystem::weakly_canonical(absolute, ec);
+        if (!ec) {
+            return canonical.lexically_normal().generic_string();
+        }
+        return absolute.lexically_normal().generic_string();
+    }
+
+    std::vector<std::string> readIncludeList(const ConfigNode& include_node,
+                                             const std::string& node_path) const {
+        std::vector<std::string> includes;
+        if (include_node.isString()) {
+            if (include_node.asString().empty()) {
+                throw std::runtime_error(node_path +
+                                         ".$include must not be an empty string.");
+            }
+            includes.push_back(include_node.asString());
+            return includes;
+        }
+        if (include_node.isArray()) {
+            for (size_t i = 0; i < include_node.size(); ++i) {
+                const auto& item = include_node[i];
+                if (!item.isString() || item.asString().empty()) {
+                    throw std::runtime_error(node_path + ".$include[" +
+                                             std::to_string(i) +
+                                             "] must be a non-empty string.");
+                }
+                includes.push_back(item.asString());
+            }
+            return includes;
+        }
+        throw std::runtime_error(node_path +
+                                 ".$include must be a string or an array of strings.");
+    }
+
+    fs_path resolveIncludePath(const std::string& include_path,
+                               const fs_path& current_file,
+                               const std::string& node_path) const {
+        const auto path_after_scheme = [](const std::string& value,
+                                          const std::string& scheme) {
+            return value.substr(scheme.size());
+        };
+
+        fs_path resolved;
+        if (startsWith(include_path, "repo://")) {
+            resolved = repo_root_ / path_after_scheme(include_path, "repo://");
+        } else if (startsWith(include_path, "project://")) {
+            if (project_root_.empty()) {
+                throw std::runtime_error(
+                    node_path +
+                    ".$include uses project:// but the config file is not under user/<project>/.");
+            }
+            resolved = project_root_ / path_after_scheme(include_path, "project://");
+        } else if (startsWith(include_path, "user-data://")) {
+            resolved = repo_root_ / "user" / "data" /
+                       path_after_scheme(include_path, "user-data://");
+        } else {
+            const fs_path requested(include_path);
+            resolved = requested.is_absolute() ? requested
+                                               : current_file.parent_path() / requested;
+        }
+
+        std::error_code ec;
+        resolved = std::filesystem::absolute(resolved, ec);
+        if (ec) {
+            resolved = fs_path(resolved);
+        }
+        resolved = resolved.lexically_normal();
+
+        ec.clear();
+        if (!std::filesystem::exists(resolved, ec) || ec) {
+            throw std::runtime_error(node_path + ".$include file '" +
+                                     include_path + "' was not found at '" +
+                                     normalize(resolved) + "'.");
+        }
+        ec.clear();
+        if (!std::filesystem::is_regular_file(resolved, ec) || ec) {
+            throw std::runtime_error(node_path + ".$include file '" +
+                                     include_path + "' is not a regular file.");
+        }
+        return resolved;
+    }
+
+    ConfigNode loadIncludedFile(const fs_path& include_file,
+                                std::vector<std::string>& include_stack,
+                                const std::string& node_path) {
+        const std::string key = stackKey(include_file);
+        if (std::find(include_stack.begin(), include_stack.end(), key) !=
+            include_stack.end()) {
+            throw std::runtime_error(node_path +
+                                     ".$include cycle detected at '" +
+                                     normalize(include_file) + "'.");
+        }
+
+        include_stack.push_back(key);
+        ConfigNode parsed = parser_.parseFile(include_file.string());
+        if (parsed.isNull()) {
+            include_stack.pop_back();
+            throw std::runtime_error(node_path +
+                                     ".$include failed to parse file '" +
+                                     normalize(include_file) + "'.");
+        }
+        ConfigNode expanded =
+            preprocessNode(parsed, include_file, include_stack, normalize(include_file));
+        include_stack.pop_back();
+        return expanded;
+    }
+
+    static ConfigNode deepMerge(const ConfigNode& base,
+                                const ConfigNode& overlay) {
+        if (!base.isObject() || !overlay.isObject()) {
+            return overlay;
+        }
+
+        ConfigNode merged = ConfigNode::makeObject();
+        for (const auto& [key, value] : base) {
+            merged.set(key, value);
+        }
+        for (const auto& [key, value] : overlay) {
+            if (base.has(key)) {
+                merged.set(key, deepMerge(base[key], value));
+            } else {
+                merged.set(key, value);
+            }
+        }
+        return merged;
+    }
+
+    static bool hasLocalFields(const ConfigNode& node) {
+        for (const auto& entry : node) {
+            if (entry.first != "$include") {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    ConfigNode preprocessObjectWithInclude(const ConfigNode& node,
+                                           const fs_path& current_file,
+                                           std::vector<std::string>& include_stack,
+                                           const std::string& node_path) {
+        const auto includes = readIncludeList(node["$include"], node_path);
+        const bool local_fields_present = hasLocalFields(node);
+
+        ConfigNode merged;
+        bool have_merged = false;
+        for (const auto& include_path : includes) {
+            const fs_path resolved =
+                resolveIncludePath(include_path, current_file, node_path);
+            ConfigNode included =
+                loadIncludedFile(resolved, include_stack, node_path);
+            if (!have_merged) {
+                merged = included;
+                have_merged = true;
+                continue;
+            }
+            if (!merged.isObject() || !included.isObject()) {
+                throw std::runtime_error(
+                    node_path +
+                    ".$include with multiple entries requires object documents.");
+            }
+            merged = deepMerge(merged, included);
+        }
+
+        if (!local_fields_present) {
+            return merged;
+        }
+        if (!merged.isObject()) {
+            throw std::runtime_error(
+                node_path +
+                ".$include with local fields requires included object documents.");
+        }
+
+        ConfigNode local = ConfigNode::makeObject();
+        for (const auto& [key, child] : node) {
+            if (key == "$include") {
+                continue;
+            }
+            local.set(key,
+                      preprocessNode(child,
+                                     current_file,
+                                     include_stack,
+                                     node_path + "." + key));
+        }
+        return deepMerge(merged, local);
+    }
+
+    ConfigNode preprocessNode(const ConfigNode& node,
+                              const fs_path& current_file,
+                              std::vector<std::string>& include_stack,
+                              const std::string& node_path) {
+        if (node.isObject()) {
+            if (node.has("$include")) {
+                return preprocessObjectWithInclude(node,
+                                                   current_file,
+                                                   include_stack,
+                                                   node_path);
+            }
+
+            ConfigNode object = ConfigNode::makeObject();
+            for (const auto& [key, child] : node) {
+                object.set(key,
+                           preprocessNode(child,
+                                          current_file,
+                                          include_stack,
+                                          node_path + "." + key));
+            }
+            return object;
+        }
+
+        if (node.isArray()) {
+            ConfigNode array = ConfigNode::makeArray();
+            for (size_t i = 0; i < node.size(); ++i) {
+                array.push(preprocessNode(node[i],
+                                          current_file,
+                                          include_stack,
+                                          node_path + "[" + std::to_string(i) + "]"));
+            }
+            return array;
+        }
+
+        return node;
+    }
+
+    IConfigParser& parser_;
+    fs_path root_file_;
+    fs_path repo_root_;
+    fs_path project_root_;
+};
+
+/**
  * @brief 配置管理器
- * 
+ *
  * 管理仿真配置，包括：
  * - 仿真参数 (步长、时长等)
  * - 组件列表及其配置
  */
 class ConfigManager {
 public:
-    ConfigManager() = default;
+    ConfigManager()
+        : ConfigManager(std::make_unique<BuiltinJsonConfigParser>()) {}
+
+    explicit ConfigManager(std::unique_ptr<IConfigParser> parser)
+        : parser_(std::move(parser)) {
+        if (!parser_) {
+            parser_ = std::make_unique<BuiltinJsonConfigParser>();
+        }
+    }
     
     /// 从 JSON 文件加载配置
     bool loadFromFile(const std::string& filename) {
-        config_ = JsonParser::parseFile(filename);
-        if (config_.isNull()) {
+        ConfigNode parsed = parser_->parseFile(filename);
+        if (parsed.isNull()) {
             LOG_ERROR("Failed to parse config file: {}", filename);
+            return false;
+        }
+        try {
+            ConfigPreprocessor preprocessor(*parser_, filename);
+            config_ = preprocessor.preprocess(parsed);
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to preprocess config file '{}': {}", filename, e.what());
             return false;
         }
         LOG_INFO("Configuration loaded from: {}", filename);
@@ -283,8 +667,16 @@ public:
     
     /// 从 JSON 字符串加载配置
     bool loadFromString(const std::string& json) {
-        config_ = JsonParser::parse(json);
-        return !config_.isNull();
+        config_ = parser_->parseString(json);
+        if (config_.isNull()) {
+            return false;
+        }
+        if (ConfigPreprocessor::containsIncludeDirective(config_)) {
+            LOG_ERROR("Config loaded from string cannot use filesystem $include directives.");
+            config_ = ConfigNode();
+            return false;
+        }
+        return true;
     }
     
     /// 获取根配置节点
@@ -306,13 +698,6 @@ public:
 
     const ConfigNode& outputs() const { return config_["outputs"]; }
 
-    const ConfigNode& stopConditions() const {
-        if (config_.has("stop_conditions")) {
-            return config_["stop_conditions"];
-        }
-        return config_["simulation"]["stop_conditions"];
-    }
-    
     /// 获取组件配置列表
     [[deprecated("Use vehicles[].form/common/input/process/output/interaction components.")]]
     const ConfigNode& components() const { return config_["components"]; }
@@ -365,6 +750,7 @@ public:
     bool isMultiVehicle() const { return config_.has("vehicles"); }
     
 private:
+    std::unique_ptr<IConfigParser> parser_;
     ConfigNode config_;
 };
 

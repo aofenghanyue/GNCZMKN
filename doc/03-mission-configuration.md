@@ -25,11 +25,55 @@ mission 是 GNCZMKN 的装配入口。当前有效 schema 使用顶层 `vehicles
     }
   ],
   "outputs": {},
-  "stop_conditions": []
+  "termination": {
+    "type": "termination.component_field_below",
+    "name": "termination",
+    "config": {}
+  },
+  "summary": {
+    "type": "project.summary.intercept",
+    "name": "summary",
+    "config": {}
+  }
 }
 ```
 
 旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 不属于当前 schema。
+
+## Include and Merge
+
+`ConfigManager::loadFromFile()` expands `$include` before mission assembly.
+`$include` can be a string or an ordered array of strings:
+
+```json
+{
+  "$include": "project://config/fragments/environment.json",
+  "components": []
+}
+```
+
+```json
+{
+  "$include": [
+    "project://config/presets/base_vehicle.json",
+    "user-data://vehicles/cavh/defaults.json"
+  ],
+  "id": "vehicle"
+}
+```
+
+Include paths are resolved relative to the current JSON file unless they use an
+explicit root:
+
+| Prefix | Root |
+| --- | --- |
+| `repo://` | repository root |
+| `project://` | current `user/<project>/` root |
+| `user-data://` | `user/data/` |
+
+Multiple includes are deep-merged in order. Local fields override included
+fields. Arrays are replaced as whole arrays. `loadFromString()` rejects
+`$include` because it has no filesystem anchor.
 
 ## Simulation
 
@@ -125,20 +169,22 @@ Local-spherical 3DoF：
 
 `interaction` 只做闭合与组合，不拥有气动表、质量定义或推进模型。
 
-## Component Priority
+## Component Scheduling
 
-组件条目可以增加可选顶层字段 `priority`：
+组件条目可以增加可选顶层字段 `priority` 和 `rate_hz`：
 
 ```json
 {
   "type": "vehicle.process.programmed_aoa",
   "name": "guidance",
   "priority": 10,
+  "rate_hz": 10.0,
   "config": {}
 }
 ```
 
 调度器先应用固定 stage 或 publish phase，再在同组内按 `priority` 排序；priority 相同保持 JSON 顺序。`priority` 必须是整数式 number，例如 `0`、`10` 或 `-5`；`0.5` 会作为 build error。默认 publish 序列中，priority 不会让 view 排到 state owner 前面。
+`rate_hz` 必须 `> 0`，不能高于 `1 / simulation.dt`，并且必须让 `1 / simulation.dt / rate_hz` 形成整数步间隔；非法采样频率会作为 build error，不会隐式 round。
 
 ## Outputs
 
@@ -162,20 +208,25 @@ Local-spherical 3DoF：
 CSV 行在 `update(t_k)` 之后写出：form/dynamics/truth view 字段是周期开始发布态 `x_k` 及其真实派生量；input/process/guidance/output 字段是组件在 record 时刻暴露的本周期离散输出。`t0` 行不是未经离散计算的纯初值行，而是初始状态 `x_0` 加上基于 `x_0` 计算出的第一周期离散输出。框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。`outputs` 顶层未知字段只产生 warning，不作为 build error。
 
 `form.local_spherical_3dof.flight_state_view` 是 form/truth 层真实状态视图，在 publish 阶段刷新。机上导航或估计飞行状态应另建 `vehicle.process` 组件。
-## Stop Conditions
+## Termination
 
 ```json
 {
-  "stop_conditions": [
-    {
-      "type": "component_field_below",
+  "termination": {
+      "type": "termination.component_field_below",
+      "name": "termination",
+      "config": {
       "component": "vehicle.dynamics",
       "field": "altitude_m",
       "value": 10000.0,
       "description": "Terminate below 10 km altitude"
     }
-  ]
+  }
 }
 ```
 
-停止条件引用完整组件名和 observable/state 字段名。缺字段、类型错误、未知组件、未知字段和未知类型都会 build fail。
+`termination` 是顶层单例组件，必须实现 `ITerminationEvaluator`。内置阈值组件支持 `termination.component_field_below` 和 `termination.component_field_above`，并引用完整组件名和 observable/state 字段名。缺字段、类型错误、未知组件、未知字段和未知类型都会 build fail。旧 `stop_conditions[]` 不再支持。
+
+## Summary
+
+`summary` 是顶层单例组件，必须实现 `ISummaryObserver`。框架会保留基础 `summary.txt` 内容，并在其中追加 summary observer 写出的项目指标。

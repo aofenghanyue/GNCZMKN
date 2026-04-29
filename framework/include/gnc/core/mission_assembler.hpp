@@ -8,6 +8,8 @@
 #include "gnc/core/service_package_registry.hpp"
 #include "gnc/core/service_context.hpp"
 #include "gnc/core/simulator.hpp"
+#include "gnc/interfaces/i_summary_observer.hpp"
+#include "gnc/interfaces/i_termination_evaluator.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -45,6 +47,7 @@ public:
                      EnvironmentInstance& environment,
                      std::vector<VehicleInstance>& vehicles,
                      ServicePackageRegistry& service_packages,
+                     double simulation_dt,
                      DiagnosticReporter add_error,
                      DiagnosticReporter add_warning)
         : simulator_(simulator),
@@ -52,6 +55,7 @@ public:
           environment_(environment),
           vehicles_(vehicles),
           service_packages_(service_packages),
+          simulation_dt_(simulation_dt),
           add_error_(std::move(add_error)),
           add_warning_(std::move(add_warning)) {}
 
@@ -77,6 +81,8 @@ public:
     void buildMission(const ConfigNode& root) {
         buildEnvironment(root["environment"]);
         buildVehicles(root["vehicles"]);
+        buildTermination(root["termination"]);
+        buildSummary(root["summary"]);
     }
 
     void finalizeServices() {
@@ -422,6 +428,48 @@ private:
                           vehicle_components});
     }
 
+    void buildTermination(const ConfigNode& termination_config) {
+        if (termination_config.isNull()) {
+            return;
+        }
+        if (!termination_config.isObject()) {
+            add_error_("Top-level 'termination' must be an object.");
+            return;
+        }
+
+        registerComponent(termination_config,
+                          PlacementSpec{"termination",
+                                        "termination",
+                                        "mission.",
+                                        ComponentPackageRole::Termination,
+                                        ExecutionStage::Termination,
+                                        "mission",
+                                        nullptr,
+                                        nullptr},
+                          "termination");
+    }
+
+    void buildSummary(const ConfigNode& summary_config) {
+        if (summary_config.isNull()) {
+            return;
+        }
+        if (!summary_config.isObject()) {
+            add_error_("Top-level 'summary' must be an object.");
+            return;
+        }
+
+        registerComponent(summary_config,
+                          PlacementSpec{"summary",
+                                        "summary",
+                                        "mission.",
+                                        ComponentPackageRole::Summary,
+                                        ExecutionStage::Summary,
+                                        "mission",
+                                        nullptr,
+                                        nullptr},
+                          "summary");
+    }
+
     std::string selectedFormFamilyForScope(const std::string& scope_id) const {
         const auto it = selected_form_family_by_scope_.find(scope_id);
         if (it == selected_form_family_by_scope_.end()) {
@@ -508,108 +556,191 @@ private:
             return;
         }
 
+        for (size_t i = 0; i < components.size(); ++i) {
+            const auto& component_config = components[i];
+            const std::string component_path =
+                placement.context + "[" + std::to_string(i) + "]";
+            registerComponent(component_config, placement, component_path);
+        }
+    }
+
+    bool configureScheduling(ComponentBase* component,
+                             const ConfigNode& component_config,
+                             const std::string& component_path) {
+        int priority = 0;
+        const auto& priority_node = component_config["priority"];
+        if (!priority_node.isNull()) {
+            if (!priority_node.isNumber()) {
+                add_error_(component_path + ".priority must be an integer number.");
+                return false;
+            }
+            const double raw_priority = priority_node.asDouble();
+            if (!std::isfinite(raw_priority) ||
+                std::floor(raw_priority) != raw_priority ||
+                raw_priority < static_cast<double>(std::numeric_limits<int>::min()) ||
+                raw_priority > static_cast<double>(std::numeric_limits<int>::max())) {
+                add_error_(component_path + ".priority must be an integer number.");
+                return false;
+            }
+            priority = static_cast<int>(raw_priority);
+        }
+        component->setPriorityInternal_(priority);
+
+        const auto& rate_node = component_config["rate_hz"];
+        if (rate_node.isNull()) {
+            return true;
+        }
+        if (!rate_node.isNumber()) {
+            add_error_(component_path + ".rate_hz must be a positive number.");
+            return false;
+        }
+        const double rate_hz = rate_node.asDouble();
+        if (!validateRateHz(component_path, rate_hz)) {
+            return false;
+        }
+        component->setExecutionFrequency(rate_hz);
+        return true;
+    }
+
+    bool validateRateHz(const std::string& component_path, double rate_hz) {
+        if (!std::isfinite(rate_hz) || rate_hz <= 0.0) {
+            add_error_(component_path + ".rate_hz must be > 0.");
+            return false;
+        }
+        if (simulation_dt_ <= 0.0) {
+            add_error_(component_path +
+                       ".rate_hz cannot be validated because simulation.dt must be > 0.");
+            return false;
+        }
+
+        const double simulation_frequency_hz = 1.0 / simulation_dt_;
+        const double tolerance =
+            1.0e-9 * std::max(1.0, std::abs(simulation_frequency_hz));
+        if (rate_hz > simulation_frequency_hz + tolerance) {
+            add_error_(component_path +
+                       ".rate_hz must not exceed the simulation frequency 1 / simulation.dt.");
+            return false;
+        }
+
+        const double raw_interval = simulation_frequency_hz / rate_hz;
+        const double rounded_interval = std::round(raw_interval);
+        const double interval_tolerance =
+            1.0e-9 * std::max(1.0, std::abs(raw_interval));
+        if (std::abs(raw_interval - rounded_interval) > interval_tolerance ||
+            rounded_interval < 1.0) {
+            add_error_(component_path +
+                       ".rate_hz must divide the simulation frequency into an integer step interval.");
+            return false;
+        }
+        return true;
+    }
+
+    bool validateRequiredPlacementInterface(ComponentBase* component,
+                                            const std::string& type_name,
+                                            const std::string& full_name,
+                                            const PlacementSpec& placement) {
+        if (placement.placement == "termination" &&
+            !dynamic_cast<interfaces::ITerminationEvaluator*>(component)) {
+            add_error_("Termination component '" + full_name + "' of type '" +
+                       type_name + "' must implement ITerminationEvaluator.");
+            return false;
+        }
+        if (placement.placement == "summary" &&
+            !dynamic_cast<interfaces::ISummaryObserver*>(component)) {
+            add_error_("Summary component '" + full_name + "' of type '" +
+                       type_name + "' must implement ISummaryObserver.");
+            return false;
+        }
+        return true;
+    }
+
+    void registerComponent(const ConfigNode& component_config,
+                           const PlacementSpec& placement,
+                           const std::string& component_path) {
+        const std::string type_name = component_config["type"].asString();
+        const std::string base_name = component_config["name"].asString();
+        const std::string full_name = placement.name_prefix + base_name;
+        const std::string config_path = component_path + ".config";
+
         auto& registry = simulator_.getRegistry();
         auto& factory = ComponentFactory::instance();
 
-        for (size_t i = 0; i < components.size(); ++i) {
-            const auto& component_config = components[i];
-            const std::string type_name = component_config["type"].asString();
-            const std::string base_name = component_config["name"].asString();
-            const std::string full_name = placement.name_prefix + base_name;
-            const std::string component_path =
-                placement.context + "[" + std::to_string(i) + "]";
-            const std::string config_path = component_path + ".config";
-
-            if (type_name.empty() || base_name.empty()) {
-                add_error_("Component at index " + std::to_string(i) +
-                           " in " + placement.context +
-                           " is missing type or name.");
-                continue;
-            }
-            if (!factory.hasType(type_name)) {
-                add_error_(buildUnknownTypeMessage(type_name,
-                                                   full_name,
-                                                   factory,
-                                                   placement.context));
-                continue;
-            }
-            if (registry.has(full_name)) {
-                add_error_("Duplicate component name '" + full_name + "'.");
-                continue;
-            }
-
-            validatePlacement(type_name, full_name, placement, factory);
-
-            auto component = factory.create(type_name);
-            auto* component_ptr = component.get();
-            annotateComponentMetadata(component_ptr, type_name, factory);
-
-            int priority = 0;
-            const auto& priority_node = component_config["priority"];
-            if (!priority_node.isNull()) {
-                if (!priority_node.isNumber()) {
-                    add_error_(component_path + ".priority must be an integer number.");
-                    continue;
-                }
-                const double raw_priority = priority_node.asDouble();
-                if (!std::isfinite(raw_priority) ||
-                    std::floor(raw_priority) != raw_priority ||
-                    raw_priority < static_cast<double>(std::numeric_limits<int>::min()) ||
-                    raw_priority > static_cast<double>(std::numeric_limits<int>::max())) {
-                    add_error_(component_path + ".priority must be an integer number.");
-                    continue;
-                }
-                priority = static_cast<int>(raw_priority);
-            }
-            component_ptr->setPriorityInternal_(priority);
-
-            const auto& config = component_config["config"];
-            config.resetAccessTracking();
-            try {
-                component_ptr->configure(config, config_path);
-            } catch (const std::exception& e) {
-                add_error_("Component '" + full_name + "' of type '" + type_name +
-                           "' failed to configure at " + config_path + ": " +
-                           e.what());
-                continue;
-            }
-            checkUnusedConfigKeys(full_name,
-                                  type_name,
-                                  config,
-                                  factory.getCategory(type_name) ==
-                                      ComponentCategory::Builtin);
-
-            try {
-                component_ptr->injectServices(global_services_);
-                component_ptr->injectServices(environment_.services);
-                if (placement.local_services) {
-                    component_ptr->injectServices(*placement.local_services);
-                }
-            } catch (const std::exception& e) {
-                add_error_("Component '" + full_name + "' of type '" + type_name +
-                           "' failed service injection: " + e.what());
-                continue;
-            }
-
-            if (placement.owner_components) {
-                placement.owner_components->push_back(component_ptr);
-            }
-
-            simulator_.addComponentToStage(component_ptr, placement.execution_stage);
-            assembly_descriptors_.push_back(AssemblyDescriptor{
-                full_name,
-                type_name,
-                placement.placement,
-                factory.getPackageRole(type_name),
-                factory.getExecutionStage(type_name),
-                factory.getFormFamily(type_name),
-                placement.scope_id,
-                selectedFormFamilyForScope(placement.scope_id)});
-
-            registry.addDynamic(full_name,
-                                std::move(component),
-                                factory.getInterfaces(type_name));
+        if (type_name.empty() || base_name.empty()) {
+            add_error_("Component at " + component_path + " is missing type or name.");
+            return;
         }
+        if (!factory.hasType(type_name)) {
+            add_error_(buildUnknownTypeMessage(type_name,
+                                               full_name,
+                                               factory,
+                                               placement.context));
+            return;
+        }
+        if (registry.has(full_name)) {
+            add_error_("Duplicate component name '" + full_name + "'.");
+            return;
+        }
+
+        validatePlacement(type_name, full_name, placement, factory);
+
+        auto component = factory.create(type_name);
+        auto* component_ptr = component.get();
+        annotateComponentMetadata(component_ptr, type_name, factory);
+
+        if (!configureScheduling(component_ptr, component_config, component_path) ||
+            !validateRequiredPlacementInterface(component_ptr,
+                                                type_name,
+                                                full_name,
+                                                placement)) {
+            return;
+        }
+
+        const auto& config = component_config["config"];
+        config.resetAccessTracking();
+        try {
+            component_ptr->configure(config, config_path);
+        } catch (const std::exception& e) {
+            add_error_("Component '" + full_name + "' of type '" + type_name +
+                       "' failed to configure at " + config_path + ": " +
+                       e.what());
+            return;
+        }
+        checkUnusedConfigKeys(full_name,
+                              type_name,
+                              config,
+                              factory.getCategory(type_name) ==
+                                  ComponentCategory::Builtin);
+
+        try {
+            component_ptr->injectServices(global_services_);
+            component_ptr->injectServices(environment_.services);
+            if (placement.local_services) {
+                component_ptr->injectServices(*placement.local_services);
+            }
+        } catch (const std::exception& e) {
+            add_error_("Component '" + full_name + "' of type '" + type_name +
+                       "' failed service injection: " + e.what());
+            return;
+        }
+
+        if (placement.owner_components) {
+            placement.owner_components->push_back(component_ptr);
+        }
+
+        simulator_.addComponentToStage(component_ptr, placement.execution_stage);
+        assembly_descriptors_.push_back(AssemblyDescriptor{
+            full_name,
+            type_name,
+            placement.placement,
+            factory.getPackageRole(type_name),
+            factory.getExecutionStage(type_name),
+            factory.getFormFamily(type_name),
+            placement.scope_id,
+            selectedFormFamilyForScope(placement.scope_id)});
+
+        registry.addDynamic(full_name,
+                            std::move(component),
+                            factory.getInterfaces(type_name));
     }
 
     void buildServices(const ConfigNode& service_config,
@@ -663,6 +794,7 @@ private:
     EnvironmentInstance& environment_;
     std::vector<VehicleInstance>& vehicles_;
     ServicePackageRegistry& service_packages_;
+    double simulation_dt_ = 0.0;
     DiagnosticReporter add_error_;
     DiagnosticReporter add_warning_;
     std::string selected_form_family_;

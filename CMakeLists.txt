@@ -19,17 +19,30 @@ set(GNC_ACTIVE_PROJECT_FILE "${CMAKE_SOURCE_DIR}/user/active_project")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${GNC_ACTIVE_PROJECT_FILE}")
 set(GNC_COMPONENT_DISCOVERY_MODE "explicit builtin bootstrap")
 
-if(GNC_ACTIVE_PROJECT STREQUAL "" AND EXISTS "${GNC_ACTIVE_PROJECT_FILE}")
+set(GNC_ACTIVE_PROJECT_FROM_FILE "")
+if(EXISTS "${GNC_ACTIVE_PROJECT_FILE}")
     configure_file("${GNC_ACTIVE_PROJECT_FILE}"
                    "${CMAKE_BINARY_DIR}/active_project.stamp"
                    COPYONLY)
-    file(READ "${GNC_ACTIVE_PROJECT_FILE}" GNC_ACTIVE_PROJECT)
-    string(STRIP "${GNC_ACTIVE_PROJECT}" GNC_ACTIVE_PROJECT)
+    file(READ "${GNC_ACTIVE_PROJECT_FILE}" GNC_ACTIVE_PROJECT_FROM_FILE)
+    string(STRIP "${GNC_ACTIVE_PROJECT_FROM_FILE}" GNC_ACTIVE_PROJECT_FROM_FILE)
+endif()
+
+if(NOT GNC_ACTIVE_PROJECT STREQUAL "" AND
+   NOT GNC_ACTIVE_PROJECT_FROM_FILE STREQUAL "" AND
+   NOT GNC_ACTIVE_PROJECT STREQUAL GNC_ACTIVE_PROJECT_FROM_FILE)
+    message(WARNING
+        "GNC_ACTIVE_PROJECT cache value '${GNC_ACTIVE_PROJECT}' overrides "
+        "user/active_project value '${GNC_ACTIVE_PROJECT_FROM_FILE}'.")
+endif()
+
+if(GNC_ACTIVE_PROJECT STREQUAL "" AND NOT GNC_ACTIVE_PROJECT_FROM_FILE STREQUAL "")
+    set(GNC_ACTIVE_PROJECT "${GNC_ACTIVE_PROJECT_FROM_FILE}")
 endif()
 
 set(USER_PROJECT_DIR "")
 set(USER_COMPONENTS_DIR "")
-set(GNC_DEFAULT_CONFIG_RELATIVE "user/config/missions/default.json")
+set(GNC_DEFAULT_CONFIG_RELATIVE "")
 set(USER_COMPONENT_FILES "")
 
 if(NOT GNC_ACTIVE_PROJECT STREQUAL "")
@@ -51,15 +64,40 @@ if(NOT GNC_ACTIVE_PROJECT STREQUAL "")
             RELATIVE "${CMAKE_SOURCE_DIR}"
             "user/${GNC_ACTIVE_PROJECT}/components/*.hpp"
         )
+        set(USER_COMPONENT_HEADERS_WITHOUT_REGISTRATION "")
+        foreach(USER_COMPONENT_FILE IN LISTS USER_COMPONENT_FILES)
+            file(READ "${CMAKE_SOURCE_DIR}/${USER_COMPONENT_FILE}" USER_COMPONENT_HEADER_TEXT)
+            # TODO: Replace this coarse string check with an explicit project
+            # registration manifest so comments or string literals cannot pass
+            # as component registration.
+            string(FIND "${USER_COMPONENT_HEADER_TEXT}"
+                        "GNC_REGISTER_COMPONENT_TYPE"
+                        USER_COMPONENT_REGISTRATION_POS)
+            if(USER_COMPONENT_REGISTRATION_POS EQUAL -1)
+                list(APPEND USER_COMPONENT_HEADERS_WITHOUT_REGISTRATION
+                    "${USER_COMPONENT_FILE}")
+            endif()
+        endforeach()
+        if(USER_COMPONENT_HEADERS_WITHOUT_REGISTRATION)
+            string(JOIN ", "
+                USER_COMPONENT_HEADERS_WITHOUT_REGISTRATION_TEXT
+                ${USER_COMPONENT_HEADERS_WITHOUT_REGISTRATION})
+            message(FATAL_ERROR
+                "Headers under user/${GNC_ACTIVE_PROJECT}/components/ must be "
+                "registrable component headers containing GNC_REGISTER_COMPONENT_TYPE. "
+                "Move shared project interfaces or utilities to interfaces/, common/, "
+                "or include/. Offending files: "
+                "${USER_COMPONENT_HEADERS_WITHOUT_REGISTRATION_TEXT}")
+        endif()
     endif()
 
-    if(EXISTS "${USER_PROJECT_DIR}/config/mission.json")
-        set(GNC_DEFAULT_CONFIG_RELATIVE "user/${GNC_ACTIVE_PROJECT}/config/mission.json")
-    else()
-        message(STATUS
-            "Active project '${GNC_ACTIVE_PROJECT}' has no config/mission.json; "
-            "gnc_sim will keep the legacy default mission '${GNC_DEFAULT_CONFIG_RELATIVE}'.")
+    if(NOT EXISTS "${USER_PROJECT_DIR}/config/mission.json")
+        message(FATAL_ERROR
+            "Active project '${GNC_ACTIVE_PROJECT}' must provide "
+            "config/mission.json. Create user/${GNC_ACTIVE_PROJECT}/config/mission.json "
+            "or run gnc_sim with --config <path> from a build without an active project.")
     endif()
+    set(GNC_DEFAULT_CONFIG_RELATIVE "user/${GNC_ACTIVE_PROJECT}/config/mission.json")
 endif()
 
 set(GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
@@ -197,7 +235,13 @@ target_include_directories(gnc_sim PRIVATE
     "${CMAKE_SOURCE_DIR}"
 )
 if(USER_COMPONENTS_DIR)
-    target_include_directories(gnc_sim PRIVATE "${USER_COMPONENTS_DIR}")
+    target_include_directories(gnc_sim PRIVATE
+        "${USER_PROJECT_DIR}"
+        "${USER_PROJECT_DIR}/include"
+        "${USER_PROJECT_DIR}/interfaces"
+        "${USER_PROJECT_DIR}/common"
+        "${USER_COMPONENTS_DIR}"
+    )
 endif()
 
 if(MSVC)
@@ -250,6 +294,7 @@ if(BUILD_TESTS)
     add_gnc_test(test_auto_data_logger tests/test_auto_data_logger.cpp)
     add_gnc_test(test_publish_semantics tests/test_publish_semantics.cpp)
     add_gnc_test(test_strict_config tests/test_strict_config.cpp)
+    add_gnc_test(test_config_preprocessor tests/test_config_preprocessor.cpp)
 
     list(LENGTH TEST_PROJECT_COMPONENT_FILES TEST_PROJECT_COMPONENT_COUNT)
     message(STATUS

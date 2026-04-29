@@ -32,14 +32,17 @@ public:
     void configure(const gnc::core::ConfigNode& config,
                    const std::string& config_path) override {
         const bool using_asset_file =
-            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
+            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config,
+                                                                     config_path);
         const auto source =
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(config,
-                                                                  "aero.table2d");
+                                                                  "aero.table2d",
+                                                                  config_path);
         const std::string source_description =
             using_asset_file
                 ? "aero.table2d asset '" +
-                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
+                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config,
+                                                                                  config_path)
                           .generic_string() +
                       "'"
                 : config_path;

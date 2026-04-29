@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gnc/common/string_utils.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/core/service_package_registry.hpp"
 #include "gnc/services/coordinate_tree/components/coordinate_tree_builder.hpp"
 #include "gnc/services/coordinate_tree/components/coordinate_tree_service.hpp"
@@ -115,7 +116,7 @@ public:
             spec->build(builder, build_context);
             service_->loadBuiltTree(builder.seal());
             warnUnusedServiceConfigKeys(config_,
-                                        config_path_ + ".coordinate_tree",
+                                        config_path_,
                                         context.add_warning);
         } catch (const std::exception& e) {
             throw std::runtime_error("Service 'coordinate_tree' in scope '" +
@@ -154,14 +155,19 @@ public:
         context.services.registerService<ICoordService>(service);
 
         auto config = context.config;
-        const std::string spec_id = config["spec"].asString();
+        const std::string config_path =
+            context.scope.config_path.empty()
+                ? std::string(id())
+                : context.scope.config_path + "." + std::string(id());
+        gnc::core::ConfigReader reader(config, config_path);
+        const std::string spec_id = reader.requiredString("spec");
         return std::make_unique<CoordinateTreeFinalizationTask>(
             service,
             std::move(config),
             spec_id,
             context.scope.registry_scope,
             context.scope.name,
-            context.scope.config_path,
+            config_path,
             specs_);
     }
 

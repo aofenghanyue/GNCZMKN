@@ -8,9 +8,23 @@
 | `environment` | object | 可省略或为空；环境组件和服务 |
 | `vehicles` | array | 必填；每项包含 `id/form/services/common/input/process/output/interaction` |
 | `outputs` | object | 可省略；CSV 输出配置 |
-| `stop_conditions` | array | 可省略；发布态停止条件 |
+| `termination` | object | 可省略；顶层 termination 组件 |
+| `summary` | object | 可省略；顶层 summary observer 组件 |
 
 旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 不支持。
+
+## Include Roots
+
+| Prefix | Resolves to |
+| --- | --- |
+| relative path | Directory of the JSON file that contains `$include` |
+| `repo://` | Repository root |
+| `project://` | Current `user/<project>/` root |
+| `user-data://` | `user/data/` |
+
+`$include` values can be a string or an ordered string array. Include documents
+are deep-merged in order, local fields override include fields, and arrays are
+replaced as whole arrays.
 
 ## Simulation 字段
 
@@ -24,8 +38,8 @@
 
 ## Component Entry 字段
 
-每个组件条目支持 `type`、`name`、可选 `priority` 和 `config`。
-`priority` 是整数式 number。同一 runtime stage 或 publish phase 内，较小 priority 先执行；priority 相同保持 JSON 顺序。小数 priority 会作为 build error。默认 publish phase 顺序仍是 state owner、view / observer、普通组件。
+每个组件条目支持 `type`、`name`、可选 `priority`、`rate_hz` 和 `config`。
+`priority` 是整数式 number。同一 runtime stage 或 publish phase 内，较小 priority 先执行；priority 相同保持 JSON 顺序。小数 priority 会作为 build error。默认 publish phase 顺序仍是 state owner、view / observer、普通组件。`rate_hz` 必须 `> 0`、不高于 `1 / simulation.dt`，且必须形成整数步间隔。
 
 ## Builtin 组件
 
@@ -42,6 +56,8 @@
 | `aero.table2d` | `vehicles[].output` | `IAeroModel`, `IObservable` |
 | `mass.constant` | `vehicles[].output` | `IConstantMass`, `IObservable` |
 | `mass.continuous_constant_rate` | `vehicles[].output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
+| `termination.component_field_below` | `termination` | `ITerminationEvaluator` |
+| `termination.component_field_above` | `termination` | `ITerminationEvaluator` |
 
 ## 常用配置字段
 
@@ -87,19 +103,22 @@
 CSV `time` 列表示发布态物理时间。
 
 CSV 行在 `update(t_k)` 之后写出：form/dynamics/truth view 字段是周期开始发布态 `x_k` 及其真实派生量；input/process/guidance/output 字段是 record 时刻组件暴露的本周期离散输出。`t0` 行包含初始状态 `x_0` 和基于 `x_0` 计算出的第一周期离散输出。框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。`outputs` 顶层未知字段只产生 build warning，不作为 build error。
-## Stop Conditions
+## Termination
+
+`termination` 是顶层单例组件。旧 `stop_conditions[]` 不再支持。
 
 支持：
 
-- `component_field_below`
-- `component_field_above`
+- `termination.component_field_below`
+- `termination.component_field_above`
 
 字段：
 
 | 字段 | 规则 |
 | --- | --- |
-| `type` | 必填 string |
 | `component` | 必填完整组件名 |
 | `field` | 必填 observable/state 字段 |
 | `value` | 必填 number |
 | `description` | 可选 string |
+
+`summary` 是顶层单例 summary observer，组件必须实现 `ISummaryObserver`，其输出会追加到 `summary.txt`。

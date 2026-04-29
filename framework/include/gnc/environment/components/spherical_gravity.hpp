@@ -1,7 +1,10 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/environment/interfaces/i_gravity.hpp"
+
+#include <string>
 
 namespace gnc::environment {
 
@@ -13,13 +16,17 @@ public:
     void update(double) override {}
 
     void configure(const gnc::core::ConfigNode& config) override {
-        if (config.isNull()) {
-            return;
-        }
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader reader(config, config_path);
         reference_radius_m_ =
-            config["reference_radius_m"].asDouble(reference_radius_m_);
+            reader.optionalDouble("reference_radius_m", reference_radius_m_);
         sea_level_gravity_mps2_ =
-            config["sea_level_gravity_mps2"].asDouble(sea_level_gravity_mps2_);
+            reader.optionalDouble("sea_level_gravity_mps2", sea_level_gravity_mps2_);
+        reader.validateNoUnknownKeys();
     }
 
     double getSeaLevelGravity() const override {

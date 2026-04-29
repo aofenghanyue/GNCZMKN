@@ -1,9 +1,11 @@
 #pragma once
 
 #include "gnc/core/component_base.hpp"
+#include "gnc/core/config_reader.hpp"
 #include "gnc/environment/interfaces/i_earth.hpp"
 
 #include <cmath>
+#include <string>
 
 namespace gnc::environment {
 
@@ -13,13 +15,17 @@ public:
     SphericalEarth() : ComponentBase("SphericalEarth") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
-        if (config.isNull()) {
-            return;
-        }
+        configure(config, "config");
+    }
+
+    void configure(const gnc::core::ConfigNode& config,
+                   const std::string& config_path) override {
+        gnc::core::ConfigReader reader(config, config_path);
         equatorial_radius_m_ =
-            config["equatorial_radius_m"].asDouble(equatorial_radius_m_);
+            reader.optionalDouble("equatorial_radius_m", equatorial_radius_m_);
         rotation_rate_rad_per_s_ =
-            config["rotation_rate_rad_per_s"].asDouble(rotation_rate_rad_per_s_);
+            reader.optionalDouble("rotation_rate_rad_per_s", rotation_rate_rad_per_s_);
+        reader.validateNoUnknownKeys();
     }
 
     void update(double) override {}

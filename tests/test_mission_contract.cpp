@@ -5,6 +5,7 @@
 #include "gnc/forms/cartesian_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
+#include "gnc/interfaces/i_summary_observer.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -74,6 +75,17 @@ public:
         : RecordingComponent("CommonStageLeakProbe", "common_stage_leak") {}
 };
 
+class NonTerminationProbe final : public RecordingComponent {
+public:
+    NonTerminationProbe()
+        : RecordingComponent("NonTerminationProbe", "non_termination") {}
+};
+
+class NonSummaryProbe final : public RecordingComponent {
+public:
+    NonSummaryProbe() : RecordingComponent("NonSummaryProbe", "non_summary") {}
+};
+
 bool containsSubstring(const std::vector<std::string>& lines, const std::string& needle) {
     return std::any_of(lines.begin(), lines.end(), [&](const std::string& line) {
         return line.find(needle) != std::string::npos;
@@ -132,6 +144,16 @@ void registerMissionContractTestTypes() {
                                                __FILE__,
                                                ComponentPackageRole::VehicleCommon,
                                                ExecutionStage::VehicleOutput);
+    factory.registerType<NonTerminationProbe>("test.non_termination_probe",
+                                              ComponentCategory::Project,
+                                              __FILE__,
+                                              ComponentPackageRole::Termination,
+                                              ExecutionStage::Termination);
+    factory.registerType<NonSummaryProbe>("test.non_summary_probe",
+                                          ComponentCategory::Project,
+                                          __FILE__,
+                                          ComponentPackageRole::Summary,
+                                          ExecutionStage::Summary);
 }
 
 } // namespace
@@ -1021,6 +1043,125 @@ int main() {
                               "requires execution stage 'none'"),
             "vehicle.common stage validation did not explain that common is non-scheduled.");
 
+        const char* invalid_termination_interface_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "environment": {},
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": []
+      }
+    }
+  ],
+  "outputs": {
+    "enabled": false
+  },
+  "termination": {
+    "type": "test.non_termination_probe",
+    "name": "termination",
+    "config": {}
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder invalid_termination_interface_builder;
+        test_support::require(
+            invalid_termination_interface_builder.loadConfigString(
+                invalid_termination_interface_mission),
+            "Invalid termination-interface mission JSON could not be parsed.");
+
+        bool invalid_termination_interface_failed = false;
+        try {
+            invalid_termination_interface_builder.build();
+        } catch (const std::exception&) {
+            invalid_termination_interface_failed = true;
+        }
+
+        test_support::require(
+            invalid_termination_interface_failed,
+            "Top-level termination must require ITerminationEvaluator.");
+        test_support::require(
+            containsSubstring(invalid_termination_interface_builder.getBuildErrors(),
+                              "must implement ITerminationEvaluator"),
+            "Termination interface validation did not report ITerminationEvaluator.");
+
+        const char* invalid_summary_interface_mission = R"json(
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 0.1
+  },
+  "environment": {},
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "test.form_probe",
+            "name": "dynamics",
+            "config": {}
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": []
+      }
+    }
+  ],
+  "outputs": {
+    "enabled": false
+  },
+  "summary": {
+    "type": "test.non_summary_probe",
+    "name": "summary",
+    "config": {}
+  }
+}
+)json";
+
+        gnc::core::SimulationBuilder invalid_summary_interface_builder;
+        test_support::require(
+            invalid_summary_interface_builder.loadConfigString(
+                invalid_summary_interface_mission),
+            "Invalid summary-interface mission JSON could not be parsed.");
+
+        bool invalid_summary_interface_failed = false;
+        try {
+            invalid_summary_interface_builder.build();
+        } catch (const std::exception&) {
+            invalid_summary_interface_failed = true;
+        }
+
+        test_support::require(invalid_summary_interface_failed,
+                              "Top-level summary must require ISummaryObserver.");
+        test_support::require(
+            containsSubstring(invalid_summary_interface_builder.getBuildErrors(),
+                              "must implement ISummaryObserver"),
+            "Summary interface validation did not report ISummaryObserver.");
+
         const char* incompatible_mission = R"json(
 {
   "simulation": {
@@ -1313,15 +1454,16 @@ int main() {
   "outputs": {
     "enabled": false
   },
-  "stop_conditions": [
-    {
-      "type": "component_field_below",
+  "termination": {
+      "type": "termination.component_field_below",
+      "name": "termination",
+      "config": {
       "component": "vehicle.dynamics",
       "field": "altitude",
       "value": 999.0,
       "description": "Cartesian direct-accel descent threshold"
     }
-  ]
+  }
 }
 )json";
 

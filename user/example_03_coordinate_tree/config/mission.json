@@ -71,6 +71,7 @@
                 {
                     "type": "vehicle.process.programmed_aoa",
                     "name": "guidance",
+                    "rate_hz": 10.0,
                     "config": {
                         "bank_angle_deg": 0.0,
                         "schedule_altitude_m": [

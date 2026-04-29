@@ -13,6 +13,7 @@
 #include "gnc/infrastructure/simulation_summary.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_integrator.hpp"
+#include "gnc/interfaces/i_termination_evaluator.hpp"
 #include "gnc/common/logger.hpp"
 
 #include <algorithm>
@@ -45,7 +46,6 @@ struct SimulatorConfig {
 class Simulator {
 public:
     using StepCallback = std::function<void(int step, double time, double dt)>;
-    using TerminationCondition = std::function<bool(int step, double time)>;
 
     Simulator() = default;
     ~Simulator() = default;
@@ -61,7 +61,6 @@ public:
     void resetAssemblyState() {
         registry_.clear();
         clearExecutionPlan();
-        termination_conditions_.clear();
         termination_reason_ = "completed";
         current_time_ = 0.0;
         is_initialized_ = false;
@@ -95,11 +94,6 @@ public:
 
     void onAfterStep(StepCallback callback) {
         after_step_callbacks_.push_back(std::move(callback));
-    }
-
-    void addTerminationCondition(const std::string& name,
-                                 TerminationCondition condition) {
-        termination_conditions_.push_back({name, std::move(condition)});
     }
 
     void clearExecutionPlan() {
@@ -256,12 +250,7 @@ simulation_end:
     double getCurrentTime() const { return current_time_; }
     
 private:
-    struct NamedCondition {
-        std::string name;
-        TerminationCondition condition;
-    };
-
-    static constexpr size_t kStageCount = 6;
+    static constexpr size_t kStageCount = 8;
 
     static std::array<ExecutionStage, kStageCount> orderedStages() {
         return {ExecutionStage::Environment,
@@ -269,7 +258,9 @@ private:
                 ExecutionStage::VehicleProcess,
                 ExecutionStage::VehicleOutput,
                 ExecutionStage::Interaction,
-                ExecutionStage::Form};
+                ExecutionStage::Form,
+                ExecutionStage::Termination,
+                ExecutionStage::Summary};
     }
 
     static int stageBucketIndex(ExecutionStage stage) {
@@ -286,6 +277,10 @@ private:
             return 4;
         case ExecutionStage::Form:
             return 5;
+        case ExecutionStage::Termination:
+            return 6;
+        case ExecutionStage::Summary:
+            return 7;
         default:
             return -1;
         }
@@ -431,11 +426,21 @@ private:
     }
 
     bool checkTerminationConditions(int step_index, double time) {
-        for (const auto& condition : termination_conditions_) {
-            if (condition.condition(step_index, time)) {
-                termination_reason_ = condition.name;
+        const auto index = stageBucketIndex(ExecutionStage::Termination);
+        if (index < 0) {
+            return false;
+        }
+
+        for (auto* component : orderedComponentsInBucket(static_cast<size_t>(index))) {
+            auto* evaluator =
+                dynamic_cast<interfaces::ITerminationEvaluator*>(component);
+            if (evaluator && evaluator->shouldTerminate()) {
+                termination_reason_ = evaluator->reason();
+                if (termination_reason_.empty() && component) {
+                    termination_reason_ = component->getName();
+                }
                 LOG_INFO("Simulation terminated early by condition '{}' at t={} s, step={}",
-                         condition.name, time, step_index);
+                         termination_reason_, time, step_index);
                 return true;
             }
         }
@@ -453,9 +458,25 @@ private:
             double comp_freq = component->getExecutionFrequency();
             
             int interval = 1;
-            if (comp_freq > 0 && comp_freq < sim_freq) {
-                interval = static_cast<int>(std::round(sim_freq / comp_freq));
-                interval = std::max(1, interval);
+            if (comp_freq > 0.0) {
+                if (comp_freq > sim_freq) {
+                    throw std::runtime_error(
+                        "Component '" + component->getName() +
+                        "' execution frequency exceeds simulation frequency.");
+                }
+
+                const double raw_interval = sim_freq / comp_freq;
+                const double rounded_interval = std::round(raw_interval);
+                const double tolerance =
+                    1.0e-9 * std::max(1.0, std::abs(raw_interval));
+                if (std::abs(raw_interval - rounded_interval) > tolerance ||
+                    rounded_interval < 1.0) {
+                    throw std::runtime_error(
+                        "Component '" + component->getName() +
+                        "' execution frequency must divide the simulation frequency into "
+                        "an integer step interval.");
+                }
+                interval = static_cast<int>(rounded_interval);
             }
             
             component->setStepInterval(interval);
@@ -478,7 +499,6 @@ private:
     ExecutionPhaseManager phase_manager_;
     std::vector<StepCallback> before_step_callbacks_;
     std::vector<StepCallback> after_step_callbacks_;
-    std::vector<NamedCondition> termination_conditions_;
     std::string termination_reason_ = "completed";
     double current_time_ = 0.0;
     bool is_initialized_ = false;

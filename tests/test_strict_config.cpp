@@ -115,6 +115,21 @@ void expectBuildWarning(const std::string& json,
                               expected_fragment + ")");
 }
 
+void expectBuildSuccess(const std::string& json, const std::string& message) {
+    gnc::core::SimulationBuilder builder;
+    test_support::require(builder.loadConfigString(json),
+                          "Strict-config success JSON could not be parsed.");
+
+    bool failed = false;
+    try {
+        builder.build();
+    } catch (const std::exception&) {
+        failed = true;
+    }
+
+    test_support::require(!failed, message + " (build unexpectedly failed)");
+}
+
 std::string cartesianMissionWith(const std::string& dynamics_config,
                                  const std::string& interaction_type,
                                  const std::string& interaction_config,
@@ -167,6 +182,55 @@ std::string cartesianMissionWith(const std::string& dynamics_config,
   "outputs": )json" +
            outputs_block +
            stop_block + R"json(
+}
+)json";
+}
+
+std::string cartesianMissionWithEnvironment(const std::string& environment_block,
+                                            const std::string& vehicle_services_block =
+                                                "{}") {
+    return std::string(R"json(
+{
+  "simulation": { "dt": 0.1, "duration": 0.2, "integrator": "rk4" },
+  "environment": )json") +
+           environment_block + R"json(,
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "services": )json" +
+           vehicle_services_block + R"json(,
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": )json" +
+           R"json({
+  "initial_position": [0.0, 0.0, 1000.0],
+  "initial_velocity": [0.0, 0.0, 0.0]
+})json" + R"json(
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": )json" +
+           R"json({
+  "acceleration_mps2": [0.0, 0.0, -9.81]
+})json" + R"json(
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": { "enabled": false }
 }
 )json";
 }
@@ -281,6 +345,74 @@ int main() {
             "Unknown integrator should be a build error.");
 
         expectBuildFailure(
+            cartesianMissionWithEnvironment(R"json({
+    "components": [
+      {
+        "type": "environment.spherical_earth",
+        "name": "earth",
+        "config": { "equatorial_radus_m": 6371000.0 }
+      }
+    ]
+  })json"),
+            "environment.components[0].config has unrecognized config key",
+            "SphericalEarth typo should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWithEnvironment(R"json({
+    "components": [
+      {
+        "type": "environment.spherical_earth",
+        "name": "earth",
+        "config": { "equatorial_radius_m": "6371000" }
+      }
+    ]
+  })json"),
+            "environment.components[0].config.equatorial_radius_m must be a number",
+            "SphericalEarth wrong value type should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWithEnvironment(R"json({
+    "components": [
+      {
+        "type": "environment.spherical_gravity",
+        "name": "gravity",
+        "config": { "sea_level_gravty_mps2": 9.80665 }
+      }
+    ]
+  })json"),
+            "environment.components[0].config has unrecognized config key",
+            "SphericalGravity typo should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWithEnvironment(R"json({
+    "components": [
+      {
+        "type": "environment.spherical_gravity",
+        "name": "gravity",
+        "config": { "sea_level_gravity_mps2": "9.80665" }
+      }
+    ]
+  })json"),
+            "environment.components[0].config.sea_level_gravity_mps2 must be a number",
+            "SphericalGravity wrong value type should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWithEnvironment("{}",
+                                           R"json({
+    "coordinate_tree": {}
+  })json"),
+            "vehicles[0].services.coordinate_tree.spec",
+            "coordinate_tree service should require a string spec.");
+
+        expectBuildFailure(
+            cartesianMissionWithEnvironment("{}",
+                                           R"json({
+    "coordinate_tree": { "spec": 42 }
+  })json"),
+            "vehicles[0].services.coordinate_tree.spec",
+            "coordinate_tree service spec type errors should report the service path.");
+
+        expectBuildFailure(
             cartesianMissionWith(
                 kValidCartesianDynamics,
                 "interaction.cartesian_3dof.direct_accel",
@@ -295,8 +427,27 @@ int main() {
       "value": 0.0
     }
   ])json"),
-            "Stop condition references field 'bad_altitude'",
-            "Unknown stop-condition field should be a build error.");
+            "Legacy 'stop_conditions[]' are no longer supported",
+            "Legacy stop_conditions should be rejected.");
+
+        expectBuildFailure(
+            cartesianMissionWith(
+                kValidCartesianDynamics,
+                "interaction.cartesian_3dof.direct_accel",
+                kValidCartesianInteraction,
+                "[]",
+                R"json(,
+  "termination": {
+    "type": "termination.component_field_below",
+    "name": "termination",
+    "config": {
+      "component": "vehicle.dynamics",
+      "field": "bad_altitude",
+      "value": 0.0
+    }
+  })json"),
+            "field 'bad_altitude' not found",
+            "Unknown termination field should be a build error.");
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
@@ -312,6 +463,36 @@ int main() {
                                  ""),
             "vehicles[0].output[0].config.mass_kg",
             "Missing mass_kg should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWith(kValidCartesianDynamics,
+                                 "interaction.cartesian_3dof.direct_accel",
+                                 kValidCartesianInteraction,
+                                 R"json([
+        {
+          "type": "mass.constant",
+          "name": "mass",
+          "config": { "asset_file": 123 }
+        }
+      ])json",
+                                 ""),
+            "vehicles[0].output[0].config.asset_file must be a string",
+            "asset_file type errors should report the component config path.");
+
+        expectBuildFailure(
+            cartesianMissionWith(kValidCartesianDynamics,
+                                 "interaction.cartesian_3dof.direct_accel",
+                                 kValidCartesianInteraction,
+                                 R"json([
+        {
+          "type": "mass.constant",
+          "name": "mass",
+          "config": { "asset_file": "tests/assets/phase5/missing_asset.json" }
+        }
+      ])json",
+                                 ""),
+            "was not found",
+            "Missing asset_file target should be a build error.");
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
@@ -369,6 +550,23 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
+                                 "interaction.cartesian_3dof.direct_accel",
+                                 kValidCartesianInteraction,
+                                 R"json([
+        {
+          "type": "aero.table2d",
+          "name": "aero",
+          "config": {
+            "asset_file": "tests/assets/phase5/aero_non_number.json"
+          }
+        }
+      ])json",
+                                 ""),
+            "row 0 column 1 must be a number",
+            "Aero table non-number entries should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWith(kValidCartesianDynamics,
                                  "test.no_family_interaction",
                                  "{}",
                                  "[]",
@@ -395,6 +593,85 @@ int main() {
       ])json"),
             "vehicles[0].process[0].priority",
             "Fractional priority should be a build error with a precise path.");
+
+        expectBuildSuccess(
+            cartesianMissionWith(kValidCartesianDynamics,
+                                 "interaction.cartesian_3dof.direct_accel",
+                                 kValidCartesianInteraction,
+                                 "[]",
+                                 "",
+                                 R"json("dt": 0.1, "duration": 0.2, "integrator": "rk4")json",
+                                 R"json({ "enabled": false })json",
+                                 "[]",
+                                 R"json([
+        {
+          "type": "test.required_process",
+          "name": "process_probe",
+          "rate_hz": 5.0,
+          "config": { "value": 1.0 }
+        }
+      ])json"),
+            "Valid rate_hz should build.");
+
+        expectBuildFailure(
+            cartesianMissionWith(kValidCartesianDynamics,
+                                 "interaction.cartesian_3dof.direct_accel",
+                                 kValidCartesianInteraction,
+                                 "[]",
+                                 "",
+                                 R"json("dt": 0.1, "duration": 0.2, "integrator": "rk4")json",
+                                 R"json({ "enabled": false })json",
+                                 "[]",
+                                 R"json([
+        {
+          "type": "test.required_process",
+          "name": "process_probe",
+          "rate_hz": 3.0,
+          "config": { "value": 1.0 }
+        }
+      ])json"),
+            "rate_hz must divide the simulation frequency",
+            "Non-integer rate_hz step interval should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWith(kValidCartesianDynamics,
+                                 "interaction.cartesian_3dof.direct_accel",
+                                 kValidCartesianInteraction,
+                                 "[]",
+                                 "",
+                                 R"json("dt": 0.1, "duration": 0.2, "integrator": "rk4")json",
+                                 R"json({ "enabled": false })json",
+                                 "[]",
+                                 R"json([
+        {
+          "type": "test.required_process",
+          "name": "process_probe",
+          "rate_hz": 0.0,
+          "config": { "value": 1.0 }
+        }
+      ])json"),
+            "rate_hz must be > 0",
+            "Nonpositive rate_hz should be a build error.");
+
+        expectBuildFailure(
+            cartesianMissionWith(kValidCartesianDynamics,
+                                 "interaction.cartesian_3dof.direct_accel",
+                                 kValidCartesianInteraction,
+                                 "[]",
+                                 "",
+                                 R"json("dt": 0.1, "duration": 0.2, "integrator": "rk4")json",
+                                 R"json({ "enabled": false })json",
+                                 "[]",
+                                 R"json([
+        {
+          "type": "test.required_process",
+          "name": "process_probe",
+          "rate_hz": 20.0,
+          "config": { "value": 1.0 }
+        }
+      ])json"),
+            "rate_hz must not exceed",
+            "rate_hz above the simulation frequency should be a build error.");
 
         expectBuildWarning(
             cartesianMissionWith(kValidCartesianDynamics,

@@ -21,6 +21,8 @@
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
+#include "gnc/interfaces/i_termination_evaluator.hpp"
+#include "gnc/termination/components/component_field_threshold.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 #include "gnc/vehicle/output/components/constant_mass.hpp"
@@ -191,6 +193,24 @@ inline void registerFormViewPackages(gnc::core::ComponentFactory& factory) {
         "local_spherical_3dof");
 }
 
+inline void registerTerminationPackages(gnc::core::ComponentFactory& factory) {
+    using namespace gnc::core;
+    factory.registerType<gnc::termination::ComponentFieldBelow,
+                         gnc::interfaces::ITerminationEvaluator>(
+        "termination.component_field_below",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Termination,
+        ExecutionStage::Termination);
+    factory.registerType<gnc::termination::ComponentFieldAbove,
+                         gnc::interfaces::ITerminationEvaluator>(
+        "termination.component_field_above",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Termination,
+        ExecutionStage::Termination);
+}
+
 inline void registerBuiltinPackages(gnc::core::ComponentFactory& factory) {
     registerEnvironmentPackages(factory);
     registerVehicleCommonPackages(factory);
@@ -200,6 +220,7 @@ inline void registerBuiltinPackages(gnc::core::ComponentFactory& factory) {
     registerState3DoFPackages(factory);
     registerInteractionPackages(factory);
     registerFormViewPackages(factory);
+    registerTerminationPackages(factory);
 }
 
 } // namespace gnc::bootstrap

@@ -7,6 +7,7 @@
 #include "gnc/common/logger.hpp"
 #include "gnc/infrastructure/auto_data_logger.hpp"
 #include "gnc/core/component_registry.hpp"
+#include "gnc/interfaces/i_summary_observer.hpp"
 
 #include <chrono>
 #include <ctime>
@@ -115,6 +116,27 @@ public:
             file << "  Status:  DISABLED\n";
         }
         file << "\n";
+
+        bool wrote_project_summary = false;
+        for (const auto& name : registry.getComponentNames()) {
+            auto* component = registry.get<ComponentBase>(name);
+            auto* observer =
+                dynamic_cast<gnc::interfaces::ISummaryObserver*>(component);
+            if (!observer) {
+                continue;
+            }
+            if (!wrote_project_summary) {
+                file << "--- Project Summary ---\n";
+                wrote_project_summary = true;
+            }
+            file << "[" << name << "]\n";
+            observer->writeSummary(file);
+            file << "\n";
+        }
+        if (wrote_project_summary) {
+            file << "\n";
+        }
+
         file << "========================================\n";
 
         LOG_INFO("SimulationSummary written to '{}'", filepath);

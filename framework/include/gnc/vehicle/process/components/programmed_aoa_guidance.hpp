@@ -20,9 +20,7 @@ class ProgrammedAoAGuidance final
       public IAeroGuidanceProvider,
       public gnc::interfaces::IObservable {
 public:
-    ProgrammedAoAGuidance() : ComponentBase("ProgrammedAoAGuidance") {
-        setExecutionFrequency(20.0);
-    }
+    ProgrammedAoAGuidance() : ComponentBase("ProgrammedAoAGuidance") {}
 
     void configure(const gnc::core::ConfigNode& config) override {
         configure(config, "config");

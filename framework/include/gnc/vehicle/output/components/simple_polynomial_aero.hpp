@@ -27,13 +27,16 @@ public:
         const auto source =
             gnc::vehicle::common::assets::loadConfiguredJsonAsset(
                 config,
-                "aero.simple_polynomial");
+                "aero.simple_polynomial",
+                config_path);
         const bool using_asset_file =
-            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config);
+            gnc::vehicle::common::assets::hasConfiguredJsonAssetFile(config,
+                                                                     config_path);
         const std::string source_path =
             using_asset_file
                 ? "aero.simple_polynomial asset '" +
-                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config)
+                      gnc::vehicle::common::assets::resolveConfiguredJsonAssetPath(config,
+                                                                                  config_path)
                           .generic_string() +
                       "'"
                 : config_path;

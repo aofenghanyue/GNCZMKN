@@ -91,6 +91,7 @@ int main() {
         {
           "type": "vehicle.process.programmed_aoa",
           "name": "guidance",
+          "rate_hz": 10.0,
           "config": {
             "bank_angle_deg": 0.0,
             "schedule_altitude_m": [
@@ -147,15 +148,16 @@ int main() {
       "vehicle.flight_state": "all"
     }
   },
-  "stop_conditions": [
-    {
-      "type": "component_field_below",
+  "termination": {
+    "type": "termination.component_field_below",
+    "name": "termination",
+    "config": {
       "component": "vehicle.dynamics",
       "field": "altitude_m",
       "value": 1000.0,
       "description": "Terminate below 1 km altitude"
     }
-  ]
+  }
 }
 )json";
 

@@ -77,6 +77,12 @@ private:
         if (placement == "vehicle.output") {
             return ComponentPackageRole::VehicleOutput;
         }
+        if (placement == "termination") {
+            return ComponentPackageRole::Termination;
+        }
+        if (placement == "summary") {
+            return ComponentPackageRole::Summary;
+        }
         return ComponentPackageRole::Unknown;
     }
 
@@ -98,6 +104,12 @@ private:
         }
         if (placement == "vehicle.output") {
             return ExecutionStage::VehicleOutput;
+        }
+        if (placement == "termination") {
+            return ExecutionStage::Termination;
+        }
+        if (placement == "summary") {
+            return ExecutionStage::Summary;
         }
         return ExecutionStage::None;
     }

@@ -57,13 +57,14 @@
             "vehicle.dynamics": "all"
         }
     },
-    "stop_conditions": [
-        {
-            "type": "component_field_below",
+    "termination": {
+        "type": "termination.component_field_below",
+        "name": "termination",
+        "config": {
             "component": "vehicle.dynamics",
             "field": "altitude",
             "value": 0.0,
             "description": "Cartesian altitude below ground"
         }
-    ]
+    }
 }

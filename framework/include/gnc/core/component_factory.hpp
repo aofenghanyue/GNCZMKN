@@ -28,7 +28,9 @@ enum class ComponentPackageRole {
     VehicleInput,
     VehicleProcess,
     VehicleOutput,
-    Interaction
+    Interaction,
+    Termination,
+    Summary
 };
 
 enum class ExecutionStage {
@@ -38,7 +40,9 @@ enum class ExecutionStage {
     VehicleProcess,
     VehicleOutput,
     Interaction,
-    Form
+    Form,
+    Termination,
+    Summary
 };
 
 inline const char* toString(ComponentCategory category) {
@@ -70,6 +74,10 @@ inline const char* toString(ComponentPackageRole role) {
         return "vehicle_output";
     case ComponentPackageRole::Interaction:
         return "interaction";
+    case ComponentPackageRole::Termination:
+        return "termination";
+    case ComponentPackageRole::Summary:
+        return "summary";
     default:
         return "unknown";
     }
@@ -91,6 +99,10 @@ inline const char* toString(ExecutionStage stage) {
         return "interaction";
     case ExecutionStage::Form:
         return "form";
+    case ExecutionStage::Termination:
+        return "termination";
+    case ExecutionStage::Summary:
+        return "summary";
     default:
         return "none";
     }

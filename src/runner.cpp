@@ -224,8 +224,14 @@ void printUsage(const char* program_name) {
               << "  " << program_name << " --config <config.json>\n"
               << "  " << program_name << " --list-components\n"
               << "  " << program_name << " --list-components-verbose\n"
-              << "  " << program_name << " --help\n"
-              << "Default mission lookup: " << gnc::build::kDefaultConfigRelative << "\n";
+              << "  " << program_name << " --help\n";
+    if (std::string_view(gnc::build::kDefaultConfigRelative).empty()) {
+        std::cout
+            << "Default mission lookup: none; set user/active_project or pass --config.\n";
+    } else {
+        std::cout << "Default mission lookup: "
+                  << gnc::build::kDefaultConfigRelative << "\n";
+    }
     if (std::string_view(gnc::build::kActiveProjectName).size() > 0) {
         std::cout << "Active project: " << gnc::build::kActiveProjectName << "\n";
     }
@@ -317,6 +323,11 @@ int main(int argc, char* argv[]) {
 
     const std::string requested_config =
         options.use_default_config ? gnc::build::kDefaultConfigRelative : options.requested_config;
+    if (options.use_default_config &&
+        std::string_view(gnc::build::kDefaultConfigRelative).empty()) {
+        LOG_ERROR("No default mission is configured. Set user/active_project, configure with -DGNC_ACTIVE_PROJECT=<project>, or pass --config <path>.");
+        return 1;
+    }
     ConfigResolution config_resolution;
     std::vector<fs::path> searched_paths;
     if (!resolveConfigPath(requested_config, argv[0], config_resolution, searched_paths)) {

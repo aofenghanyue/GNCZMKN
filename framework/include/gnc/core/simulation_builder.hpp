@@ -8,7 +8,6 @@
 #include "gnc/core/mission_assembler.hpp"
 #include "gnc/core/service_package_registry.hpp"
 #include "gnc/core/simulator.hpp"
-#include "gnc/core/stop_condition_builder.hpp"
 #include "gnc/core/validation_pipeline.hpp"
 
 #include <algorithm>
@@ -37,16 +36,6 @@ public:
         build_warnings_.clear();
         simulator_.resetAssemblyState();
 
-        MissionAssembler assembler(
-            simulator_,
-            global_services_,
-            environment_,
-            vehicles_,
-            service_packages_,
-            [this](const std::string& message) { addBuildError(message); },
-            [this](const std::string& message) { addBuildWarning(message); });
-        assembler.reset();
-
         const auto& simulation = config_.simulation();
         simulation.resetAccessTracking();
         ConfigReader simulation_reader(simulation, "simulation");
@@ -63,6 +52,17 @@ public:
         simulator_.configure(simulator_config);
         buildIntegrator(integrator_name);
 
+        MissionAssembler assembler(
+            simulator_,
+            global_services_,
+            environment_,
+            vehicles_,
+            service_packages_,
+            simulator_config.dt,
+            [this](const std::string& message) { addBuildError(message); },
+            [this](const std::string& message) { addBuildWarning(message); });
+        assembler.reset();
+
         assembler.installGlobalServices(config_.globalServices());
         buildMissionArchitecture(assembler);
         assembler.finalizeServices();
@@ -77,10 +77,6 @@ public:
         for (const auto& warning : validation.warnings) {
             addBuildWarning(warning);
         }
-
-        StopConditionBuilder stop_conditions(
-            simulator_, [this](const std::string& message) { addBuildError(message); });
-        stop_conditions.build(config_.stopConditions());
 
         if (!simulator_.initializeAutoDataLogger(config_.outputs())) {
             addBuildError("AutoDataLogger initialization failed during simulation build.");
@@ -147,6 +143,12 @@ private:
 
     void buildMissionArchitecture(MissionAssembler& assembler) {
         const auto& root = config_.root();
+
+        if (root.has("stop_conditions") || root["simulation"].has("stop_conditions")) {
+            addBuildError(
+                "Legacy 'stop_conditions[]' are no longer supported. "
+                "Use the top-level 'termination' component instead.");
+        }
 
         if (config_.hasEntities()) {
             addBuildError(

@@ -71,7 +71,20 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
     }
   ],
   "outputs": {},
-  "stop_conditions": []
+  "termination": {
+    "type": "termination.component_field_below",
+    "name": "termination",
+    "config": {
+      "component": "vehicle.dynamics",
+      "field": "altitude",
+      "value": 0.0
+    }
+  },
+  "summary": {
+    "type": "project.summary.intercept",
+    "name": "summary",
+    "config": {}
+  }
 }
 ```
 
@@ -82,7 +95,7 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 
 | 路径 | 用途 |
 | --- | --- |
-| `framework/include/gnc/core/` | 运行时外壳、装配、配置、验证、停止条件 |
+| `framework/include/gnc/core/` | 运行时外壳、装配、配置、验证、调度 |
 | `framework/include/gnc/forms/` | 内置 form 和 form 专属接口 |
 | `framework/include/gnc/environment/` | 环境组件和查询接口 |
 | `framework/include/gnc/vehicle/` | vehicle common/input/process/output 包 |
