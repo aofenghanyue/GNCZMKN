@@ -29,21 +29,33 @@ mission 是 GNCZMKN 的装配入口。当前有效 schema 使用顶层 `vehicles
     "type": "termination.component_field_below",
     "name": "termination",
     "config": {}
-  },
-  "summary": {
-    "type": "project.summary.intercept",
-    "name": "summary",
-    "config": {}
   }
 }
 ```
 
 旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 不属于当前 schema。
+`termination` 和 `summary` 都是可选顶层单例；上面的 `termination.config` 只是结构占位，真实任务需要填写被监控组件、字段和阈值。
+
+`global_services` 是预留的高级顶层服务块；当前内置 `coordinate_tree` 只支持 vehicle scope，因此普通 mission 不应使用顶层 `global_services`。
+
+## 命名和作用域
+
+每个 vehicle 必须有 `id`。合法 id 匹配 `[A-Za-z_][A-Za-z0-9_-]*`，并且不能是 `env`。
+
+运行时组件名由作用域前缀和组件 `name` 组成：
+
+| Mission 位置 | 示例 name | 完整组件名 |
+| --- | --- | --- |
+| `environment.components` | `earth` | `env.earth` |
+| `vehicles[0].form.components`，vehicle id 为 `vehicle` | `dynamics` | `vehicle.dynamics` |
+| `vehicles[0].process`，vehicle id 为 `vehicle` | `guidance` | `vehicle.guidance` |
+| `termination` | `termination` | `mission.termination` |
+
+`outputs.record`、termination 的 `component`、跨作用域依赖配置都应使用完整组件名。组件内部的默认依赖名通常是当前 vehicle 作用域内的短名，例如 `dynamics`、`interaction`、`mass`、`aero`；环境依赖通常使用 `env.*`。
 
 ## Include and Merge
 
-`ConfigManager::loadFromFile()` expands `$include` before mission assembly.
-`$include` can be a string or an ordered array of strings:
+`ConfigManager::loadFromFile()` 会在 mission assembly 前展开 `$include`。`$include` 可以是 string 或有序 string array：
 
 ```json
 {
@@ -62,18 +74,15 @@ mission 是 GNCZMKN 的装配入口。当前有效 schema 使用顶层 `vehicles
 }
 ```
 
-Include paths are resolved relative to the current JSON file unless they use an
-explicit root:
+include 路径默认相对当前 JSON 文件解析；显式 root 如下：
 
 | Prefix | Root |
 | --- | --- |
-| `repo://` | repository root |
-| `project://` | current `user/<project>/` root |
+| `repo://` | 仓库根目录 |
+| `project://` | 当前 `user/<project>/` 根目录 |
 | `user-data://` | `user/data/` |
 
-Multiple includes are deep-merged in order. Local fields override included
-fields. Arrays are replaced as whole arrays. `loadFromString()` rejects
-`$include` because it has no filesystem anchor.
+多个 include 按顺序 deep merge；本地字段覆盖 include 字段；数组整体替换。`loadFromString()` 没有文件系统锚点，因此会拒绝 `$include`。
 
 ## Simulation
 
@@ -84,6 +93,36 @@ fields. Arrays are replaced as whole arrays. `loadFromString()` rejects
 | `integrator` | 可省略，默认 `rk4`；当前支持 `rk4` 和 `euler` |
 
 `duration / dt` 必须接近整数，否则 build 失败。未知 integrator 不回退，直接 build error。
+
+## Environment
+
+环境块由可选 `services` 和 `components` 组成。内置环境组件通常放在 `environment.components`：
+
+```json
+{
+  "environment": {
+    "components": [
+      {
+        "type": "environment.spherical_earth",
+        "name": "earth",
+        "config": {}
+      },
+      {
+        "type": "environment.standard_atmosphere",
+        "name": "atmosphere",
+        "config": {}
+      },
+      {
+        "type": "environment.spherical_gravity",
+        "name": "gravity",
+        "config": {}
+      }
+    ]
+  }
+}
+```
+
+环境组件注册到 `env.<name>`。例如 local-spherical point-mass 默认查找 `env.earth`，aero-propulsive interaction 默认查找 `env.atmosphere` 和 `env.gravity`。
 
 ## Form 示例
 
@@ -169,6 +208,33 @@ Local-spherical 3DoF：
 
 `interaction` 只做闭合与组合，不拥有气动表、质量定义或推进模型。
 
+## Vehicle Services
+
+`vehicles[].services` 用于 vehicle scope 的基础设施服务。当前内置服务是 `coordinate_tree`：
+
+```json
+{
+  "services": {
+    "coordinate_tree": {
+      "spec": "local_spherical_3dof.launch_track",
+      "bindings": {
+        "earth": { "name": "env.earth" },
+        "truth": { "name": "dynamics" }
+      },
+      "launch": {
+        "latitude_rad": 0.5235987755982988,
+        "longitude_rad": 1.9198621771937625,
+        "azimuth_rad": 1.5707963267948966,
+        "launch_time_s": 0.0,
+        "earth_rotation_angle_rad": 0.0
+      }
+    }
+  }
+}
+```
+
+服务先创建句柄，再在组件装配后 finalize，因此 service spec 可以绑定同一 vehicle 内的 form truth。项目组件通过 `injectServices(ServiceContext&)` 获取服务；示例见 `user/example_03_coordinate_tree/components/coordinate_probe.hpp`。
+
 ## Component Scheduling
 
 组件条目可以增加可选顶层字段 `priority` 和 `rate_hz`：
@@ -208,6 +274,39 @@ Local-spherical 3DoF：
 CSV 行在 `update(t_k)` 之后写出：form/dynamics/truth view 字段是周期开始发布态 `x_k` 及其真实派生量；input/process/guidance/output 字段是组件在 record 时刻暴露的本周期离散输出。`t0` 行不是未经离散计算的纯初值行，而是初始状态 `x_0` 加上基于 `x_0` 计算出的第一周期离散输出。框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。`outputs` 顶层未知字段只产生 warning，不作为 build error。
 
 `form.local_spherical_3dof.flight_state_view` 是 form/truth 层真实状态视图，在 publish 阶段刷新。机上导航或估计飞行状态应另建 `vehicle.process` 组件。
+
+`record` 支持三种常用写法：
+
+```json
+{ "record": "all" }
+```
+
+```json
+{ "record": ["vehicle.dynamics", "vehicle.guidance"] }
+```
+
+```json
+{
+  "record": {
+    "vehicle.dynamics": ["altitude_m", "velocity_launch"],
+    "vehicle.guidance": "all"
+  }
+}
+```
+
+字段数组按 observable 字段前缀匹配；`velocity_launch` 会记录 `velocity_launch.x/y/z`。`exclude` 可排除完整字段或通配后缀：
+
+```json
+{
+  "exclude": [
+    "vehicle.dynamics.velocity_ecef.x",
+    "*.debug_counter"
+  ]
+}
+```
+
+`debug_snapshots` 记录组件内部 debug snapshot，不要求字段稳定，适合排查问题，不建议作为长期数据接口。
+
 ## Termination
 
 ```json

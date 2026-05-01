@@ -1,15 +1,23 @@
 # GNCZMKN
 
-GNCZMKN 是一个面向制导、导航与控制研究的轻量 C++ 仿真框架。它的目标不是通用商用仿真平台，而是让研究人员用清晰的组件边界快速建立可信模型。
+GNCZMKN 是一个面向制导、导航与控制研究的轻量 C++ 仿真框架。它的目标不是通用商用仿真平台，而是让研究人员用清晰的组件边界快速建立可信模型、复现实验、扩展项目私有模型。
+
+适合使用它的场景：
+
+- 固定步长 GNC 算法、飞行动力学、传感器/制导/控制链路原型验证。
+- 需要把项目模型作为组件接入，并保留可测试的接口边界。
+- 需要通过 mission JSON 显式装配仿真，而不是把场景逻辑硬编码进 runner。
 
 当前 mission 只推荐一种顶层写法：`vehicles[]`。旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 都不是当前运行时契约。
 
-## 核心概念
+## 核心心智模型
 
-- `Form`: 拥有连续状态、导数方程、truth view 和 form input。
-- `Environment`: 提供地球、大气、重力等只读环境查询能力。
-- `Vehicle`: 按 `common/input/process/output` 组织飞行器侧能力。
-- `Interaction`: 把 form truth、环境查询、process 命令和 output 能力闭合成 form input。
+| 概念 | 放什么 | 不放什么 |
+| --- | --- | --- |
+| `Form` | 连续状态、导数方程、truth view、form input | 导航估计、制导控制策略 |
+| `Environment` | 地球、大气、重力等只读世界查询 | 飞行器状态、任务模式 |
+| `Vehicle` | `common/input/process/output` 飞行器侧能力 | form-specific 闭合方程 |
+| `Interaction` | 把 truth、环境、process 命令和 output 能力闭合成 form input | 气动表、质量定义、推进资产 |
 
 固定步长循环采用周期开始发布态：
 
@@ -50,6 +58,8 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 
 ## Mission Skeleton
 
+下面是可运行的最小 Cartesian 3DoF mission 形状；完整示例见 `user/example_01_minimal_pluginized/config/mission.json`。
+
 ```json
 {
   "simulation": {
@@ -61,16 +71,43 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
   "vehicles": [
     {
       "id": "vehicle",
-      "form": { "components": [] },
-      "services": {},
+      "form": {
+        "components": [
+          {
+            "type": "form.cartesian_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "initial_position": [0.0, 0.0, 1000.0],
+              "initial_velocity": [250.0, 0.0, 40.0]
+            }
+          }
+        ]
+      },
       "common": [],
       "input": [],
       "process": [],
       "output": [],
-      "interaction": { "components": [] }
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.cartesian_3dof.direct_accel",
+            "name": "interaction",
+            "config": {
+              "acceleration_mps2": [0.0, 0.0, -9.81]
+            }
+          }
+        ]
+      }
     }
   ],
-  "outputs": {},
+  "outputs": {
+    "directory": "user/outputs/{timestamp}",
+    "format": "csv",
+    "session_name": "minimal_cartesian_3dof",
+    "record": {
+      "vehicle.dynamics": "all"
+    }
+  },
   "termination": {
     "type": "termination.component_field_below",
     "name": "termination",
@@ -79,18 +116,14 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
       "field": "altitude",
       "value": 0.0
     }
-  },
-  "summary": {
-    "type": "project.summary.intercept",
-    "name": "summary",
-    "config": {}
   }
 }
 ```
 
 `simulation.dt` 和 `simulation.duration` 必须显式配置；`integrator` 可省略，默认 `rk4`。物理参数如初始状态、质量、气动表和控制表不会静默使用默认值。
 
-组件条目可以增加可选 `priority`；框架仍先应用固定 stage / publish phase，再在同一组内按 priority 排序。
+组件条目可以增加可选 `priority` 和 `rate_hz`；框架仍先应用固定 stage / publish phase，再在同一组内按 priority 排序。`rate_hz` 必须严格整除仿真频率。
+
 ## Repository Layout
 
 | 路径 | 用途 |
@@ -108,12 +141,8 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 
 ## Documentation
 
-- [文档导航](doc/README.md)
-- [快速上手](doc/01-getting-started.md)
-- [核心概念](doc/02-core-concepts.md)
-- [Mission 配置](doc/03-mission-configuration.md)
-- [扩展指南](doc/04-extension-guide.md)
-- [参考手册](doc/06-reference.md)
-- [当前架构总览](doc/00-current-architecture.md)
-- [维护者架构说明](doc/05-architecture.md)
-- [设计决策](doc/07-decisions.md)
+- 第一次运行：读 [文档导航](doc/README.md) 和 [快速上手](doc/01-getting-started.md)。
+- 理解架构全貌：按 [核心概念](doc/02-core-concepts.md)、[当前架构总览](doc/00-current-architecture.md)、[维护者架构说明](doc/05-architecture.md)、[扩展指南](doc/04-extension-guide.md) 的顺序读。
+- 写 mission：读 [核心概念](doc/02-core-concepts.md)、[Mission 配置](doc/03-mission-configuration.md) 和 [参考手册](doc/06-reference.md)。
+- 写项目组件：读 [扩展指南](doc/04-extension-guide.md) 和 `user/README.md`。
+- 维护框架：读 [当前架构总览](doc/00-current-architecture.md)、[维护者架构说明](doc/05-architecture.md) 和 [设计决策](doc/07-decisions.md)。

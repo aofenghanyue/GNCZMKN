@@ -12,6 +12,7 @@ deps
 # *.code-workspace
 .agent/
 AGENT.md
+AGENTS.md
 # Temporary files
 temp/
 *.tmp

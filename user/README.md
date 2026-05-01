@@ -1,71 +1,70 @@
 # User Workspace
 
-`user/` is the repository workspace for project missions, project components,
-project-private headers, shared data assets, and simulation outputs.
+`user/` 是项目侧工作区，用来放 mission、项目组件、项目私有头文件、共享数据资产和仿真输出。framework 代码不应依赖某个具体 `user/<project>`。
 
-## Layout
+## 目录结构
 
 | Path | Purpose |
 | --- | --- |
-| `user/active_project` | Fallback active project name used by CMake when `-DGNC_ACTIVE_PROJECT=...` is not set |
-| `user/<project>/config/mission.json` | Default mission for the active project |
-| `user/<project>/components/` | Project component headers scanned for auto-registration |
-| `user/<project>/interfaces/` | Project-private interfaces; included by `gnc_sim`, not scanned for components |
-| `user/<project>/common/` | Project-private shared helpers; included by `gnc_sim`, not scanned for components |
-| `user/<project>/include/` | Project-private include root; included by `gnc_sim`, not scanned for components |
-| `user/data/` | Cross-project data assets referenced with `user-data://...` |
-| `user/outputs/` | Runtime output directory |
+| `user/active_project` | 未设置 `-DGNC_ACTIVE_PROJECT=...` 时的默认 active project 名 |
+| `user/<project>/config/mission.json` | active project 的默认 mission |
+| `user/<project>/components/` | 会被 CMake 扫描并自动注册的项目组件头文件 |
+| `user/<project>/interfaces/` | 项目私有接口；进入 include path，不扫描注册 |
+| `user/<project>/common/` | 项目共享工具；进入 include path，不扫描注册 |
+| `user/<project>/include/` | 项目私有 include root；进入 include path，不扫描注册 |
+| `user/data/` | 跨项目数据资产，可用 `user-data://...` 引用 |
+| `user/outputs/` | 运行时输出目录 |
 
-`components/` must contain only registrable component headers with
-`GNC_REGISTER_COMPONENT_TYPE`. Shared project contracts and utilities belong in
-`interfaces/`, `common/`, or `include/`.
+`components/` 只放包含 `GNC_REGISTER_COMPONENT_TYPE` 的可注册组件头。共享接口、数据结构、工具函数应放在 `interfaces/`、`common/` 或 `include/`。
 
 ## Active Project
 
-CMake chooses the active project in this order:
+CMake 按以下顺序选择 active project：
 
-1. `-DGNC_ACTIVE_PROJECT=<project>` cache value.
-2. `user/active_project`.
+1. `-DGNC_ACTIVE_PROJECT=<project>` cache value。
+2. `user/active_project`。
 
-If both are present and different, CMake warns and uses the cache value. An
-active project must provide `config/mission.json`; otherwise configuration
-fails. If no active project is configured, `gnc_sim` has no default mission and
-must be run with `--config <path>`.
+如果两者都存在且不同，CMake 会 warning，并使用 cache value。active project 必须提供 `config/mission.json`；否则 CMake 配置失败。如果没有 active project，`gnc_sim` 没有默认 mission，运行时必须传 `--config <path>`。
 
-Current repository default:
+当前仓库默认：
 
 ```text
 example_02_atmospheric_3dof
 ```
 
-Only the active project's component headers are auto-registered into `gnc_sim`.
-After changing `user/active_project`, `-DGNC_ACTIVE_PROJECT`, or component
-headers, rerun CMake configuration and rebuild.
+只有 active project 的 `components/*.hpp` 会自动注册进 `gnc_sim`。修改 `user/active_project`、`-DGNC_ACTIVE_PROJECT` 或组件头文件后，需要重新运行 CMake 配置并重新构建。
 
-## Examples
+## 示例项目
 
 | Project | Purpose |
 | --- | --- |
-| `example_01_minimal_pluginized` | Minimal Cartesian 3DoF mission |
-| `example_02_atmospheric_3dof` | Main atmospheric local-spherical 3DoF example |
-| `example_03_coordinate_tree` | Coordinate-tree service plus project component example |
+| `example_01_minimal_pluginized` | 最小 Cartesian 3DoF mission |
+| `example_02_atmospheric_3dof` | 主 atmospheric local-spherical 3DoF 示例 |
+| `example_03_coordinate_tree` | coordinate-tree service 和项目组件示例 |
 
-## Common Commands
+## 常用命令
 
-Run the active project mission:
+运行 active project mission：
 
 ```powershell
 build-mingw\bin\gnc_sim.exe
 ```
 
-Run an explicit mission:
+运行指定 mission：
 
 ```powershell
 build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
 ```
 
-List registered components:
+查看已注册组件：
 
 ```powershell
 build-mingw\bin\gnc_sim.exe --list-components-verbose
+```
+
+切换 active project 的推荐方式：
+
+```powershell
+cmake -S . -B build-mingw -G "MinGW Makefiles" -DGNC_ACTIVE_PROJECT=example_03_coordinate_tree
+cmake --build build-mingw -j 4
 ```

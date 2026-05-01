@@ -22,6 +22,12 @@ ctest --test-dir build-mingw --output-on-failure
 
 `build-mingw` 是推荐构建目录。切换编译器或生成器时，新建另一个构建目录更稳妥。
 
+一次健康的构建通常应满足三件事：
+
+- CMake 输出 active project 名称和 auto-registered component 数量。
+- `ctest` 全部通过。
+- `build-mingw/bin/gnc_sim.exe` 存在，并能打印 `--help`。
+
 ## 运行默认任务
 
 直接运行：
@@ -49,6 +55,15 @@ user/example_02_atmospheric_3dof/config/mission.json
 ```
 
 修改 `user/active_project` 或新增项目组件后，重新运行 CMake 配置和构建。
+
+也可以在配置阶段显式指定 active project：
+
+```powershell
+cmake -S . -B build-mingw -G "MinGW Makefiles" -DGNC_ACTIVE_PROJECT=example_03_coordinate_tree
+cmake --build build-mingw -j 4
+```
+
+当 `-DGNC_ACTIVE_PROJECT` 与 `user/active_project` 不同时，CMake 使用 cache 值并给出 warning。
 
 ## 运行指定任务
 
@@ -105,6 +120,32 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 
 `{timestamp}` 会在运行时替换为时间戳。自动记录器会写 CSV；仿真结束后，如果输出目录有效，还会写仿真摘要。
 
+默认 CSV 文件名来自 `session_name`，例如：
+
+```text
+user/outputs/2026-05-01_113000/cavh_3dof.csv
+user/outputs/2026-05-01_113000/summary.txt
+```
+
+CSV 的 `time` 列表示周期开始发布态 `t_k`。如果你在 `t0` 行看到 guidance、aero 或 mass 字段，它们不是“初始条件字段”，而是 `update(t_0)` 后组件暴露的第一周期离散输出。
+
+调试快照可用于排查组件内部状态：
+
+```json
+{
+  "outputs": {
+    "directory": "user/outputs/{timestamp}",
+    "record": {
+      "vehicle.dynamics": "all"
+    },
+    "debug_snapshots": {
+      "enabled": true,
+      "components": ["vehicle.dynamics"]
+    }
+  }
+}
+```
+
 ## 常用命令
 
 ```powershell
@@ -124,6 +165,8 @@ build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mis
 | 提示未知组件类型 | 检查 mission 的 `type` 是否等于注册的 type id |
 | 组件放错块 | 检查 type 的 role 和 stage，`--list-components-verbose` 会列出注册元数据 |
 | 没有生成 CSV | 检查 `outputs.enabled`、`outputs.record`，并确认目标组件实现 `IObservable` |
+| CSV 字段顺序或数量不符合预期 | 先用 `outputs.record` 精确列出组件和字段，再用 `exclude` 排除不需要的字段 |
 | 停止条件找不到字段 | 确认 `component` 使用完整组件名，例如 `cavh.dynamics` |
+| `rate_hz` 报错 | 让 `rate_hz` 严格整除 `1 / simulation.dt`，例如 `dt=0.1` 时可用 `10`、`5`、`2`、`1` Hz |
 
 下一步建议阅读 [核心概念](02-core-concepts.md)，再阅读 [Mission 配置](03-mission-configuration.md)。

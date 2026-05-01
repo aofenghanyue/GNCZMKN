@@ -1,10 +1,47 @@
 # 参考手册
 
+## CLI
+
+| 命令 | 说明 |
+| --- | --- |
+| `gnc_sim.exe` | 运行构建时 active project 的默认 mission |
+| `gnc_sim.exe <config.json>` | 运行指定 mission |
+| `gnc_sim.exe --config <config.json>` | 运行指定 mission |
+| `gnc_sim.exe --list-components` | 列出已注册 type id |
+| `gnc_sim.exe --list-components-verbose` | 列出 type id、接口、role、stage、form family 和注册来源 |
+| `gnc_sim.exe --help` | 打印帮助 |
+
+相对 mission 路径会从当前目录和可执行文件目录向上搜索。默认 mission 来自构建时 active project 的 `user/<project>/config/mission.json`。
+
+## 源码入口速查
+
+| 入口 | 用途 |
+| --- | --- |
+| `src/runner.cpp` | CLI、默认 mission 查找、注册 builtin/project type、启动 build/run |
+| `framework/include/gnc/core/simulation_builder.hpp` | mission build 协调、simulation 校验、integrator、logger 初始化 |
+| `framework/include/gnc/core/mission_assembler.hpp` | environment、vehicles、services、components、termination、summary 装配 |
+| `framework/include/gnc/core/simulator.hpp` | publish、stage update、record、termination、integration、finalize |
+| `framework/include/gnc/core/component_factory.hpp` | type id 注册、接口元数据、role/stage/form family 元数据 |
+| `framework/include/gnc/core/scoped_registry.hpp` | 当前 scope 内短名依赖解析和接口绑定 |
+| `framework/include/gnc/infrastructure/auto_data_logger.hpp` | `outputs` 配置、observable 字段发现、CSV/debug snapshot 输出 |
+
+## 修改类型速查
+
+| 目标 | 首选文档 | 关键源码 |
+| --- | --- | --- |
+| 写 mission | [03-mission-configuration.md](03-mission-configuration.md) | `MissionAssembler` |
+| 新增项目组件 | [04-extension-guide.md](04-extension-guide.md) | active project `components/` 和 `component_factory.hpp` |
+| 新增 builtin 组件 | [04-extension-guide.md](04-extension-guide.md) | `register_builtin_packages.hpp` |
+| 理解运行时顺序 | [00-current-architecture.md](00-current-architecture.md), [05-architecture.md](05-architecture.md) | `simulator.hpp` |
+| 调整输出记录 | [03-mission-configuration.md](03-mission-configuration.md) | `auto_data_logger.hpp` |
+| 调整 service | [05-architecture.md](05-architecture.md) | `service_package_registry.hpp` 和对应 `services/*/bootstrap` |
+
 ## Mission 顶层字段
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `simulation` | object | 必填；固定步长、时长、积分器 |
+| `global_services` | object | 可省略；高级顶层服务块，当前内置服务通常不支持 global scope |
 | `environment` | object | 可省略或为空；环境组件和服务 |
 | `vehicles` | array | 必填；每项包含 `id/form/services/common/input/process/output/interaction` |
 | `outputs` | object | 可省略；CSV 输出配置 |
@@ -15,16 +52,14 @@
 
 ## Include Roots
 
-| Prefix | Resolves to |
+| Prefix | 解析位置 |
 | --- | --- |
-| relative path | Directory of the JSON file that contains `$include` |
-| `repo://` | Repository root |
-| `project://` | Current `user/<project>/` root |
+| relative path | 包含 `$include` 的 JSON 文件所在目录 |
+| `repo://` | 仓库根目录 |
+| `project://` | 当前 `user/<project>/` 根目录 |
 | `user-data://` | `user/data/` |
 
-`$include` values can be a string or an ordered string array. Include documents
-are deep-merged in order, local fields override include fields, and arrays are
-replaced as whole arrays.
+`$include` 可以是 string 或有序 string array。多个 include 按顺序 deep merge，本地字段覆盖 include 字段，数组整体替换。
 
 ## Simulation 字段
 
@@ -39,12 +74,25 @@ replaced as whole arrays.
 ## Component Entry 字段
 
 每个组件条目支持 `type`、`name`、可选 `priority`、`rate_hz` 和 `config`。
+
+| 字段 | 规则 |
+| --- | --- |
+| `type` | 必填 string；必须是已注册 type id |
+| `name` | 必填 string；与作用域前缀组成完整组件名 |
+| `priority` | 可选整数式 number；同组内越小越先执行 |
+| `rate_hz` | 可选 number；`> 0`，不高于仿真频率，且形成整数步间隔 |
+| `config` | object；传给组件自己的 `configure()` |
+
 `priority` 是整数式 number。同一 runtime stage 或 publish phase 内，较小 priority 先执行；priority 相同保持 JSON 顺序。小数 priority 会作为 build error。默认 publish phase 顺序仍是 state owner、view / observer、普通组件。`rate_hz` 必须 `> 0`、不高于 `1 / simulation.dt`，且必须形成整数步间隔。
 
 ## Builtin 组件
 
 | Type id | Mission 位置 | 主要接口 |
 | --- | --- | --- |
+| `environment.spherical_earth` | `environment.components` | `IEarth` |
+| `environment.wgs84_earth` | `environment.components` | `IEarth` |
+| `environment.standard_atmosphere` | `environment.components` | `IAtmosphere` |
+| `environment.spherical_gravity` | `environment.components` | `IGravity` |
 | `form.cartesian_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, Cartesian `ITruthView`, `IObservable` |
 | `form.local_spherical_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, local-spherical `ITruthView`, `IObservable` |
 | `form.local_spherical_3dof.flight_state_view` | `vehicles[].form.components` | truth/form `IFlightStateView`, `IObservable` |
@@ -60,6 +108,19 @@ replaced as whole arrays.
 | `mass.continuous_constant_rate` | `vehicles[].output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
 | `termination.component_field_below` | `termination` | `ITerminationEvaluator` |
 | `termination.component_field_above` | `termination` | `ITerminationEvaluator` |
+
+## Builtin 服务
+
+| Service id | Mission 位置 | 说明 |
+| --- | --- | --- |
+| `coordinate_tree` | `vehicles[].services.coordinate_tree` | 构建 vehicle-scoped 坐标树服务，组件通过 `ICoordService` 查询 |
+
+`coordinate_tree` 当前支持 specs：
+
+| Spec id | 说明 |
+| --- | --- |
+| `empty` | 只创建根 frame `I` |
+| `local_spherical_3dof.launch_track` | 基于 local-spherical truth、地球模型和发射参数创建 `I/E/N/L/LI/K` 等 frame |
 
 ## 常用配置字段
 
@@ -85,11 +146,34 @@ replaced as whole arrays.
 | `earth_lookup_name` | 可选，默认 `env.earth` |
 | `input_lookup_name` | 可选，默认 `interaction` |
 
-`mass.constant` 要求 `mass_kg`，可来自 inline config 或 JSON asset。
-`force.constant` requires `force_n`, exactly 3 numbers.
-`interaction.cartesian_3dof.force_accel` accepts optional `force_lookup_name` and `mass_lookup_name`; defaults are `force` and `mass`. The force lookup must resolve to `IForceProvider`, and the mass lookup must resolve to exactly one of `IConstantMass` or `IContinuousMass`.
+`environment.spherical_earth`:
 
+| 字段 | 规则 |
+| --- | --- |
+| `equatorial_radius_m` | 可选 number，默认 `6371000.0` |
+| `rotation_rate_rad_per_s` | 可选 number，默认 `7.292115e-5` |
+
+`environment.wgs84_earth` 和 `environment.standard_atmosphere` 不需要配置字段。`environment.spherical_gravity` 支持可选 `reference_radius_m` 和 `sea_level_gravity_mps2`。
+
+`mass.constant` 要求 `mass_kg`，可来自 inline config 或 JSON asset。
+`mass.continuous_constant_rate` 要求 `initial_mass_kg` 和 `mass_rate_kg_per_s`，可来自 inline config 或 JSON asset。
+`force.constant` 要求 `force_n`，必须是 3 个 number。
+`interaction.cartesian_3dof.force_accel` 支持可选 `force_lookup_name` 和 `mass_lookup_name`，默认分别是 `force` 和 `mass`。force lookup 必须解析到 `IForceProvider`；mass lookup 必须且只能解析到 `IConstantMass` 或 `IContinuousMass` 之一。
+
+`interaction.cartesian_3dof.direct_accel` 接受 3 元素 `acceleration_mps2`。兼容别名是 `constant_acceleration`，或标量 `ax_mps2/ay_mps2/az_mps2`。
+`interaction.local_spherical_3dof.direct_accel` 接受 3 元素 `local_acceleration_nue_mps2`。兼容别名是标量 `tangential_accel_mps2/normal_accel_mps2/lateral_accel_mps2`。
+`interaction.local_spherical_3dof.aero_propulsive` 需要 `env.atmosphere`、`env.gravity`、vehicle scope 内的 `aero` provider，以及且仅一个 `mass` provider。`guidance` 可选。
+
+`aero.simple_polynomial` 要求 `lift_offset`、`lift_slope_per_rad`、`drag_zero`、`drag_quadratic`、`reference_area_m2`、`reference_length_m`。
 `aero.table2d` 要求 `reference_area_m2`、`reference_length_m`、`alpha_breaks_rad`、`mach_breaks`、`lift_coefficients`、`drag_coefficients`。
+
+`vehicle.process.programmed_aoa`:
+
+| 字段 | 规则 |
+| --- | --- |
+| `bank_angle_deg` | 必填 number |
+| `schedule_altitude_m` | 必填 number array，至少 1 项 |
+| `schedule_angle_of_attack_deg` | 必填 number array，长度必须等于 `schedule_altitude_m` |
 
 ## Outputs
 
@@ -99,14 +183,29 @@ replaced as whole arrays.
 | `directory` | `user/outputs` | 支持 `{timestamp}` |
 | `format` | `csv` | 当前仅支持 CSV |
 | `session_name` | `simulation_data` | 输出文件名前缀 |
+| `precision` | `12` | CSV 数值精度 |
+| `flush_every_step` | `false` | 是否每步 flush |
 | `record_initial_state` | `true` | 是否记录 t0 发布态 |
 | `record` | `all` | 记录规则 |
 | `exclude` | `[]` | 排除完整字段或 `*.suffix` |
-| `debug_snapshots` | disabled | 调试快照 |
+| `debug_snapshots` | disabled | 调试快照，可为 bool 或 object |
 
 CSV `time` 列表示发布态物理时间。
 
 CSV 行在 `update(t_k)` 之后写出：form/dynamics/truth view 字段是周期开始发布态 `x_k` 及其真实派生量；input/process/guidance/output 字段是 record 时刻组件暴露的本周期离散输出。`t0` 行包含初始状态 `x_0` 和基于 `x_0` 计算出的第一周期离散输出。框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。`outputs` 顶层未知字段只产生 build warning，不作为 build error。
+
+`record` 可为 `"all"`、组件名数组，或 `{ "component.name": "all" | ["field_prefix"] }`。字段前缀会匹配嵌套 observable，例如 `velocity_launch` 匹配 `velocity_launch.x/y/z`。
+
+`debug_snapshots` object 支持：
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `enabled` | `true` | 是否启用 |
+| `components` | `all` | `"all"`、单个组件名或组件名数组 |
+| `session_name` | `<session_name>_debug_snapshots` | debug CSV 文件名前缀 |
+| `precision` | 继承 outputs | 数值精度 |
+| `flush_every_step` | 继承 outputs | 是否每步 flush |
+
 ## Termination
 
 `termination` 是顶层单例组件。旧 `stop_conditions[]` 不再支持。
