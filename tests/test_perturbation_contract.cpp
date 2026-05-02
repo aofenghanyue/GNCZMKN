@@ -1,7 +1,9 @@
 #include "test_support.hpp"
 
 #include "gnc/core/component_factory.hpp"
+#include "gnc/core/config_manager.hpp"
 #include "gnc/core/simulation_builder.hpp"
+#include "gnc/perturbation/components/static_perturbation.hpp"
 #include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
 
 #include <exception>
@@ -188,6 +190,67 @@ int main() {
         }
         test_support::require(invalid_failed,
                               "Perturbation placement should require IPerturbationProvider.");
+
+        const char* invalid_static_config_mission = R"json(
+{
+  "simulation": { "dt": 1.0, "duration": 0.0 },
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "perturbation": {
+        "type": "perturbation.static",
+        "name": "perturbation",
+        "config": {
+          "input": {
+            "probe.value": 1.0
+          }
+        }
+      },
+      "form": {
+        "components": [
+          { "type": "test.perturbation_form_probe", "name": "dynamics", "config": {} }
+        ]
+      },
+      "input": [],
+      "process": [],
+      "output": [],
+      "interaction": { "components": [] }
+    }
+  ],
+  "outputs": { "enabled": false }
+}
+)json";
+
+        gnc::core::SimulationBuilder invalid_static_config_builder;
+        test_support::require(
+            invalid_static_config_builder.loadConfigString(invalid_static_config_mission),
+            "Invalid static perturbation config mission JSON did not parse.");
+        bool invalid_static_config_failed = false;
+        try {
+            invalid_static_config_builder.build();
+        } catch (const std::exception&) {
+            invalid_static_config_failed = true;
+        }
+        test_support::require(
+            invalid_static_config_failed,
+            "perturbation.static should reject unrecognized top-level config keys.");
+
+        gnc::core::ConfigManager invalid_static_direct_config;
+        test_support::require(
+            invalid_static_direct_config.loadFromString(
+                R"json({ "input": { "probe.value": 1.0 } })json"),
+            "Invalid static perturbation direct config JSON did not parse.");
+        gnc::perturbation::StaticPerturbation static_perturbation;
+        bool invalid_static_direct_config_failed = false;
+        try {
+            static_perturbation.configure(invalid_static_direct_config.root(),
+                                          "perturbation.static.config");
+        } catch (const std::exception&) {
+            invalid_static_direct_config_failed = true;
+        }
+        test_support::require(
+            invalid_static_direct_config_failed,
+            "StaticPerturbation::configure should reject unrecognized top-level keys.");
 
         std::cout << "perturbation contract checks passed\n";
         return 0;

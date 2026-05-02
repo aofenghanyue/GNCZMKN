@@ -23,6 +23,8 @@
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
 #include "gnc/interfaces/i_termination_evaluator.hpp"
+#include "gnc/perturbation/components/static_perturbation.hpp"
+#include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
 #include "gnc/termination/components/component_field_threshold.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
@@ -89,6 +91,18 @@ inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory)
         ComponentPackageRole::VehicleProcess,
         ExecutionStage::VehicleProcess,
         "local_spherical_3dof");
+}
+
+inline void registerPerturbationPackages(gnc::core::ComponentFactory& factory) {
+    using namespace gnc::core;
+    factory.registerType<gnc::perturbation::StaticPerturbation,
+                         gnc::perturbation::IPerturbationProvider,
+                         gnc::perturbation::IPerturbationSnapshot>(
+        "perturbation.static",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Perturbation,
+        ExecutionStage::Perturbation);
 }
 
 inline void registerVehicleOutputPackages(gnc::core::ComponentFactory& factory) {
@@ -234,6 +248,7 @@ inline void registerBuiltinPackages(gnc::core::ComponentFactory& factory) {
     registerEnvironmentPackages(factory);
     registerVehicleCommonPackages(factory);
     registerVehicleInputPackages(factory);
+    registerPerturbationPackages(factory);
     registerVehicleProcessPackages(factory);
     registerVehicleOutputPackages(factory);
     registerState3DoFPackages(factory);

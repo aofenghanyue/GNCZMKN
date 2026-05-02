@@ -110,6 +110,19 @@ int main() {
                 "perturbation",
             "Perturbation stage should stringify as perturbation.");
 
+        const auto perturbation_it = findInfo("perturbation.static");
+        test_support::require(perturbation_it != infos.end(),
+                              "Static perturbation builtin was not registered.");
+        test_support::require(
+            perturbation_it->package_role == gnc::core::ComponentPackageRole::Perturbation,
+            "perturbation.static should be labeled as a perturbation package.");
+        test_support::require(
+            perturbation_it->execution_stage == gnc::core::ExecutionStage::Perturbation,
+            "perturbation.static should execute in the perturbation stage.");
+        test_support::require(
+            containsValue(perturbation_it->interface_names, "IPerturbationProvider"),
+            "perturbation.static should advertise IPerturbationProvider.");
+
         const auto force_accel_it = findInfo("interaction.cartesian_3dof.force_accel");
         test_support::require(force_accel_it != infos.end(),
                               "Cartesian force_accel interaction was not registered.");
