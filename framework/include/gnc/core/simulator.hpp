@@ -140,10 +140,7 @@ public:
             component->markDependenciesInjectedInternal_();
         }
 
-        for (auto* component : registry_.getAllComponents()) {
-            LOG_INFO("Initializing component: {}", component->getName());
-            component->initialize();
-        }
+        initializeComponentsInOrder();
 
         if (!integrator_) {
             integrator_ = std::make_unique<RK4Integrator>();
@@ -250,10 +247,11 @@ simulation_end:
     double getCurrentTime() const { return current_time_; }
     
 private:
-    static constexpr size_t kStageCount = 8;
+    static constexpr size_t kStageCount = 9;
 
     static std::array<ExecutionStage, kStageCount> orderedStages() {
         return {ExecutionStage::Environment,
+                ExecutionStage::Perturbation,
                 ExecutionStage::VehicleInput,
                 ExecutionStage::VehicleProcess,
                 ExecutionStage::VehicleOutput,
@@ -267,22 +265,46 @@ private:
         switch (stage) {
         case ExecutionStage::Environment:
             return 0;
-        case ExecutionStage::VehicleInput:
+        case ExecutionStage::Perturbation:
             return 1;
-        case ExecutionStage::VehicleProcess:
+        case ExecutionStage::VehicleInput:
             return 2;
-        case ExecutionStage::VehicleOutput:
+        case ExecutionStage::VehicleProcess:
             return 3;
-        case ExecutionStage::Interaction:
+        case ExecutionStage::VehicleOutput:
             return 4;
-        case ExecutionStage::Form:
+        case ExecutionStage::Interaction:
             return 5;
-        case ExecutionStage::Termination:
+        case ExecutionStage::Form:
             return 6;
-        case ExecutionStage::Summary:
+        case ExecutionStage::Termination:
             return 7;
+        case ExecutionStage::Summary:
+            return 8;
         default:
             return -1;
+        }
+    }
+
+    void initializeComponentsInOrder() {
+        const auto perturbation_index = stageBucketIndex(ExecutionStage::Perturbation);
+        std::vector<ComponentBase*> initialized;
+        if (perturbation_index >= 0) {
+            for (auto* component : orderedComponentsInBucket(
+                     static_cast<size_t>(perturbation_index))) {
+                LOG_INFO("Initializing component: {}", component->getName());
+                component->initialize();
+                initialized.push_back(component);
+            }
+        }
+
+        for (auto* component : registry_.getAllComponents()) {
+            if (std::find(initialized.begin(), initialized.end(), component) !=
+                initialized.end()) {
+                continue;
+            }
+            LOG_INFO("Initializing component: {}", component->getName());
+            component->initialize();
         }
     }
 

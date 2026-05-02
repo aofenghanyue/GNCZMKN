@@ -65,6 +65,9 @@ private:
         if (placement == "interaction") {
             return ComponentPackageRole::Interaction;
         }
+        if (placement == "perturbation") {
+            return ComponentPackageRole::Perturbation;
+        }
         if (placement == "vehicle.common") {
             return ComponentPackageRole::VehicleCommon;
         }
@@ -95,6 +98,9 @@ private:
         }
         if (placement == "interaction") {
             return ExecutionStage::Interaction;
+        }
+        if (placement == "perturbation") {
+            return ExecutionStage::Perturbation;
         }
         if (placement == "vehicle.input") {
             return ExecutionStage::VehicleInput;

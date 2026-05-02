@@ -101,6 +101,14 @@ int main() {
         test_support::require(
             force_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
             "force.constant should execute in the vehicle.output stage.");
+        test_support::require(
+            std::string(gnc::core::toString(gnc::core::ComponentPackageRole::Perturbation)) ==
+                "perturbation",
+            "Perturbation role should stringify as perturbation.");
+        test_support::require(
+            std::string(gnc::core::toString(gnc::core::ExecutionStage::Perturbation)) ==
+                "perturbation",
+            "Perturbation stage should stringify as perturbation.");
 
         const auto force_accel_it = findInfo("interaction.cartesian_3dof.force_accel");
         test_support::require(force_accel_it != infos.end(),

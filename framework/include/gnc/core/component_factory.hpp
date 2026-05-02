@@ -28,6 +28,7 @@ enum class ComponentPackageRole {
     VehicleInput,
     VehicleProcess,
     VehicleOutput,
+    Perturbation,
     Interaction,
     Termination,
     Summary
@@ -36,6 +37,7 @@ enum class ComponentPackageRole {
 enum class ExecutionStage {
     None,
     Environment,
+    Perturbation,
     VehicleInput,
     VehicleProcess,
     VehicleOutput,
@@ -72,6 +74,8 @@ inline const char* toString(ComponentPackageRole role) {
         return "vehicle_process";
     case ComponentPackageRole::VehicleOutput:
         return "vehicle_output";
+    case ComponentPackageRole::Perturbation:
+        return "perturbation";
     case ComponentPackageRole::Interaction:
         return "interaction";
     case ComponentPackageRole::Termination:
@@ -89,6 +93,8 @@ inline const char* toString(ExecutionStage stage) {
         return "none";
     case ExecutionStage::Environment:
         return "environment";
+    case ExecutionStage::Perturbation:
+        return "perturbation";
     case ExecutionStage::VehicleInput:
         return "vehicle_input";
     case ExecutionStage::VehicleProcess:

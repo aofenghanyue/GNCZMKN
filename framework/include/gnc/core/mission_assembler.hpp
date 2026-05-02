@@ -10,6 +10,7 @@
 #include "gnc/core/simulator.hpp"
 #include "gnc/interfaces/i_summary_observer.hpp"
 #include "gnc/interfaces/i_termination_evaluator.hpp"
+#include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -274,6 +275,9 @@ private:
             }
 
             auto* vehicle = prepareVehicle(vehicle_id, vehicle_config, context);
+            buildPerturbation(*vehicle,
+                              vehicle_config["perturbation"],
+                              context + ".perturbation");
             buildForm(*vehicle, vehicle_config["form"], context + ".form");
             buildVehicleGroups(*vehicle, vehicle_config, context);
             buildInteraction(*vehicle,
@@ -344,6 +348,30 @@ private:
         placement.local_services = &vehicle.services;
         placement.owner_components = &vehicle.components;
         registerComponents(form_config["components"], placement);
+    }
+
+    void buildPerturbation(VehicleInstance& vehicle,
+                           const ConfigNode& perturbation_config,
+                           const std::string& context) {
+        if (perturbation_config.isNull()) {
+            return;
+        }
+        if (!perturbation_config.isObject()) {
+            add_error_("Block '" + context + "' must be an object.");
+            return;
+        }
+
+        registerComponent(
+            perturbation_config,
+            PlacementSpec{context,
+                          "perturbation",
+                          vehicle.id + ".",
+                          ComponentPackageRole::Perturbation,
+                          ExecutionStage::Perturbation,
+                          vehicle.id,
+                          &vehicle.services,
+                          &vehicle.components},
+            context);
     }
 
     void buildVehicleGroups(VehicleInstance& vehicle,
@@ -655,6 +683,12 @@ private:
             !dynamic_cast<interfaces::ISummaryObserver*>(component)) {
             add_error_("Summary component '" + full_name + "' of type '" +
                        type_name + "' must implement ISummaryObserver.");
+            return false;
+        }
+        if (placement.placement == "perturbation" &&
+            !dynamic_cast<gnc::perturbation::IPerturbationProvider*>(component)) {
+            add_error_("Perturbation component '" + full_name + "' of type '" +
+                       type_name + "' must implement IPerturbationProvider.");
             return false;
         }
         return true;
