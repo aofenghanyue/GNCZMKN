@@ -25,6 +25,7 @@ GNCZMKN 的架构优先保证：
 | mission parse 和 `$include` | `framework/include/gnc/core/config_manager.hpp` |
 | required/optional 字段读取 | `framework/include/gnc/core/config_reader.hpp` |
 | build 协调器 | `framework/include/gnc/core/simulation_builder.hpp` |
+| RunSet batch layer | `framework/include/gnc/runset/runset_runner.hpp` |
 | environment/vehicle/component/service 装配 | `framework/include/gnc/core/mission_assembler.hpp` |
 | scoped dependency lookup | `framework/include/gnc/core/scoped_registry.hpp` |
 | role/stage/form-family/dependency 验证 | `framework/include/gnc/core/validation_pipeline.hpp` |
@@ -52,16 +53,15 @@ GNCZMKN 的架构优先保证：
 runner.cpp
   -> registerBuiltinPackages(factory)
   -> registerAutoRegisteredProjectComponents(factory)
-  -> resolve mission path
-  -> SimulationBuilder::loadConfig()
-  -> SimulationBuilder::build()
-       -> parse simulation dt/duration/integrator
-       -> MissionAssembler::installGlobalServices()
-       -> MissionAssembler::buildMission()
-       -> MissionAssembler::finalizeServices()
-       -> ValidationPipeline::run()
-       -> Simulator::initializeAutoDataLogger()
-  -> Simulator::run()
+  -> --config path:
+       -> resolve mission path
+       -> SimulationBuilder::loadConfig()
+       -> SimulationBuilder::build()
+       -> Simulator::run()
+  -> --runset path:
+       -> RunSetRunner::runSerial()
+       -> generate each effective_mission.json
+       -> build fresh SimulationBuilder/Simulator per case
 ```
 
 `MissionAssembler` 的装配顺序是 environment、vehicles、termination、summary。每个组件被创建后会经历：
@@ -134,9 +134,13 @@ after_step(step, t_{k+1}, dt)
 离散 stage 顺序由 `Simulator::orderedStages()` 固定：
 
 ```text
-environment -> vehicle_input -> vehicle_process -> vehicle_output
--> interaction -> form -> termination -> summary
+environment -> perturbation -> vehicle_input -> vehicle_process
+-> vehicle_output -> interaction -> form -> termination -> summary
 ```
+
+If no vehicle defines `vehicles[].perturbation`, the perturbation stage bucket is
+empty and existing mission publish, record, termination, and integration
+semantics are unchanged.
 
 `executeComponent()` 会跳过 `IContinuousSystem` 的 `update()`；连续系统只在 `integrateContinuousSystems()` 中由积分器调用 `computeDerivatives()`。低频组件通过 `rate_hz` 转换成整数 step interval；未执行的 step 继续暴露上一次输出。
 

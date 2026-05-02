@@ -7,11 +7,17 @@
 | `gnc_sim.exe` | 运行构建时 active project 的默认 mission |
 | `gnc_sim.exe <config.json>` | 运行指定 mission |
 | `gnc_sim.exe --config <config.json>` | 运行指定 mission |
+| `gnc_sim.exe --runset <runset.json>` | 串行运行 RunSet batch cases |
+| `gnc_sim.exe --runset <runset.json> --jobs 1` | Phase 1 RunSet 串行运行；`--jobs > 1` 留给多进程阶段 |
 | `gnc_sim.exe --list-components` | 列出已注册 type id |
 | `gnc_sim.exe --list-components-verbose` | 列出 type id、接口、role、stage、form family 和注册来源 |
 | `gnc_sim.exe --help` | 打印帮助 |
 
 相对 mission 路径会从当前目录和可执行文件目录向上搜索。默认 mission 来自构建时 active project 的 `user/<project>/config/mission.json`。
+
+RunSet paths are loaded as provided. A RunSet references a base mission,
+generates one effective mission per case, writes case reproduction files, and
+then runs each case through the normal `SimulationBuilder` / `Simulator` path.
 
 ## 源码入口速查
 
@@ -22,6 +28,7 @@
 | `framework/include/gnc/core/mission_assembler.hpp` | environment、vehicles、services、components、termination、summary 装配 |
 | `framework/include/gnc/core/simulator.hpp` | publish、stage update、record、termination、integration、finalize |
 | `framework/include/gnc/core/component_factory.hpp` | type id 注册、接口元数据、role/stage/form family 元数据 |
+| `framework/include/gnc/runset/runset_runner.hpp` | RunSet config loading, case generation, effective mission writing, serial case execution |
 | `framework/include/gnc/core/scoped_registry.hpp` | 当前 scope 内短名依赖解析和接口绑定 |
 | `framework/include/gnc/infrastructure/auto_data_logger.hpp` | `outputs` 配置、observable 字段发现、CSV/debug snapshot 输出 |
 
@@ -49,6 +56,10 @@
 | `summary` | object | 可省略；顶层 summary observer 组件 |
 
 旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 不支持。
+
+Each `vehicles[]` entry may also include optional `perturbation`. When present,
+it is a single component entry at vehicle scope and must implement
+`IPerturbationProvider`.
 
 ## Include Roots
 
@@ -96,6 +107,7 @@
 | `form.cartesian_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, Cartesian `ITruthView`, `IObservable` |
 | `form.local_spherical_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, local-spherical `ITruthView`, `IObservable` |
 | `form.local_spherical_3dof.flight_state_view` | `vehicles[].form.components` | truth/form `IFlightStateView`, `IObservable` |
+| `perturbation.static` | `vehicles[].perturbation` | `IPerturbationProvider`, `IPerturbationSnapshot` |
 | `interaction.cartesian_3dof.direct_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
 | `interaction.cartesian_3dof.force_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
 | `interaction.local_spherical_3dof.direct_accel` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
@@ -155,6 +167,18 @@
 
 `environment.wgs84_earth` 和 `environment.standard_atmosphere` 不需要配置字段。`environment.spherical_gravity` 支持可选 `reference_radius_m` 和 `sea_level_gravity_mps2`。
 
+`perturbation.static`:
+
+| 字段 | 规则 |
+| --- | --- |
+| `inputs` | 可选 object；每个 value 必须是 number |
+| `enum_maps` | 可选 object；将整数 numeric input 映射为 string resolved value |
+
+For each numeric input, `perturbation.static` exposes the same key as a number.
+For each matching enum map, it exposes `<key>.resolved` as a string. RunSet
+writes resolved snapshots to `perturbation_resolved.json` when the component
+implements `IPerturbationSnapshot`.
+
 `mass.constant` 要求 `mass_kg`，可来自 inline config 或 JSON asset。
 `mass.continuous_constant_rate` 要求 `initial_mass_kg` 和 `mass_rate_kg_per_s`，可来自 inline config 或 JSON asset。
 `force.constant` 要求 `force_n`，必须是 3 个 number。
@@ -174,6 +198,38 @@
 | `bank_angle_deg` | 必填 number |
 | `schedule_altitude_m` | 必填 number array，至少 1 项 |
 | `schedule_angle_of_attack_deg` | 必填 number array，长度必须等于 `schedule_altitude_m` |
+
+## RunSet
+
+RunSet config is a separate JSON file for batch execution:
+
+```json
+{
+  "base_mission": "user/example/config/mission.json",
+  "vehicles": {
+    "vehicle": {
+      "cases": {
+        "mode": "matrix",
+        "file": "user/data/perturb.csv",
+        "rows": [0, 1]
+      }
+    }
+  },
+  "outputs": {
+    "directory": "user/outputs/runset",
+    "case_directory": "case_{case_index}"
+  }
+}
+```
+
+Phase 1 supports `matrix` sources. The matrix file must have a header row,
+`case_id` as the first column, and numeric input columns after that. Selected
+row indices are zero-based. All configured vehicles must produce the same case
+count. A generated case directory contains at least:
+
+- `effective_mission.json`
+- `perturbation_inputs.json`
+- `perturbation_resolved.json`
 
 ## Outputs
 

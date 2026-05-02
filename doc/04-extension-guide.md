@@ -18,6 +18,7 @@ user/<active_project>/components/
 | 新的连续状态和导数方程 | `vehicles[].form.components` |
 | 传感器、导航、制导、控制、状态机 | `vehicles[].input` 或 `vehicles[].process` |
 | 气动、质量、推进、力模型、构型切换 | `vehicles[].output` |
+| 批量 case 的数值扰动输入和解析状态 | `vehicles[].perturbation` |
 | 把 truth、环境、命令和 output 能力转成 form input | `vehicles[].interaction.components` |
 | 可复用的只读世界查询 | `environment.components` |
 | 稳定的基础设施服务 | framework service package |
@@ -58,6 +59,7 @@ GNC_REGISTER_COMPONENT_TYPE(TypeId,
 | --- | --- | --- |
 | `environment.components` | `ComponentPackageRole::Environment` | `ExecutionStage::Environment` |
 | `vehicles[].form.components` | `ComponentPackageRole::Form` | `ExecutionStage::Form` |
+| `vehicles[].perturbation` | `ComponentPackageRole::Perturbation` | `ExecutionStage::Perturbation` |
 | `vehicles[].common` | `ComponentPackageRole::VehicleCommon` | `ExecutionStage::None` |
 | `vehicles[].input` | `ComponentPackageRole::VehicleInput` | `ExecutionStage::VehicleInput` |
 | `vehicles[].process` | `ComponentPackageRole::VehicleProcess` | `ExecutionStage::VehicleProcess` |
@@ -71,7 +73,7 @@ GNC_REGISTER_COMPONENT_TYPE(TypeId,
 
 注册信息和 mission placement 必须一致。比如一个注册为 `VehicleOutput` / `VehicleOutput` stage 的组件放进 `vehicles[].process` 会 build fail。`vehicle.common` 是非调度层，注册 stage 必须是 `ExecutionStage::None`。
 
-## 新 Form Family 契约
+## New Form Family Contract
 
 A project may define a new form family, including an experimental 6DoF form, but the family must be explicit. A complete form family contract contains:
 
@@ -94,6 +96,19 @@ Rules enforced by the framework:
 For mixed continuous/discrete behavior, split the model: continuous state belongs in an `IContinuousSystem`; discrete sampling, commands, and mode logic belong in `vehicle.process` or `vehicle.output`; connect them with project interfaces.
 
 Controlflow is a process-level concern. Use `gnc::libraries::StateMachine` inside a project process component when a mission needs mode or phase logic; do not model mission controlflow as a framework service.
+
+## Perturbation Extension Contract
+
+Perturbation is a vehicle-level source of resolved case state. A perturbation
+component must implement `IPerturbationProvider`; it may also implement
+`IPerturbationSnapshot` so RunSet can write `perturbation_resolved.json`.
+
+Components that load assets or choose behavior from perturbation state should
+bind the provider in `injectDependencies()`, then read the resolved state in
+`initialize()`. Do not load perturbation-dependent assets in `configure()`,
+because dependency injection happens after configuration. Dynamic perturbation
+values can be refreshed by the perturbation component in `update()` and read by
+later stages in the same cycle.
 
 ## 生命周期
 

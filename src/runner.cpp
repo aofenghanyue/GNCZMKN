@@ -3,10 +3,13 @@
 #include "gnc/bootstrap/register_builtin_packages.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
+#include "gnc/runset/runset_runner.hpp"
 #include "active_project_config.hpp"
 
+#include <exception>
 #include <filesystem>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -19,6 +22,7 @@ namespace fs = std::filesystem;
 
 enum class RunnerMode {
     Run,
+    RunSet,
     ListComponents,
     Help
 };
@@ -28,6 +32,9 @@ struct RunnerOptions {
     bool list_verbose = false;
     bool use_default_config = true;
     std::string requested_config;
+    std::string requested_runset;
+    int jobs = 1;
+    bool jobs_specified = false;
 };
 
 struct ConfigResolution {
@@ -196,6 +203,48 @@ bool parseArgs(int argc, char* argv[], RunnerOptions& options, std::string& erro
             continue;
         }
 
+        if (arg == "--runset") {
+            if (i + 1 >= argc) {
+                error = "Missing path after --runset.";
+                return false;
+            }
+            if (!options.requested_config.empty()) {
+                error = "The --runset option cannot be combined with a config path.";
+                return false;
+            }
+            if (!setMode(options, RunnerMode::RunSet, error)) {
+                return false;
+            }
+            options.requested_runset = argv[++i];
+            options.use_default_config = false;
+            continue;
+        }
+
+        if (arg == "--jobs") {
+            if (i + 1 >= argc) {
+                error = "Missing value after --jobs.";
+                return false;
+            }
+            const std::string value = argv[++i];
+            options.jobs_specified = true;
+            if (value == "auto") {
+                options.jobs = 0;
+            } else {
+                try {
+                    size_t consumed = 0;
+                    options.jobs = std::stoi(value, &consumed);
+                    if (consumed != value.size() || options.jobs < 1) {
+                        error = "--jobs must be a positive integer or auto.";
+                        return false;
+                    }
+                } catch (const std::exception&) {
+                    error = "--jobs must be a positive integer or auto.";
+                    return false;
+                }
+            }
+            continue;
+        }
+
         if (!arg.empty() && arg[0] == '-') {
             error = "Unknown option: " + arg;
             return false;
@@ -213,6 +262,23 @@ bool parseArgs(int argc, char* argv[], RunnerOptions& options, std::string& erro
         options.use_default_config = false;
     }
 
+    if (options.jobs_specified && options.mode != RunnerMode::RunSet) {
+        error = "--jobs can only be used with --runset.";
+        return false;
+    }
+    if (options.mode == RunnerMode::RunSet && options.requested_runset.empty()) {
+        error = "RunSet mode requires --runset <runset.json>.";
+        return false;
+    }
+    if (options.mode == RunnerMode::RunSet && options.jobs == 0) {
+        error = "--jobs auto is reserved for the multiprocess phase.";
+        return false;
+    }
+    if (options.mode == RunnerMode::RunSet && options.jobs > 1) {
+        error = "--jobs > 1 is reserved for the multiprocess phase.";
+        return false;
+    }
+
     return true;
 }
 
@@ -222,6 +288,8 @@ void printUsage(const char* program_name) {
               << "  " << program_name << "\n"
               << "  " << program_name << " <config.json>\n"
               << "  " << program_name << " --config <config.json>\n"
+              << "  " << program_name << " --runset <runset.json>\n"
+              << "  " << program_name << " --runset <runset.json> --jobs 1\n"
               << "  " << program_name << " --list-components\n"
               << "  " << program_name << " --list-components-verbose\n"
               << "  " << program_name << " --help\n";
@@ -319,6 +387,17 @@ int main(int argc, char* argv[]) {
     if (options.mode == RunnerMode::ListComponents) {
         listComponents(options.list_verbose);
         return 0;
+    }
+    if (options.mode == RunnerMode::RunSet) {
+        try {
+            gnc::runset::RunSetRunner runner;
+            runner.runSerial(options.requested_runset);
+            LOG_INFO("=== RunSet Completed ===");
+            return 0;
+        } catch (const std::exception& e) {
+            LOG_ERROR("RunSet failed: {}", e.what());
+            return 1;
+        }
     }
 
     const std::string requested_config =

@@ -16,6 +16,11 @@ mission 是 GNCZMKN 的装配入口。当前有效 schema 使用顶层 `vehicles
     {
       "id": "vehicle",
       "form": { "components": [] },
+      "perturbation": {
+        "type": "perturbation.static",
+        "name": "perturbation",
+        "config": { "inputs": {} }
+      },
       "services": {},
       "common": [],
       "input": [],
@@ -234,6 +239,44 @@ Local-spherical 3DoF：
 ```
 
 服务先创建句柄，再在组件装配后 finalize，因此 service spec 可以绑定同一 vehicle 内的 form truth。项目组件通过 `injectServices(ServiceContext&)` 获取服务；示例见 `user/example_03_coordinate_tree/components/coordinate_probe.hpp`。
+
+## Perturbation
+
+`vehicles[].perturbation` is an optional independent vehicle-level component block.
+It is not part of `common/input/process/output/interaction`. When omitted, no
+perturbation component is created and the mission keeps the existing single-run
+behavior.
+
+RunSet injects each case's numeric inputs into
+`vehicles[].perturbation.config.inputs` before building the effective mission.
+The perturbation component must implement `IPerturbationProvider`; components
+that need perturbation state bind the provider in `injectDependencies()` and read
+the resolved number/string/vector values in `initialize()` or `update()`.
+
+```json
+{
+  "perturbation": {
+    "type": "perturbation.static",
+    "name": "perturbation",
+    "config": {
+      "inputs": {
+        "engine.temp_level": 2,
+        "aero.drag_bias": -0.03
+      },
+      "enum_maps": {
+        "engine.temp_level": {
+          "0": "cold.txt",
+          "2": "hot.txt"
+        }
+      }
+    }
+  }
+}
+```
+
+`perturbation.static` exposes numeric inputs directly. When an `enum_maps` entry
+matches an integer input, it also publishes a string value at
+`<key>.resolved`, for example `engine.temp_level.resolved`.
 
 ## Component Scheduling
 

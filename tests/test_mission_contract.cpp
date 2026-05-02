@@ -982,6 +982,10 @@ int main() {
                 "Execution stages no longer run in the expected environment -> input -> "
                 "process -> output -> interaction -> form order.");
         }
+        test_support::require(
+            std::find(g_stage_trace.begin(), g_stage_trace.end(), "perturbation") ==
+                g_stage_trace.end(),
+            "Mission without vehicles[].perturbation should not execute a perturbation component.");
 
         const char* invalid_common_stage_mission = R"json(
 {
