@@ -59,9 +59,12 @@ runner.cpp
        -> SimulationBuilder::build()
        -> Simulator::run()
   -> --runset path:
-       -> RunSetRunner::runSerial()
-       -> generate each effective_mission.json
-       -> build fresh SimulationBuilder/Simulator per case
+       -> RunSetRunner::runSerial() when jobs == 1
+       -> RunSetRunner::runMultiprocess() when jobs > 1
+       -> parent generates case files and each effective_mission.json
+       -> serial path builds a fresh SimulationBuilder/Simulator per case
+       -> multiprocess path launches child gnc_sim --config effective_mission.json
+       -> parent writes generated_cases.csv and runset_summary.csv
 ```
 
 `MissionAssembler` 的装配顺序是 environment、vehicles、termination、summary。每个组件被创建后会经历：

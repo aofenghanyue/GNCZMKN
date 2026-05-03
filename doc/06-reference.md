@@ -8,7 +8,9 @@
 | `gnc_sim.exe <config.json>` | 运行指定 mission |
 | `gnc_sim.exe --config <config.json>` | 运行指定 mission |
 | `gnc_sim.exe --runset <runset.json>` | 串行运行 RunSet batch cases |
-| `gnc_sim.exe --runset <runset.json> --jobs 1` | Phase 1 RunSet 串行运行；`--jobs > 1` 留给多进程阶段 |
+| `gnc_sim.exe --runset <runset.json> --jobs 1` | 显式串行运行 RunSet batch cases |
+| `gnc_sim.exe --runset <runset.json> --jobs auto` | 多进程运行；并发数为 `max(1, hardware_concurrency - 1)` |
+| `gnc_sim.exe --runset <runset.json> --jobs <N>` | 多进程运行；最多同时运行 `N` 个 case |
 | `gnc_sim.exe --list-components` | 列出已注册 type id |
 | `gnc_sim.exe --list-components-verbose` | 列出 type id、接口、role、stage、form family 和注册来源 |
 | `gnc_sim.exe --help` | 打印帮助 |
@@ -28,7 +30,7 @@ then runs each case through the normal `SimulationBuilder` / `Simulator` path.
 | `framework/include/gnc/core/mission_assembler.hpp` | environment、vehicles、services、components、termination、summary 装配 |
 | `framework/include/gnc/core/simulator.hpp` | publish、stage update、record、termination、integration、finalize |
 | `framework/include/gnc/core/component_factory.hpp` | type id 注册、接口元数据、role/stage/form family 元数据 |
-| `framework/include/gnc/runset/runset_runner.hpp` | RunSet config loading, case generation, effective mission writing, serial case execution |
+| `framework/include/gnc/runset/runset_runner.hpp` | RunSet config loading, case generation, effective mission writing, serial/multiprocess case execution |
 | `framework/include/gnc/core/scoped_registry.hpp` | 当前 scope 内短名依赖解析和接口绑定 |
 | `framework/include/gnc/infrastructure/auto_data_logger.hpp` | `outputs` 配置、observable 字段发现、CSV/debug snapshot 输出 |
 
@@ -222,14 +224,76 @@ RunSet config is a separate JSON file for batch execution:
 }
 ```
 
-Phase 1 supports `matrix` sources. The matrix file must have a header row,
-`case_id` as the first column, and numeric input columns after that. Selected
-row indices are zero-based. All configured vehicles must produce the same case
-count. A generated case directory contains at least:
+RunSet supports `single`, `matrix`, and `random` case sources:
+
+```json
+{
+  "mode": "single",
+  "inputs": {
+    "engine.temp_level": 2,
+    "aero.drag_bias": -0.03
+  }
+}
+```
+
+```json
+{
+  "mode": "matrix",
+  "file": "user/data/perturb.csv",
+  "rows": [0, 1]
+}
+```
+
+```json
+{
+  "mode": "random",
+  "seed": 12345,
+  "count": 3,
+  "inputs": {
+    "engine.temp_level": { "distribution": "uniform_int", "min": 0, "max": 2 },
+    "aero.drag_bias": { "distribution": "uniform", "min": -0.05, "max": 0.05 }
+  }
+}
+```
+
+`single.inputs` values must be finite numbers. The matrix file must have a
+header row, `case_id` as the first column, and numeric input columns after that.
+Selected row indices are zero-based non-negative integers. `random.count` must
+be positive, `random.seed` must be a non-negative integer, and random inputs
+support numeric constants plus `constant`, `uniform`, `normal`, and
+`uniform_int` distribution objects.
+
+All configured vehicles must produce the same case count. Vehicles are paired by
+case ordinal: run `k` uses the `k`th generated row from each vehicle source.
+For each case, RunSet injects numeric inputs into
+`vehicles[].perturbation.config.inputs` and rewrites `outputs.directory` in the
+effective mission to the current case directory while preserving the rest of the
+base mission outputs config.
+
+Each generated case directory contains:
 
 - `effective_mission.json`
 - `perturbation_inputs.json`
-- `perturbation_resolved.json`
+- `perturbation_resolved.json` when the perturbation component implements `IPerturbationSnapshot`
+- `generated_case_row.csv` with the same `case_id` + numeric input column format as `generated_cases.csv`
+
+The RunSet output root contains:
+
+- `runset_manifest.json`
+- `generated_cases.csv`
+- `runset_summary.csv`
+
+`runset_manifest.json` records the RunSet path, base mission path, output
+directory, case count, and a `cases[]` list with each case directory and
+effective mission path.
+
+`generated_cases.csv` records the actual numeric cases, including random
+samples, for replay. Its first column is `case_id`; remaining columns are
+vehicle-prefixed numeric input keys. `runset_summary.csv` contains
+`case_index,case_directory,status,exit_code,message`. In multiprocess mode, the
+parent process generates all case files first, launches child processes with
+`--config <case>/effective_mission.json`, continues after individual case
+failures, and writes collected exit codes to `runset_summary.csv`.
 
 ## Outputs
 

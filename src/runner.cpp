@@ -6,12 +6,14 @@
 #include "gnc/runset/runset_runner.hpp"
 #include "active_project_config.hpp"
 
+#include <algorithm>
 #include <exception>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 using namespace gnc::core;
@@ -270,15 +272,6 @@ bool parseArgs(int argc, char* argv[], RunnerOptions& options, std::string& erro
         error = "RunSet mode requires --runset <runset.json>.";
         return false;
     }
-    if (options.mode == RunnerMode::RunSet && options.jobs == 0) {
-        error = "--jobs auto is reserved for the multiprocess phase.";
-        return false;
-    }
-    if (options.mode == RunnerMode::RunSet && options.jobs > 1) {
-        error = "--jobs > 1 is reserved for the multiprocess phase.";
-        return false;
-    }
-
     return true;
 }
 
@@ -289,7 +282,8 @@ void printUsage(const char* program_name) {
               << "  " << program_name << " <config.json>\n"
               << "  " << program_name << " --config <config.json>\n"
               << "  " << program_name << " --runset <runset.json>\n"
-              << "  " << program_name << " --runset <runset.json> --jobs 1\n"
+              << "  " << program_name << " --runset <runset.json> --jobs auto\n"
+              << "  " << program_name << " --runset <runset.json> --jobs <N>\n"
               << "  " << program_name << " --list-components\n"
               << "  " << program_name << " --list-components-verbose\n"
               << "  " << program_name << " --help\n";
@@ -365,6 +359,45 @@ void listComponents(bool verbose) {
     }
 }
 
+size_t resolveRunSetJobs(const RunnerOptions& options) {
+    if (options.jobs > 0) {
+        return static_cast<size_t>(options.jobs);
+    }
+
+    const auto hardware_jobs = std::thread::hardware_concurrency();
+    if (hardware_jobs <= 1) {
+        return 1;
+    }
+    return static_cast<size_t>(hardware_jobs - 1);
+}
+
+std::string executablePath(const char* program_name) {
+    std::error_code ec;
+    const fs::path requested(program_name ? program_name : "");
+    const fs::path absolute_path = fs::absolute(requested, ec);
+    if (ec) {
+        return normalizePath(requested);
+    }
+    return normalizePath(absolute_path);
+}
+
+fs::path resolvedSnapshotOutputDir(SimulationBuilder& builder,
+                                   const Simulator& simulator) {
+    const auto& logger_dir = simulator.getAutoDataLogger().getOutputDir();
+    if (!logger_dir.empty()) {
+        return fs::path(logger_dir);
+    }
+
+    const auto& outputs = builder.getConfigManager().outputs();
+    if (outputs.isObject()) {
+        const auto configured_dir = outputs["directory"].asString();
+        if (!configured_dir.empty()) {
+            return fs::path(configured_dir);
+        }
+    }
+    return {};
+}
+
 }
 
 int main(int argc, char* argv[]) {
@@ -391,7 +424,14 @@ int main(int argc, char* argv[]) {
     if (options.mode == RunnerMode::RunSet) {
         try {
             gnc::runset::RunSetRunner runner;
-            runner.runSerial(options.requested_runset);
+            const size_t jobs = resolveRunSetJobs(options);
+            if (jobs == 1) {
+                runner.runSerial(options.requested_runset);
+            } else {
+                runner.runMultiprocess(options.requested_runset,
+                                       executablePath(argv[0]),
+                                       jobs);
+            }
             LOG_INFO("=== RunSet Completed ===");
             return 0;
         } catch (const std::exception& e) {
@@ -446,6 +486,11 @@ int main(int argc, char* argv[]) {
 
         auto& simulator = builder.build();
         simulator.run();
+        const auto snapshot_dir = resolvedSnapshotOutputDir(builder, simulator);
+        if (!snapshot_dir.empty()) {
+            gnc::runset::RunSetRunner::writeResolvedSnapshots(snapshot_dir,
+                                                              simulator.getRegistry());
+        }
 
         LOG_INFO("=== Simulation Completed ===");
         return 0;
