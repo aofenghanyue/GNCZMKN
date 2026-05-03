@@ -101,7 +101,9 @@ Controlflow is a process-level concern. Use `gnc::libraries::StateMachine` insid
 
 Perturbation is a vehicle-level source of resolved case state. A perturbation
 component must implement `IPerturbationProvider`; it may also implement
-`IPerturbationSnapshot` so RunSet can write `perturbation_resolved.json`.
+`IPerturbationSnapshot` for local inspection or diagnostics. RunSet replay is
+based on the generated `effective_mission.json`, so ordinary single-case replay
+does not depend on any RunSet-specific snapshot file.
 
 Components that load assets or choose behavior from perturbation state should
 bind the provider in `injectDependencies()`, then read the resolved state in

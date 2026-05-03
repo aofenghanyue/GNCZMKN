@@ -177,9 +177,7 @@ it is a single component entry at vehicle scope and must implement
 | `enum_maps` | 可选 object；将整数 numeric input 映射为 string resolved value |
 
 For each numeric input, `perturbation.static` exposes the same key as a number.
-For each matching enum map, it exposes `<key>.resolved` as a string. RunSet
-writes resolved snapshots to `perturbation_resolved.json` when the component
-implements `IPerturbationSnapshot`.
+For each matching enum map, it exposes `<key>.resolved` as a string.
 
 `mass.constant` 要求 `mass_kg`，可来自 inline config 或 JSON asset。
 `mass.continuous_constant_rate` 要求 `initial_mass_kg` 和 `mass_rate_kg_per_s`，可来自 inline config 或 JSON asset。
@@ -274,18 +272,11 @@ Each generated case directory contains:
 
 - `effective_mission.json`
 - `perturbation_inputs.json`
-- `perturbation_resolved.json` when the perturbation component implements `IPerturbationSnapshot`
-- `generated_case_row.csv` with the same `case_id` + numeric input column format as `generated_cases.csv`
 
 The RunSet output root contains:
 
-- `runset_manifest.json`
 - `generated_cases.csv`
 - `runset_summary.csv`
-
-`runset_manifest.json` records the RunSet path, base mission path, output
-directory, case count, and a `cases[]` list with each case directory and
-effective mission path.
 
 `generated_cases.csv` records the actual numeric cases, including random
 samples, for replay. Its first column is `case_id`; remaining columns are
@@ -294,6 +285,12 @@ vehicle-prefixed numeric input keys. `runset_summary.csv` contains
 parent process generates all case files first, launches child processes with
 `--config <case>/effective_mission.json`, continues after individual case
 failures, and writes collected exit codes to `runset_summary.csv`.
+
+To replay a single RunSet case, run its effective mission directly:
+
+```powershell
+gnc_sim.exe --config user/outputs/runset/case_000001/effective_mission.json
+```
 
 ## Outputs
 

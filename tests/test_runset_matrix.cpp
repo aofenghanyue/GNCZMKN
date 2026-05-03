@@ -91,8 +91,6 @@ int main() {
         const auto cases = gnc::runset::parseMatrixCases(matrix, {1});
         test_support::require(cases.size() == 1,
                               "Row selection should return one matrix case.");
-        test_support::require(cases[0].case_id == "cold",
-                              "Selected row case_id mismatch.");
         test_support::require(cases[0].inputs.at("engine.temp_level") == 0.0,
                               "Selected row engine.temp_level mismatch.");
         test_support::require(cases[0].inputs.at("aero.drag_bias") == 0.02,

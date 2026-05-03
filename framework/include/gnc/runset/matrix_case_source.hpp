@@ -11,7 +11,6 @@
 namespace gnc::runset {
 
 struct MatrixCase {
-    std::string case_id;
     std::unordered_map<std::string, double> inputs;
 };
 
@@ -81,7 +80,6 @@ inline std::vector<MatrixCase> parseMatrixCases(const std::string& text,
         }
 
         MatrixCase current;
-        current.case_id = row[0];
         for (size_t column = 1; column < header.size(); ++column) {
             current.inputs[header[column]] =
                 parseNumericMatrixCell(row[column], row_index, header[column]);

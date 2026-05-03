@@ -1,10 +1,7 @@
 #pragma once
 
-#include "gnc/core/component_base.hpp"
-#include "gnc/core/component_registry.hpp"
 #include "gnc/core/config_manager.hpp"
 #include "gnc/core/simulation_builder.hpp"
-#include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
 #include "gnc/runset/config_json_writer.hpp"
 #include "gnc/runset/matrix_case_source.hpp"
 #include "gnc/runset/mission_overlay.hpp"
@@ -93,35 +90,6 @@ public:
         throwIfAnyFailed(results);
     }
 
-    static bool writeResolvedSnapshots(const std::filesystem::path& case_dir,
-                                       const gnc::core::ComponentRegistry& registry) {
-        auto root = gnc::core::ConfigNode::makeObject();
-        size_t snapshot_count = 0;
-        for (const auto& name : registry.getComponentNames()) {
-            auto* component = registry.get<gnc::core::ComponentBase>(name);
-            auto* snapshot =
-                dynamic_cast<gnc::perturbation::IPerturbationSnapshot*>(component);
-            if (!snapshot) {
-                continue;
-            }
-
-            auto object = gnc::core::ConfigNode::makeObject();
-            for (const auto& [key, value] : snapshot->snapshotResolvedState()) {
-                object.set(key, perturbationValueToConfigNode(value));
-            }
-            root.set(name, object);
-            ++snapshot_count;
-        }
-
-        if (snapshot_count == 0) {
-            return false;
-        }
-
-        std::filesystem::create_directories(case_dir);
-        writeFile(case_dir / "perturbation_resolved.json", writeJson(root));
-        return true;
-    }
-
 private:
     struct PreparedCase {
         size_t case_index = 0;
@@ -132,7 +100,6 @@ private:
     };
 
     struct PreparedRunSet {
-        RunSetConfig config;
         std::filesystem::path output_directory;
         std::vector<PreparedCase> cases;
     };
@@ -166,7 +133,6 @@ private:
         const auto vehicle_cases = loadVehicleCases(config);
         const auto case_count = validateCaseCount(vehicle_cases);
         PreparedRunSet plan;
-        plan.config = config;
         plan.output_directory = std::filesystem::path(config.output_directory);
         std::filesystem::create_directories(plan.output_directory);
 
@@ -178,10 +144,6 @@ private:
         }
 
         writeGeneratedCasesCsv(plan.output_directory / "generated_cases.csv", plan.cases);
-        writeRunSetManifest(plan.output_directory / "runset_manifest.json",
-                            runset_file,
-                            config,
-                            plan.cases);
         return plan;
     }
 
@@ -246,8 +208,6 @@ private:
         writeFile(prepared.effective_mission_path, effective_json);
         writeFile(prepared.case_dir / "perturbation_inputs.json",
                   writeVehicleInputsJson(prepared.inputs_by_vehicle));
-        writeGeneratedCasesCsv(prepared.case_dir / "generated_case_row.csv",
-                               std::vector<PreparedCase>{prepared});
         return prepared;
     }
 
@@ -263,7 +223,6 @@ private:
             }
             auto& simulator = builder.build();
             simulator.run();
-            writeResolvedSnapshots(current_case.case_dir, simulator.getRegistry());
             result.status = "succeeded";
             result.exit_code = 0;
             return result;
@@ -366,23 +325,6 @@ private:
         return writeJson(root);
     }
 
-    static gnc::core::ConfigNode perturbationValueToConfigNode(
-        const gnc::perturbation::PerturbationValue& value) {
-        using Type = gnc::perturbation::PerturbationValue::Type;
-        if (value.type == Type::Number) {
-            return gnc::core::ConfigNode::makeNumber(value.number);
-        }
-        if (value.type == Type::String) {
-            return gnc::core::ConfigNode::makeString(value.string);
-        }
-
-        auto array = gnc::core::ConfigNode::makeArray();
-        for (const auto entry : value.vector) {
-            array.push(gnc::core::ConfigNode::makeNumber(entry));
-        }
-        return array;
-    }
-
     static std::map<std::string, double> flattenedInputs(const PreparedCase& current_case) {
         std::map<std::string, double> result;
         for (const auto& [vehicle_id, inputs] : current_case.inputs_by_vehicle) {
@@ -429,42 +371,6 @@ private:
         }
 
         writeFile(path, out.str());
-    }
-
-    static void writeRunSetManifest(const std::filesystem::path& path,
-                                    const std::string& runset_file,
-                                    const RunSetConfig& config,
-                                    const std::vector<PreparedCase>& cases) {
-        auto root = gnc::core::ConfigNode::makeObject();
-        root.set("runset_file", gnc::core::ConfigNode::makeString(runset_file));
-        root.set("base_mission", gnc::core::ConfigNode::makeString(config.base_mission));
-        root.set("output_directory",
-                 gnc::core::ConfigNode::makeString(config.output_directory));
-        root.set("case_directory",
-                 gnc::core::ConfigNode::makeString(config.case_directory));
-        root.set("case_count",
-                 gnc::core::ConfigNode::makeNumber(static_cast<double>(cases.size())));
-
-        auto case_nodes = gnc::core::ConfigNode::makeArray();
-        for (const auto& current_case : cases) {
-            auto case_node = gnc::core::ConfigNode::makeObject();
-            case_node.set("case_index",
-                          gnc::core::ConfigNode::makeNumber(
-                              static_cast<double>(current_case.case_index)));
-            case_node.set("case_id",
-                          gnc::core::ConfigNode::makeString(
-                              formatCaseDirectory("case_{case_index}",
-                                                  current_case.case_index)));
-            case_node.set("case_directory",
-                          gnc::core::ConfigNode::makeString(
-                              current_case.case_dir.generic_string()));
-            case_node.set("effective_mission",
-                          gnc::core::ConfigNode::makeString(
-                              current_case.effective_mission_path.generic_string()));
-            case_nodes.push(case_node);
-        }
-        root.set("cases", case_nodes);
-        writeFile(path, writeJson(root));
     }
 
     static std::string escapeCsv(std::string value) {

@@ -253,7 +253,6 @@ inline std::vector<MatrixCase> generateRandomCases(
 
     for (size_t i = 0; i < source.count; ++i) {
         MatrixCase current;
-        current.case_id = "random_" + std::to_string(i + 1);
         for (const auto& key : keys) {
             current.inputs[key] = generateRandomValue(
                 source.inputs[key],
@@ -269,7 +268,6 @@ inline std::vector<MatrixCase> singleCaseSource(
     const VehicleCaseSourceConfig& source,
     const std::string& vehicle_id) {
     MatrixCase current;
-    current.case_id = "single";
     current.inputs = numericInputsFromConfig(
         source.inputs,
         "runset.vehicles." + vehicle_id + ".cases.inputs");

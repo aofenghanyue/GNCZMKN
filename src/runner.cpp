@@ -381,23 +381,6 @@ std::string executablePath(const char* program_name) {
     return normalizePath(absolute_path);
 }
 
-fs::path resolvedSnapshotOutputDir(SimulationBuilder& builder,
-                                   const Simulator& simulator) {
-    const auto& logger_dir = simulator.getAutoDataLogger().getOutputDir();
-    if (!logger_dir.empty()) {
-        return fs::path(logger_dir);
-    }
-
-    const auto& outputs = builder.getConfigManager().outputs();
-    if (outputs.isObject()) {
-        const auto configured_dir = outputs["directory"].asString();
-        if (!configured_dir.empty()) {
-            return fs::path(configured_dir);
-        }
-    }
-    return {};
-}
-
 }
 
 int main(int argc, char* argv[]) {
@@ -486,11 +469,6 @@ int main(int argc, char* argv[]) {
 
         auto& simulator = builder.build();
         simulator.run();
-        const auto snapshot_dir = resolvedSnapshotOutputDir(builder, simulator);
-        if (!snapshot_dir.empty()) {
-            gnc::runset::RunSetRunner::writeResolvedSnapshots(snapshot_dir,
-                                                              simulator.getRegistry());
-        }
 
         LOG_INFO("=== Simulation Completed ===");
         return 0;

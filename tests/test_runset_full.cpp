@@ -3,6 +3,7 @@
 #include "gnc/runset/runset_runner.hpp"
 
 #include <exception>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -32,6 +33,10 @@ std::string readText(const fs::path& path) {
     std::ostringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
+}
+
+int runCommand(const std::string& command) {
+    return std::system(command.c_str());
 }
 
 fs::path gncSimPath(const char* argv0) {
@@ -137,13 +142,12 @@ int main(int argc, char* argv[]) {
         test_support::require(single_effective.find("\"aero.drag_bias\"") !=
                                   std::string::npos,
                               "Single source did not inject numeric inputs.");
-        const auto single_row =
-            readText(root / "single_run" / "case_000001" / "generated_case_row.csv");
-        test_support::require(single_row.find("case_id,vehicle.aero.drag_bias") !=
-                                  std::string::npos &&
-                                  single_row.find("vehicle.engine.temp_level") !=
-                                  std::string::npos,
-                              "Single source did not write generated_case_row.csv.");
+        test_support::require(
+            !fs::exists(root / "single_run" / "case_000001" / "generated_case_row.csv"),
+            "RunSet should not duplicate generated_cases.csv into each case directory.");
+        test_support::require(
+            !fs::exists(root / "single_run" / "runset_manifest.json"),
+            "RunSet should not write a manifest when generated case files are sufficient.");
         const auto single_summary =
             readText(root / "single_run" / "runset_summary.csv");
         test_support::require(single_summary.find("succeeded") != std::string::npos,
@@ -192,7 +196,7 @@ int main(int argc, char* argv[]) {
                                   failure_summary.find("succeeded") != std::string::npos,
                               "RunSet summary should record failed and continued cases.");
         test_support::require(
-            fs::exists(root / "failure_run" / "case_000002" / "perturbation_resolved.json"),
+            fs::exists(root / "failure_run" / "case_000002" / "effective_mission.json"),
             "RunSet should continue after a failed case and execute later cases.");
 
         const std::string random_template = R"json(
@@ -240,12 +244,9 @@ int main(int argc, char* argv[]) {
             readText(root / "random_a" / "generated_cases.csv") ==
                 readText(root / "random_b" / "generated_cases.csv"),
             "Random source with the same seed should reproduce generated cases.");
-        const auto manifest_text =
-            readText(root / "random_a" / "runset_manifest.json");
-        test_support::require(manifest_text.find("\"cases\"") != std::string::npos &&
-                                  manifest_text.find("\"effective_mission\"") !=
-                                      std::string::npos,
-                              "Random source should write a case manifest.");
+        test_support::require(
+            !fs::exists(root / "random_a" / "runset_manifest.json"),
+            "Random source should rely on generated_cases.csv and effective missions, not a manifest.");
 
         writeFile(root / "matrix.csv",
                   "case_id,engine.temp_level,aero.drag_bias\n"
@@ -278,11 +279,22 @@ int main(int argc, char* argv[]) {
                                   jobs_summary.find("case_000002") != std::string::npos,
                               "Multiprocess summary should include both cases.");
         test_support::require(
-            fs::exists(root / "jobs_run" / "case_000001" / "perturbation_resolved.json"),
-            "Multiprocess child should write perturbation_resolved.json for case 1.");
+            !fs::exists(root / "jobs_run" / "case_000001" / "perturbation_resolved.json"),
+            "Multiprocess child should not write RunSet snapshot artifacts through --config.");
         test_support::require(
-            fs::exists(root / "jobs_run" / "case_000002" / "perturbation_resolved.json"),
-            "Multiprocess child should write perturbation_resolved.json for case 2.");
+            !fs::exists(root / "jobs_run" / "case_000002" / "perturbation_resolved.json"),
+            "Multiprocess child should not write RunSet snapshot artifacts through --config.");
+
+        const auto replay_mission =
+            fs::absolute(root / "jobs_run" / "case_000001" / "effective_mission.json");
+        const auto replay_command =
+            gncSimPath(argv[0]).generic_string() + " --config " +
+            replay_mission.generic_string();
+        test_support::require(runCommand(replay_command) == 0,
+                              "A generated effective mission should replay through plain --config.");
+        test_support::require(
+            !fs::exists(root / "jobs_run" / "case_000001" / "perturbation_resolved.json"),
+            "Plain --config replay should not create RunSet snapshot artifacts.");
 
         std::cout << "full runset checks passed\n";
         return 0;
