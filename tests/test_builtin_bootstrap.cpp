@@ -20,6 +20,8 @@ int main() {
             "environment.wgs84_earth",
             "environment.standard_atmosphere",
             "environment.spherical_gravity",
+            "aero.asset.grid",
+            "aero.grid",
             "aero.simple_polynomial",
             "aero.table2d",
             "force.constant",

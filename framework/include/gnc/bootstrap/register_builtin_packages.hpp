@@ -26,11 +26,14 @@
 #include "gnc/perturbation/components/static_perturbation.hpp"
 #include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
 #include "gnc/termination/components/component_field_threshold.hpp"
+#include "gnc/vehicle/common/components/aero_grid_asset_provider.hpp"
+#include "gnc/vehicle/common/interfaces/i_aero_grid_asset_provider.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 #include "gnc/vehicle/output/components/constant_force.hpp"
 #include "gnc/vehicle/output/components/constant_mass.hpp"
 #include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
+#include "gnc/vehicle/output/components/grid_aero.hpp"
 #include "gnc/vehicle/output/components/simple_polynomial_aero.hpp"
 #include "gnc/vehicle/output/components/table2d_aero.hpp"
 #include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
@@ -73,7 +76,14 @@ inline void registerEnvironmentPackages(gnc::core::ComponentFactory& factory) {
 }
 
 inline void registerVehicleCommonPackages(gnc::core::ComponentFactory& factory) {
-    (void)factory;
+    using namespace gnc::core;
+    factory.registerType<gnc::vehicle::common::AeroGridAssetProvider,
+                         gnc::vehicle::common::IAeroGridAssetProvider>(
+        "aero.asset.grid",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleCommon,
+        ExecutionStage::None);
 }
 
 inline void registerVehicleInputPackages(gnc::core::ComponentFactory& factory) {
@@ -119,6 +129,14 @@ inline void registerVehicleOutputPackages(gnc::core::ComponentFactory& factory) 
                          gnc::vehicle::output::IAeroModel,
                          gnc::interfaces::IObservable>(
         "aero.table2d",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::GridAero,
+                         gnc::vehicle::output::IAeroModel,
+                         gnc::interfaces::IObservable>(
+        "aero.grid",
         ComponentCategory::Builtin,
         __FILE__,
         ComponentPackageRole::VehicleOutput,
