@@ -67,6 +67,31 @@ runner.cpp
        -> parent writes generated_cases.csv and runset_summary.csv
 ```
 
+普通 `--config` 路径始终只构建一个 mission。RunSet 不把批量状态塞进
+`Simulator`，而是在 `Simulator` 外层生成多个 ordinary mission：
+
+```text
+runset.json
+  -> parse RunSetConfig
+  -> load base_mission
+  -> generate per-vehicle numeric cases
+  -> overlay each case into vehicles[].perturbation.config.inputs
+  -> rewrite outputs.directory to the case directory
+  -> write case_N/effective_mission.json
+  -> execute each effective mission through the normal build/run path
+```
+
+串行 RunSet 在父进程内为每个 case 新建 `SimulationBuilder` 和 `Simulator`。
+多进程 RunSet 先写完所有 case 文件，再启动子进程：
+
+```powershell
+gnc_sim.exe --config <case>/effective_mission.json
+```
+
+父进程只负责并发控制和汇总 `runset_summary.csv`；子进程不知道自己来自
+RunSet。这个边界很重要：复现单个 case 时直接运行 `effective_mission.json`，
+不需要重新进入 RunSet，也不需要额外快照文件。
+
 `MissionAssembler` 的装配顺序是 environment、vehicles、termination、summary。每个组件被创建后会经历：
 
 1. 从 `ComponentFactory` 按 `type` 创建对象。
@@ -120,6 +145,11 @@ sequenceDiagram
 
 `ValidationPipeline` 的 dependency preflight 会调用一次 `injectDependencies()` 并标记组件已完成依赖注入；`Simulator::initialize()` 只对还没标记的组件补调用。实现 `injectDependencies()` 时应幂等，不应在里面推进状态。
 
+拉偏相关组件遵循同一生命周期。`vehicles[].perturbation` 先作为普通组件装配
+和注册；其它组件在 `injectDependencies()` 中通过当前 vehicle 作用域绑定
+`IPerturbationProvider`。会影响资产加载的拉偏值应在使用者 `initialize()` 中读取，
+因为此时依赖已经注入，且 perturbation stage 的组件会早于后续 vehicle stage 初始化。
+
 ## 调度模型
 
 `Simulator` 使用固定步长和周期开始发布态：
@@ -141,9 +171,13 @@ environment -> perturbation -> vehicle_input -> vehicle_process
 -> vehicle_output -> interaction -> form -> termination -> summary
 ```
 
-If no vehicle defines `vehicles[].perturbation`, the perturbation stage bucket is
-empty and existing mission publish, record, termination, and integration
-semantics are unchanged.
+如果没有任何 vehicle 定义 `vehicles[].perturbation`，`perturbation` stage bucket
+为空，已有 mission 的 publish、record、termination 和 integration 语义不变。
+
+`perturbation` stage 的目的不是替代气动、发动机或质量组件，而是在每个周期开始
+提供统一的 case 状态。静态拉偏可以在拉偏组件初始化时解析；动态拉偏由自定义
+拉偏组件在 `update()` 中刷新，后续 `vehicle_input/process/output/interaction`
+组件读取同一周期的结果。
 
 `executeComponent()` 会跳过 `IContinuousSystem` 的 `update()`；连续系统只在 `integrateContinuousSystems()` 中由积分器调用 `computeDerivatives()`。低频组件通过 `rate_hz` 转换成整数 step interval；未执行的 step 继续暴露上一次输出。
 

@@ -11,6 +11,7 @@
 | 第一次构建和运行 | [01-getting-started.md](01-getting-started.md) | [../user/README.md](../user/README.md) |
 | 理解框架全貌 | [02-core-concepts.md](02-core-concepts.md) | [00-current-architecture.md](00-current-architecture.md), [05-architecture.md](05-architecture.md), [04-extension-guide.md](04-extension-guide.md) |
 | 写或审查 mission | [02-core-concepts.md](02-core-concepts.md) | [03-mission-configuration.md](03-mission-configuration.md), [06-reference.md](06-reference.md) |
+| 使用拉偏和 RunSet | [03-mission-configuration.md](03-mission-configuration.md) | [02-core-concepts.md](02-core-concepts.md), [04-extension-guide.md](04-extension-guide.md), [06-reference.md](06-reference.md) |
 | 新增项目组件 | [04-extension-guide.md](04-extension-guide.md) | [03-mission-configuration.md](03-mission-configuration.md), [../user/README.md](../user/README.md) |
 | 维护 framework | [00-current-architecture.md](00-current-architecture.md) | [05-architecture.md](05-architecture.md), [07-decisions.md](07-decisions.md) |
 
@@ -35,8 +36,8 @@
 - [00-current-architecture.md](00-current-architecture.md)：全局架构地图、mission build 主链路、runtime 数据流。
 - [01-getting-started.md](01-getting-started.md)：构建、测试、运行、查看输出。
 - [02-core-concepts.md](02-core-concepts.md)：核心心智模型、数据流概念、作用域、调度和记录语义。
-- [03-mission-configuration.md](03-mission-configuration.md)：mission schema、include、vehicles、服务、outputs、termination、summary。
-- [04-extension-guide.md](04-extension-guide.md)：active project 组件、注册元数据、自定义 interaction、修改类型决策表。
-- [05-architecture.md](05-architecture.md)：维护者视角的源码导览、关键类职责、生命周期和调度机制。
-- [06-reference.md](06-reference.md)：CLI、源码入口、type id、服务 id、配置字段速查。
+- [03-mission-configuration.md](03-mission-configuration.md)：mission schema、include、vehicles、拉偏机制、服务、outputs、termination、summary。
+- [04-extension-guide.md](04-extension-guide.md)：active project 组件、注册元数据、自定义 interaction、拉偏组件/使用者契约、修改类型决策表。
+- [05-architecture.md](05-architecture.md)：维护者视角的源码导览、RunSet 执行模型、关键类职责、生命周期和调度机制。
+- [06-reference.md](06-reference.md)：CLI、RunSet 配置、源码入口、type id、服务 id、配置字段速查。
 - [07-decisions.md](07-decisions.md)：当前架构决策记录。

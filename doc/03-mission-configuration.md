@@ -242,16 +242,26 @@ Local-spherical 3DoF：
 
 ## Perturbation
 
-`vehicles[].perturbation` is an optional independent vehicle-level component block.
-It is not part of `common/input/process/output/interaction`. When omitted, no
-perturbation component is created and the mission keeps the existing single-run
-behavior.
+`vehicles[].perturbation` 是可选的飞行器级组件块。它不属于
+`common/input/process/output/interaction`，而是该 vehicle 的拉偏状态源。
+省略时不会创建拉偏组件，普通单次 mission 的运行行为不变。
 
-RunSet injects each case's numeric inputs into
-`vehicles[].perturbation.config.inputs` before building the effective mission.
-The perturbation component must implement `IPerturbationProvider`; components
-that need perturbation state bind the provider in `injectDependencies()` and read
-the resolved number/string/vector values in `initialize()` or `update()`.
+拉偏机制分三层：
+
+1. **case 输入**：RunSet 的 `single/matrix/random` 或单次 mission 给出纯数字输入，例如温度档位、阻力偏置、推力倍率。
+2. **拉偏组件解析**：`vehicles[].perturbation` 把这些数字解释成 number/string/vector 状态。字符串通常由整数输入通过 `enum_maps` 或项目自定义逻辑映射得到。
+3. **其它组件读取**：气动、发动机、质量、制导等组件通过 `IPerturbationProvider` 读取解析后的状态，不直接读取 RunSet 配置。
+
+RunSet 会在构建每个 case 的 effective mission 前，把该 case 的数值输入写入：
+
+```text
+vehicles[].perturbation.config.inputs
+```
+
+因此被 RunSet 引用的 vehicle 必须在 base mission 中已经声明
+`perturbation` 块，RunSet 只替换其中的 `config.inputs`。effective mission 本身
+就是完整的单 case 复现文件。复现时不需要再次读取 RunSet，也不依赖额外的
+快照文件。
 
 ```json
 {
@@ -277,6 +287,30 @@ the resolved number/string/vector values in `initialize()` or `update()`.
 `perturbation.static` exposes numeric inputs directly. When an `enum_maps` entry
 matches an integer input, it also publishes a string value at
 `<key>.resolved`, for example `engine.temp_level.resolved`.
+
+上面的例子中：
+
+- `engine.temp_level` 作为 number 输出，值为 `2`。
+- `engine.temp_level.resolved` 作为 string 输出，值为 `"hot.txt"`。
+- `aero.drag_bias` 作为 number 输出，值为 `-0.03`。
+
+如果发动机组件要根据温度档位选择燃烧数据文件，它应在
+`injectDependencies()` 中绑定 `IPerturbationProvider`，然后在 `initialize()`
+读取 `engine.temp_level.resolved` 并加载相应资产。不要在 `configure()` 中读取
+拉偏状态，因为组件配置阶段还没有完成组件间依赖注入。
+
+静态拉偏和动态拉偏的边界如下：
+
+| 类型 | 写在哪里 | 何时生效 |
+| --- | --- | --- |
+| 静态 case 输入 | RunSet case source 或单次 mission 的 `perturbation.config.inputs` | effective mission 构建完成后固定 |
+| 静态解析状态 | 拉偏组件 `initialize()` 或 `configure()` 内部解析输入 | 其它组件 `initialize()` 后可读 |
+| 动态拉偏逻辑 | 用户自定义拉偏组件的 `update()` | 每个周期在 `perturbation` stage 刷新 |
+
+配置文件只描述静态 case 输入。随高度、马赫数、飞行阶段或其它状态变化的拉偏逻辑应写在自定义拉偏组件的 `update()` 中，而不是写成 RunSet 配置语法。由于 `perturbation` stage 位于 `environment` 之后、`vehicle.input/process/output/interaction` 之前，同一周期内后续组件可以读到本周期刷新的拉偏状态。
+
+多飞行器任务中，每个 vehicle 都可以有自己的 `perturbation` 块。RunSet 的
+`vehicles` 字段按 vehicle id 指定 case source；不同飞行器可以读取同一个矩阵文件，也可以读取不同文件或选用不同 rows。RunSet 要求所有参与的 vehicle 生成相同 case 数，按 case 序号配对运行。
 
 ## Component Scheduling
 

@@ -203,6 +203,10 @@ For each matching enum map, it exposes `<key>.resolved` as a string.
 
 RunSet config is a separate JSON file for batch execution:
 
+This section is a field reference. For the mechanism and component dependency
+model, read [03-mission-configuration.md](03-mission-configuration.md) and
+[04-extension-guide.md](04-extension-guide.md).
+
 ```json
 {
   "base_mission": "user/example/config/mission.json",
@@ -266,7 +270,8 @@ case ordinal: run `k` uses the `k`th generated row from each vehicle source.
 For each case, RunSet injects numeric inputs into
 `vehicles[].perturbation.config.inputs` and rewrites `outputs.directory` in the
 effective mission to the current case directory while preserving the rest of the
-base mission outputs config.
+base mission outputs config. A vehicle referenced by RunSet must already define
+a `perturbation` block in the base mission.
 
 Each generated case directory contains:
 

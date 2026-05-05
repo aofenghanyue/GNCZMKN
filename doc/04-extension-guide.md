@@ -105,12 +105,71 @@ component must implement `IPerturbationProvider`; it may also implement
 based on the generated `effective_mission.json`, so ordinary single-case replay
 does not depend on any RunSet-specific snapshot file.
 
+The intended dependency direction is one-way:
+
+```text
+RunSet numeric inputs or mission static inputs
+-> vehicles[].perturbation
+-> IPerturbationProvider
+-> input/process/output/interaction components
+```
+
+Do not let every aero, engine, or mass component parse the RunSet file. The
+RunSet format is a batch input format; the perturbation provider is the runtime
+contract. This keeps single-case replay simple and lets project-specific
+perturbation components map numeric inputs to strings, vectors, assets, or
+flight-state-dependent values without changing the batch runner.
+
 Components that load assets or choose behavior from perturbation state should
 bind the provider in `injectDependencies()`, then read the resolved state in
 `initialize()`. Do not load perturbation-dependent assets in `configure()`,
 because dependency injection happens after configuration. Dynamic perturbation
 values can be refreshed by the perturbation component in `update()` and read by
 later stages in the same cycle.
+
+Consumer pattern:
+
+```cpp
+#include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
+
+class EngineModel final : public gnc::core::ComponentBase {
+public:
+    void injectDependencies(gnc::core::ScopedRegistry& registry) override {
+        perturbation_ =
+            registry.get<gnc::perturbation::IPerturbationProvider>("perturbation");
+    }
+
+    void initialize() override {
+        const std::string file = perturbation_
+            ? perturbation_->getString("engine.temp_level.resolved",
+                                       "nominal_engine.txt")
+            : "nominal_engine.txt";
+        loadEngineTable(file);
+    }
+
+    void update(double) override {
+        thrust_scale_ = perturbation_
+            ? perturbation_->getNumber("engine.thrust_scale", 1.0)
+            : 1.0;
+    }
+
+private:
+    gnc::perturbation::IPerturbationProvider* perturbation_ = nullptr;
+    double thrust_scale_ = 1.0;
+};
+```
+
+If the component cannot run without a required perturbation item, throw a clear
+error in `initialize()` after dependency injection. If the perturbation is
+optional, use a physical nominal fallback as shown above. Either way, the
+component should depend on the provider interface, not on a RunSet file path or
+case index.
+
+Custom perturbation components should keep their inputs numeric at the config
+boundary. For string or asset choices, map integer codes to strings inside the
+perturbation component, either through static config such as `enum_maps` or
+through project code. For dynamic perturbation, keep the config as initial/static
+case inputs and implement the flight-state-dependent logic in `update()`.
 
 ## 生命周期
 
