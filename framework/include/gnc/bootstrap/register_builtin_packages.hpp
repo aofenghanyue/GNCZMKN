@@ -16,27 +16,67 @@
 #include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
+#include "gnc/forms/local_spherical_6dof/components/rigid_body.hpp"
+#include "gnc/forms/local_spherical_6dof/interfaces/i_input_provider.hpp"
+#include "gnc/forms/local_spherical_6dof/interfaces/i_truth_view.hpp"
+#include "gnc/forms/target_point/components/kinematic_point.hpp"
+#include "gnc/forms/target_point/interfaces/i_truth_view.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/cartesian_3dof/components/force_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
+#include "gnc/interactions/local_spherical_6dof/components/standard_closure.hpp"
 #include "gnc/interfaces/i_termination_evaluator.hpp"
 #include "gnc/perturbation/components/static_perturbation.hpp"
 #include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
 #include "gnc/termination/components/component_field_threshold.hpp"
+#include "gnc/termination/components/engagement_termination.hpp"
+#include "gnc/summary/components/ideal_engagement_summary.hpp"
+#include "gnc/vehicle/input/components/ideal_air_data_6dof.hpp"
+#include "gnc/vehicle/input/components/ideal_imu_6dof.hpp"
+#include "gnc/vehicle/input/components/ideal_satellite_nav_6dof.hpp"
+#include "gnc/vehicle/input/components/ideal_seeker_6dof.hpp"
+#include "gnc/vehicle/input/interfaces/i_air_data_6dof.hpp"
+#include "gnc/vehicle/input/interfaces/i_imu_6dof.hpp"
+#include "gnc/vehicle/input/interfaces/i_satellite_nav_6dof.hpp"
+#include "gnc/vehicle/input/interfaces/i_seeker_6dof.hpp"
+#include "gnc/vehicle/common/components/zero_aerodynamic_assets_6dof.hpp"
+#include "gnc/vehicle/common/interfaces/i_aerodynamic_assets_6dof.hpp"
 #include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
+#include "gnc/vehicle/process/components/ideal_attitude_control_6dof.hpp"
+#include "gnc/vehicle/process/components/ideal_control_allocation_6dof.hpp"
+#include "gnc/vehicle/process/components/ideal_guidance_6dof.hpp"
+#include "gnc/vehicle/process/components/ideal_navigation_6dof.hpp"
+#include "gnc/vehicle/process/components/ideal_phase_sequencer_6dof.hpp"
+#include "gnc/vehicle/process/components/ideal_target_tracking_6dof.hpp"
+#include "gnc/vehicle/process/components/ideal_trajectory_planner_6dof.hpp"
 #include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
+#include "gnc/vehicle/process/interfaces/i_attitude_control_6dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_control_allocation_6dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_guidance_6dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_navigation_6dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_phase_sequencer_6dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_target_tracking_6dof.hpp"
+#include "gnc/vehicle/process/interfaces/i_trajectory_planner_6dof.hpp"
 #include "gnc/vehicle/output/components/constant_force.hpp"
+#include "gnc/vehicle/output/components/constant_mass_properties_6dof.hpp"
 #include "gnc/vehicle/output/components/constant_mass.hpp"
 #include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
+#include "gnc/vehicle/output/components/ideal_actuator_6dof.hpp"
 #include "gnc/vehicle/output/components/simple_polynomial_aero.hpp"
 #include "gnc/vehicle/output/components/table2d_aero.hpp"
+#include "gnc/vehicle/output/components/zero_aerodynamics_6dof.hpp"
+#include "gnc/vehicle/output/components/zero_propulsion_6dof.hpp"
+#include "gnc/vehicle/output/interfaces/i_actuator_6dof.hpp"
+#include "gnc/vehicle/output/interfaces/i_aerodynamics_6dof.hpp"
 #include "gnc/vehicle/output/interfaces/i_aero_model.hpp"
 #include "gnc/vehicle/output/interfaces/i_constant_mass.hpp"
 #include "gnc/vehicle/output/interfaces/i_continuous_mass.hpp"
 #include "gnc/vehicle/output/interfaces/i_force_provider.hpp"
+#include "gnc/vehicle/output/interfaces/i_mass_properties_6dof.hpp"
+#include "gnc/vehicle/output/interfaces/i_propulsion_6dof.hpp"
 
 namespace gnc::bootstrap {
 
@@ -73,11 +113,51 @@ inline void registerEnvironmentPackages(gnc::core::ComponentFactory& factory) {
 }
 
 inline void registerVehicleCommonPackages(gnc::core::ComponentFactory& factory) {
-    (void)factory;
+    using namespace gnc::core;
+    factory.registerType<gnc::vehicle::common::ZeroAerodynamicAssets6Dof,
+                         gnc::vehicle::common::IAerodynamicAssets6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.common.aero_assets_6dof.zero",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleCommon,
+        ExecutionStage::None);
 }
 
 inline void registerVehicleInputPackages(gnc::core::ComponentFactory& factory) {
-    (void)factory;
+    using namespace gnc::core;
+    factory.registerType<gnc::vehicle::input::IdealImu6Dof,
+                         gnc::vehicle::input::IImu6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.imu_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput);
+    factory.registerType<gnc::vehicle::input::IdealSatelliteNav6Dof,
+                         gnc::vehicle::input::ISatelliteNav6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.satellite_nav_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput);
+    factory.registerType<gnc::vehicle::input::IdealAirData6Dof,
+                         gnc::vehicle::input::IAirData6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.air_data_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput);
+    factory.registerType<gnc::vehicle::input::IdealSeeker6Dof,
+                         gnc::vehicle::input::ISeeker6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.seeker_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput);
 }
 
 inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory) {
@@ -91,6 +171,69 @@ inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory)
         ComponentPackageRole::VehicleProcess,
         ExecutionStage::VehicleProcess,
         "local_spherical_3dof");
+    factory.registerType<gnc::vehicle::process::IdealPhaseSequencer6Dof,
+                         gnc::vehicle::process::IPhaseSequencer6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.phase_sequencer_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "local_spherical_6dof");
+    factory.registerType<gnc::vehicle::process::IdealTrajectoryPlanner6Dof,
+                         gnc::vehicle::process::ITrajectoryPlanner6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.trajectory_planner_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "local_spherical_6dof");
+    factory.registerType<gnc::vehicle::process::IdealNavigation6Dof,
+                         gnc::vehicle::process::INavigation6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.navigation_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "local_spherical_6dof");
+    factory.registerType<gnc::vehicle::process::IdealTargetTracking6Dof,
+                         gnc::vehicle::process::ITargetTracking6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.target_tracking_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "local_spherical_6dof");
+    factory.registerType<gnc::vehicle::process::IdealGuidance6Dof,
+                         gnc::vehicle::process::IGuidance6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.guidance_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "local_spherical_6dof");
+    factory.registerType<gnc::vehicle::process::IdealAttitudeControl6Dof,
+                         gnc::vehicle::process::IAttitudeControl6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.attitude_control_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "local_spherical_6dof");
+    factory.registerType<gnc::vehicle::process::IdealControlAllocation6Dof,
+                         gnc::vehicle::process::IControlAllocation6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.control_allocation_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "local_spherical_6dof");
 }
 
 inline void registerPerturbationPackages(gnc::core::ComponentFactory& factory) {
@@ -148,6 +291,38 @@ inline void registerVehicleOutputPackages(gnc::core::ComponentFactory& factory) 
         __FILE__,
         ComponentPackageRole::VehicleOutput,
         ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::ConstantMassProperties6Dof,
+                         gnc::vehicle::output::IMassProperties6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.output.mass_properties_6dof.constant",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::ZeroPropulsion6Dof,
+                         gnc::vehicle::output::IPropulsion6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.output.propulsion_6dof.zero",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::IdealActuator6Dof,
+                         gnc::vehicle::output::IActuator6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.output.actuator_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
+    factory.registerType<gnc::vehicle::output::ZeroAerodynamics6Dof,
+                         gnc::vehicle::output::IAerodynamics6Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.output.aerodynamics_6dof.zero",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleOutput,
+        ExecutionStage::VehicleOutput);
 }
 
 inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
@@ -173,6 +348,28 @@ inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
         ComponentPackageRole::Form,
         ExecutionStage::Form,
         "local_spherical_3dof");
+
+    factory.registerType<gnc::forms::local_spherical_6dof::RigidBody,
+                         gnc::interfaces::IContinuousSystem,
+                         gnc::forms::local_spherical_6dof::ITruthView,
+                         gnc::interfaces::IObservable>(
+        "form.local_spherical_6dof.rigid_body",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Form,
+        ExecutionStage::Form,
+        "local_spherical_6dof");
+
+    factory.registerType<gnc::forms::target_point::KinematicPoint,
+                         gnc::interfaces::IContinuousSystem,
+                         gnc::forms::target_point::ITruthView,
+                         gnc::interfaces::IObservable>(
+        "form.target_point.kinematic",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Form,
+        ExecutionStage::Form,
+        "target_point");
 }
 
 inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
@@ -211,6 +408,16 @@ inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
         ComponentPackageRole::Interaction,
         ExecutionStage::Interaction,
         "local_spherical_3dof");
+
+    factory.registerType<gnc::interactions::local_spherical_6dof::StandardClosure,
+                         gnc::forms::local_spherical_6dof::IInputProvider,
+                         gnc::interfaces::IObservable>(
+        "interaction.local_spherical_6dof.standard",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Interaction,
+        ExecutionStage::Interaction,
+        "local_spherical_6dof");
 }
 
 inline void registerFormViewPackages(gnc::core::ComponentFactory& factory) {
@@ -242,6 +449,24 @@ inline void registerTerminationPackages(gnc::core::ComponentFactory& factory) {
         __FILE__,
         ComponentPackageRole::Termination,
         ExecutionStage::Termination);
+    factory.registerType<gnc::termination::EngagementTermination6Dof,
+                         gnc::interfaces::ITerminationEvaluator>(
+        "termination.engagement_6dof",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Termination,
+        ExecutionStage::Termination);
+}
+
+inline void registerSummaryPackages(gnc::core::ComponentFactory& factory) {
+    using namespace gnc::core;
+    factory.registerType<gnc::summary::IdealEngagementSummary6Dof,
+                         gnc::interfaces::ISummaryObserver>(
+        "summary.engagement_6dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Summary,
+        ExecutionStage::Summary);
 }
 
 inline void registerBuiltinPackages(gnc::core::ComponentFactory& factory) {
@@ -255,6 +480,7 @@ inline void registerBuiltinPackages(gnc::core::ComponentFactory& factory) {
     registerInteractionPackages(factory);
     registerFormViewPackages(factory);
     registerTerminationPackages(factory);
+    registerSummaryPackages(factory);
 }
 
 } // namespace gnc::bootstrap

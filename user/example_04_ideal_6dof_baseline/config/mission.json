@@ -1,0 +1,146 @@
+{
+  "simulation": { "dt": 0.1, "duration": 0.2, "integrator": "rk4" },
+  "environment": {
+    "components": [
+      { "type": "environment.spherical_earth", "name": "earth", "config": {} },
+      { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} },
+      { "type": "environment.spherical_gravity", "name": "gravity", "config": {} }
+    ]
+  },
+  "vehicles": [
+    {
+      "id": "interceptor",
+      "perturbation": {
+        "type": "perturbation.static",
+        "name": "perturbation",
+        "config": { "inputs": {} }
+      },
+      "form": {
+        "components": [
+          {
+            "type": "form.local_spherical_6dof.rigid_body",
+            "name": "dynamics",
+            "config": {
+              "initial_state": {
+                "longitude_rad": 0.0,
+                "latitude_rad": 0.0,
+                "altitude_m": 1000.0,
+                "velocity_nue_mps": [100.0, 0.0, 0.0],
+                "attitude_body_to_nue": [1.0, 0.0, 0.0, 0.0],
+                "angular_rate_body_radps": [0.0, 0.0, 0.0]
+              }
+            }
+          }
+        ]
+      },
+      "common": [
+        { "type": "vehicle.common.aero_assets_6dof.zero", "name": "aero_assets", "config": {} }
+      ],
+      "input": [
+        { "type": "vehicle.input.imu_6dof.ideal", "name": "imu", "config": {} },
+        { "type": "vehicle.input.satellite_nav_6dof.ideal", "name": "satnav", "config": {} },
+        { "type": "vehicle.input.air_data_6dof.ideal", "name": "air_data", "config": {} },
+        {
+          "type": "vehicle.input.seeker_6dof.ideal",
+          "name": "seeker",
+          "config": { "target_truth_lookup_name": "target.truth" }
+        }
+      ],
+      "process": [
+        {
+          "type": "vehicle.process.phase_sequencer_6dof.ideal",
+          "name": "phase",
+          "config": { "phase_name": "boost" }
+        },
+        { "type": "vehicle.process.trajectory_planner_6dof.ideal", "name": "planner", "config": {} },
+        { "type": "vehicle.process.navigation_6dof.ideal", "name": "navigation", "config": {} },
+        { "type": "vehicle.process.target_tracking_6dof.ideal", "name": "tracking", "config": {} },
+        { "type": "vehicle.process.guidance_6dof.ideal", "name": "guidance", "config": {} },
+        { "type": "vehicle.process.attitude_control_6dof.ideal", "name": "attitude_control", "config": {} },
+        { "type": "vehicle.process.control_allocation_6dof.ideal", "name": "control_allocation", "config": {} }
+      ],
+      "output": [
+        {
+          "type": "vehicle.output.mass_properties_6dof.constant",
+          "name": "mass",
+          "config": {
+            "mass_kg": 100.0,
+            "center_of_gravity_body_m": [0.0, 0.0, 0.0],
+            "inertia_body_kgm2": [10.0, 11.0, 12.0]
+          }
+        },
+        { "type": "vehicle.output.propulsion_6dof.zero", "name": "propulsion", "config": {} },
+        { "type": "vehicle.output.actuator_6dof.ideal", "name": "actuator", "priority": 0, "config": {} },
+        { "type": "vehicle.output.aerodynamics_6dof.zero", "name": "aero", "priority": 10, "config": {} }
+      ],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.local_spherical_6dof.standard",
+            "name": "interaction",
+            "config": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": "target",
+      "form": {
+        "components": [
+          {
+            "type": "form.target_point.kinematic",
+            "name": "truth",
+            "config": {
+              "initial_position_ecef_m": [6373000.0, 100.0, 0.0],
+              "velocity_ecef_mps": [0.0, 0.0, 0.0]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": []
+    }
+  ],
+  "outputs": {
+    "directory": "user/outputs/example_04_ideal_6dof_baseline",
+    "format": "csv",
+    "session_name": "ideal_6dof_baseline",
+    "record": {
+      "interceptor.dynamics": "all",
+      "interceptor.imu": "all",
+      "interceptor.satnav": "all",
+      "interceptor.air_data": "all",
+      "interceptor.seeker": "all",
+      "interceptor.phase": "all",
+      "interceptor.planner": "all",
+      "interceptor.navigation": "all",
+      "interceptor.tracking": "all",
+      "interceptor.guidance": "all",
+      "interceptor.attitude_control": "all",
+      "interceptor.control_allocation": "all",
+      "interceptor.mass": "all",
+      "interceptor.actuator": "all",
+      "interceptor.aero": "all",
+      "interceptor.aero_assets": "all",
+      "interceptor.propulsion": "all",
+      "interceptor.interaction": "all",
+      "target.truth": "all"
+    }
+  },
+  "termination": {
+    "type": "termination.engagement_6dof",
+    "name": "termination",
+    "config": {
+      "min_range_m": 1.0,
+      "min_altitude_m": -1.0,
+      "max_time_s": 0.1
+    }
+  },
+  "summary": {
+    "type": "summary.engagement_6dof.ideal",
+    "name": "summary",
+    "config": {}
+  }
+}

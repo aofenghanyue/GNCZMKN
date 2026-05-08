@@ -1,6 +1,4 @@
 #include "gnc/common/logger.hpp"
-#include "auto_registered_components.hpp"
-#include "gnc/bootstrap/register_builtin_packages.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
 #include "gnc/runset/runset_runner.hpp"
@@ -17,6 +15,8 @@
 #include <vector>
 
 using namespace gnc::core;
+
+void registerRunnerComponentTypes(gnc::core::ComponentFactory& factory);
 
 namespace {
 
@@ -385,8 +385,7 @@ std::string executablePath(const char* program_name) {
 
 int main(int argc, char* argv[]) {
     auto& factory = ComponentFactory::instance();
-    gnc::bootstrap::registerBuiltinPackages(factory);
-    gnc::build::registerAutoRegisteredProjectComponents(factory);
+    registerRunnerComponentTypes(factory);
 
     RunnerOptions options;
     std::string parse_error;

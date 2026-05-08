@@ -1,0 +1,15 @@
+#pragma once
+
+#include "gnc/forms/local_spherical_6dof/types.hpp"
+
+namespace gnc::forms::local_spherical_6dof {
+
+class IInputProvider {
+public:
+    virtual ~IInputProvider() = default;
+
+    virtual Input computeLocalSpherical6DoFInput(const Truth& truth,
+                                                 double time_s) const = 0;
+};
+
+} // namespace gnc::forms::local_spherical_6dof

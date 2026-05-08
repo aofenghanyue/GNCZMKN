@@ -228,7 +228,7 @@ if(NOT GNC_ACTIVE_PROJECT STREQUAL "")
 endif()
 message(STATUS "Auto-registered user project component headers: ${USER_COMPONENT_COUNT}")
 
-add_executable(gnc_sim src/runner.cpp)
+add_executable(gnc_sim src/runner.cpp src/runner_component_registration.cpp)
 target_link_libraries(gnc_sim PRIVATE gnc_framework)
 target_include_directories(gnc_sim PRIVATE
     "${GENERATED_DIR}"
@@ -268,7 +268,7 @@ if(BUILD_TESTS)
         ${TEST_PROJECT_COMPONENT_FILES})
 
     function(add_gnc_test target source)
-        add_executable(${target} ${source})
+        add_executable(${target} ${source} tests/test_support_registration.cpp)
         target_link_libraries(${target} PRIVATE gnc_framework)
         target_include_directories(${target} PRIVATE
             "${CMAKE_SOURCE_DIR}"
@@ -301,6 +301,10 @@ if(BUILD_TESTS)
     add_gnc_test(test_parser_facade tests/test_parser_facade.cpp)
     add_gnc_test(test_interaction_routes tests/test_interaction_routes.cpp)
     add_gnc_test(test_form_extension_contract tests/test_form_extension_contract.cpp)
+    add_gnc_test(test_local_spherical_6dof_form tests/test_local_spherical_6dof_form.cpp)
+    add_gnc_test(test_ideal_6dof_components tests/test_ideal_6dof_components.cpp)
+    add_gnc_test(test_ideal_6dof_process tests/test_ideal_6dof_process.cpp)
+    add_gnc_test(test_ideal_6dof_mission tests/test_ideal_6dof_mission.cpp)
 
     list(LENGTH TEST_PROJECT_COMPONENT_FILES TEST_PROJECT_COMPONENT_COUNT)
     message(STATUS
