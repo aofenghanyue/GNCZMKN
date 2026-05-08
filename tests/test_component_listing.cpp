@@ -144,6 +144,17 @@ int main() {
             force_accel_it->form_family == "cartesian_3dof",
             "force_accel should advertise the cartesian_3dof form family.");
 
+        const auto cartesian_standard_it =
+            findInfo("interaction.cartesian_3dof.standard");
+        test_support::require(cartesian_standard_it != infos.end(),
+                              "Cartesian standard interaction was not registered.");
+        requireRoleStage(*cartesian_standard_it,
+                         gnc::core::ComponentPackageRole::Interaction,
+                         gnc::core::ExecutionStage::Interaction,
+                         "interaction.cartesian_3dof.standard");
+        test_support::require(cartesian_standard_it->form_family == "cartesian_3dof",
+                              "Cartesian standard interaction should advertise cartesian_3dof.");
+
         const auto simple_aero_it = findInfo("aero.simple_polynomial");
         test_support::require(simple_aero_it != infos.end(),
                               "Simple polynomial aero builtin was not registered.");
@@ -212,6 +223,24 @@ int main() {
                              type_name);
         }
 
+        const std::vector<std::string> cartesian_input_3dof_types = {
+            "vehicle.input.cartesian_imu_3dof.ideal",
+            "vehicle.input.cartesian_satellite_nav_3dof.ideal",
+            "vehicle.input.cartesian_air_data_3dof.ideal",
+            "vehicle.input.cartesian_seeker_3dof.ideal",
+        };
+        for (const auto& type_name : cartesian_input_3dof_types) {
+            const auto input_it = findInfo(type_name);
+            test_support::require(input_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*input_it,
+                             gnc::core::ComponentPackageRole::VehicleInput,
+                             gnc::core::ExecutionStage::VehicleInput,
+                             type_name);
+            test_support::require(input_it->form_family == "cartesian_3dof",
+                                  type_name + " should advertise cartesian_3dof.");
+        }
+
         const std::vector<std::string> process_3dof_types = {
             "vehicle.process.phase_sequencer_3dof.ideal",
             "vehicle.process.trajectory_planner_3dof.ideal",
@@ -231,6 +260,27 @@ int main() {
                              type_name);
             test_support::require(process_it->form_family == "local_spherical_3dof",
                                   type_name + " should advertise local_spherical_3dof.");
+        }
+
+        const std::vector<std::string> cartesian_process_3dof_types = {
+            "vehicle.process.cartesian_phase_sequencer_3dof.ideal",
+            "vehicle.process.cartesian_trajectory_planner_3dof.ideal",
+            "vehicle.process.cartesian_navigation_3dof.ideal",
+            "vehicle.process.cartesian_target_tracking_3dof.ideal",
+            "vehicle.process.cartesian_guidance_3dof.ideal",
+            "vehicle.process.cartesian_flight_control_3dof.ideal",
+            "vehicle.process.cartesian_control_allocation_3dof.ideal",
+        };
+        for (const auto& type_name : cartesian_process_3dof_types) {
+            const auto process_it = findInfo(type_name);
+            test_support::require(process_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*process_it,
+                             gnc::core::ComponentPackageRole::VehicleProcess,
+                             gnc::core::ExecutionStage::VehicleProcess,
+                             type_name);
+            test_support::require(process_it->form_family == "cartesian_3dof",
+                                  type_name + " should advertise cartesian_3dof.");
         }
 
         const std::vector<std::string> output_3dof_types = {
@@ -278,6 +328,24 @@ int main() {
                          gnc::core::ComponentPackageRole::Summary,
                          gnc::core::ExecutionStage::Summary,
                          "summary.engagement_3dof.ideal");
+
+        const auto engagement_cartesian_3dof_termination_it =
+            findInfo("termination.engagement_cartesian_3dof");
+        test_support::require(engagement_cartesian_3dof_termination_it != infos.end(),
+                              "Cartesian 3DOF engagement termination was not registered.");
+        requireRoleStage(*engagement_cartesian_3dof_termination_it,
+                         gnc::core::ComponentPackageRole::Termination,
+                         gnc::core::ExecutionStage::Termination,
+                         "termination.engagement_cartesian_3dof");
+
+        const auto engagement_cartesian_3dof_summary_it =
+            findInfo("summary.engagement_cartesian_3dof.ideal");
+        test_support::require(engagement_cartesian_3dof_summary_it != infos.end(),
+                              "Cartesian 3DOF engagement summary was not registered.");
+        requireRoleStage(*engagement_cartesian_3dof_summary_it,
+                         gnc::core::ComponentPackageRole::Summary,
+                         gnc::core::ExecutionStage::Summary,
+                         "summary.engagement_cartesian_3dof.ideal");
 
         const auto assets_it = findInfo("vehicle.common.aero_assets_6dof.zero");
         test_support::require(assets_it != infos.end(),

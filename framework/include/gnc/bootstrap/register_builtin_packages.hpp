@@ -25,6 +25,7 @@
 #include "gnc/interfaces/i_observable.hpp"
 #include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/cartesian_3dof/components/force_accel.hpp"
+#include "gnc/interactions/cartesian_3dof/components/standard_closure.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/standard_closure.hpp"
@@ -33,10 +34,16 @@
 #include "gnc/perturbation/components/static_perturbation.hpp"
 #include "gnc/perturbation/interfaces/i_perturbation_provider.hpp"
 #include "gnc/termination/components/component_field_threshold.hpp"
+#include "gnc/termination/components/engagement_termination_cartesian_3dof.hpp"
 #include "gnc/termination/components/engagement_termination_3dof.hpp"
 #include "gnc/termination/components/engagement_termination.hpp"
+#include "gnc/summary/components/ideal_engagement_summary_cartesian_3dof.hpp"
 #include "gnc/summary/components/ideal_engagement_summary_3dof.hpp"
 #include "gnc/summary/components/ideal_engagement_summary.hpp"
+#include "gnc/vehicle/input/components/ideal_cartesian_air_data_3dof.hpp"
+#include "gnc/vehicle/input/components/ideal_cartesian_imu_3dof.hpp"
+#include "gnc/vehicle/input/components/ideal_cartesian_satellite_nav_3dof.hpp"
+#include "gnc/vehicle/input/components/ideal_cartesian_seeker_3dof.hpp"
 #include "gnc/vehicle/input/components/ideal_air_data_3dof.hpp"
 #include "gnc/vehicle/input/components/ideal_air_data_6dof.hpp"
 #include "gnc/vehicle/input/components/ideal_imu_3dof.hpp"
@@ -198,6 +205,42 @@ inline void registerVehicleInputPackages(gnc::core::ComponentFactory& factory) {
         __FILE__,
         ComponentPackageRole::VehicleInput,
         ExecutionStage::VehicleInput);
+    factory.registerType<gnc::vehicle::input::IdealCartesianImu3Dof,
+                         gnc::vehicle::input::IImu3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.cartesian_imu_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::input::IdealCartesianSatelliteNav3Dof,
+                         gnc::vehicle::input::ISatelliteNav3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.cartesian_satellite_nav_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::input::IdealCartesianAirData3Dof,
+                         gnc::vehicle::input::IAirData3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.cartesian_air_data_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::input::IdealCartesianSeeker3Dof,
+                         gnc::vehicle::input::ISeeker3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.input.cartesian_seeker_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleInput,
+        ExecutionStage::VehicleInput,
+        "cartesian_3dof");
     factory.registerType<gnc::vehicle::input::IdealImu6Dof,
                          gnc::vehicle::input::IImu6Dof,
                          gnc::interfaces::IObservable>(
@@ -306,6 +349,69 @@ inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory)
         ComponentPackageRole::VehicleProcess,
         ExecutionStage::VehicleProcess,
         "local_spherical_3dof");
+    factory.registerType<gnc::vehicle::process::IdealPhaseSequencer3Dof,
+                         gnc::vehicle::process::IPhaseSequencer3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.cartesian_phase_sequencer_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::process::IdealTrajectoryPlanner3Dof,
+                         gnc::vehicle::process::ITrajectoryPlanner3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.cartesian_trajectory_planner_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::process::IdealNavigation3Dof,
+                         gnc::vehicle::process::INavigation3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.cartesian_navigation_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::process::IdealTargetTracking3Dof,
+                         gnc::vehicle::process::ITargetTracking3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.cartesian_target_tracking_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::process::IdealGuidance3Dof,
+                         gnc::vehicle::process::IGuidance3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.cartesian_guidance_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::process::IdealFlightControl3Dof,
+                         gnc::vehicle::process::IFlightControl3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.cartesian_flight_control_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "cartesian_3dof");
+    factory.registerType<gnc::vehicle::process::IdealControlAllocation3Dof,
+                         gnc::vehicle::process::IControlAllocation3Dof,
+                         gnc::interfaces::IObservable>(
+        "vehicle.process.cartesian_control_allocation_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::VehicleProcess,
+        ExecutionStage::VehicleProcess,
+        "cartesian_3dof");
     factory.registerType<gnc::vehicle::process::IdealPhaseSequencer6Dof,
                          gnc::vehicle::process::IPhaseSequencer6Dof,
                          gnc::interfaces::IObservable>(
@@ -557,6 +663,15 @@ inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
         ComponentPackageRole::Interaction,
         ExecutionStage::Interaction,
         "cartesian_3dof");
+    factory.registerType<gnc::interactions::cartesian_3dof::StandardClosure,
+                         gnc::forms::cartesian_3dof::IInputProvider,
+                         gnc::interfaces::IObservable>(
+        "interaction.cartesian_3dof.standard",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Interaction,
+        ExecutionStage::Interaction,
+        "cartesian_3dof");
 
     factory.registerType<gnc::interactions::local_spherical_3dof::DirectAccel,
                          gnc::forms::local_spherical_3dof::IInputProvider>(
@@ -640,6 +755,13 @@ inline void registerTerminationPackages(gnc::core::ComponentFactory& factory) {
         __FILE__,
         ComponentPackageRole::Termination,
         ExecutionStage::Termination);
+    factory.registerType<gnc::termination::EngagementTerminationCartesian3Dof,
+                         gnc::interfaces::ITerminationEvaluator>(
+        "termination.engagement_cartesian_3dof",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Termination,
+        ExecutionStage::Termination);
 }
 
 inline void registerSummaryPackages(gnc::core::ComponentFactory& factory) {
@@ -647,6 +769,13 @@ inline void registerSummaryPackages(gnc::core::ComponentFactory& factory) {
     factory.registerType<gnc::summary::IdealEngagementSummary3Dof,
                          gnc::interfaces::ISummaryObserver>(
         "summary.engagement_3dof.ideal",
+        ComponentCategory::Builtin,
+        __FILE__,
+        ComponentPackageRole::Summary,
+        ExecutionStage::Summary);
+    factory.registerType<gnc::summary::IdealEngagementSummaryCartesian3Dof,
+                         gnc::interfaces::ISummaryObserver>(
+        "summary.engagement_cartesian_3dof.ideal",
         ComponentCategory::Builtin,
         __FILE__,
         ComponentPackageRole::Summary,

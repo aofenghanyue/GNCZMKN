@@ -29,10 +29,24 @@ int main() {
             "form.cartesian_3dof.point_mass",
             "interaction.cartesian_3dof.direct_accel",
             "interaction.cartesian_3dof.force_accel",
+            "interaction.cartesian_3dof.standard",
             "form.local_spherical_3dof.point_mass",
             "form.local_spherical_3dof.flight_state_view",
             "interaction.local_spherical_3dof.direct_accel",
-            "interaction.local_spherical_3dof.aero_propulsive"};
+            "interaction.local_spherical_3dof.aero_propulsive",
+            "vehicle.input.cartesian_imu_3dof.ideal",
+            "vehicle.input.cartesian_satellite_nav_3dof.ideal",
+            "vehicle.input.cartesian_air_data_3dof.ideal",
+            "vehicle.input.cartesian_seeker_3dof.ideal",
+            "vehicle.process.cartesian_phase_sequencer_3dof.ideal",
+            "vehicle.process.cartesian_trajectory_planner_3dof.ideal",
+            "vehicle.process.cartesian_navigation_3dof.ideal",
+            "vehicle.process.cartesian_target_tracking_3dof.ideal",
+            "vehicle.process.cartesian_guidance_3dof.ideal",
+            "vehicle.process.cartesian_flight_control_3dof.ideal",
+            "vehicle.process.cartesian_control_allocation_3dof.ideal",
+            "termination.engagement_cartesian_3dof",
+            "summary.engagement_cartesian_3dof.ideal"};
 
         for (const auto& type_name : required_component_types) {
             test_support::require(factory.hasType(type_name),
