@@ -155,9 +155,8 @@ public:
 class BuiltinJsonConfigParser final : public IConfigParser {
 public:
     ConfigNode parseString(const std::string& json) override {
-        const std::string normalized = normalizeJsonWithComments(json);
         size_t pos = 0;
-        return parseValue(normalized, pos);
+        return parseValue(json, pos);
     }
     
     ConfigNode parseFile(const std::string& filename) override {
@@ -172,106 +171,8 @@ public:
     }
     
 private:
-    static std::string normalizeJsonWithComments(const std::string& json) {
-        std::string normalized = json;
-        bool in_string = false;
-        bool escaped = false;
-
-        for (size_t i = 0; i < normalized.size(); ++i) {
-            const char c = normalized[i];
-            if (in_string) {
-                if (escaped) {
-                    escaped = false;
-                } else if (c == '\\') {
-                    escaped = true;
-                } else if (c == '"') {
-                    in_string = false;
-                }
-                continue;
-            }
-
-            if (c == '"') {
-                in_string = true;
-                continue;
-            }
-
-            if (c == '/' && i + 1 < normalized.size() && normalized[i + 1] == '/') {
-                normalized[i] = ' ';
-                normalized[i + 1] = ' ';
-                i += 2;
-                while (i < normalized.size() && normalized[i] != '\n' &&
-                       normalized[i] != '\r') {
-                    normalized[i] = ' ';
-                    ++i;
-                }
-                if (i > 0) {
-                    --i;
-                }
-                continue;
-            }
-
-            if (c == '/' && i + 1 < normalized.size() && normalized[i + 1] == '*') {
-                normalized[i] = ' ';
-                normalized[i + 1] = ' ';
-                i += 2;
-                while (i + 1 < normalized.size() &&
-                       !(normalized[i] == '*' && normalized[i + 1] == '/')) {
-                    if (normalized[i] != '\n' && normalized[i] != '\r') {
-                        normalized[i] = ' ';
-                    }
-                    ++i;
-                }
-                if (i + 1 < normalized.size()) {
-                    normalized[i] = ' ';
-                    normalized[i + 1] = ' ';
-                    ++i;
-                }
-            }
-        }
-
-        in_string = false;
-        escaped = false;
-        for (size_t i = 0; i < normalized.size(); ++i) {
-            const char c = normalized[i];
-            if (in_string) {
-                if (escaped) {
-                    escaped = false;
-                } else if (c == '\\') {
-                    escaped = true;
-                } else if (c == '"') {
-                    in_string = false;
-                }
-                continue;
-            }
-
-            if (c == '"') {
-                in_string = true;
-                continue;
-            }
-
-            if (c != ',') {
-                continue;
-            }
-
-            size_t next = i + 1;
-            while (next < normalized.size() &&
-                   std::isspace(static_cast<unsigned char>(normalized[next]))) {
-                ++next;
-            }
-            if (next < normalized.size() &&
-                (normalized[next] == '}' || normalized[next] == ']')) {
-                normalized[i] = ' ';
-            }
-        }
-
-        return normalized;
-    }
-
     static void skipWhitespace(const std::string& json, size_t& pos) {
-        while (pos < json.size() &&
-               std::isspace(static_cast<unsigned char>(json[pos]))) {
-            pos++;
-        }
+        while (pos < json.size() && std::isspace(json[pos])) pos++;
     }
     
     static ConfigNode parseValue(const std::string& json, size_t& pos) {

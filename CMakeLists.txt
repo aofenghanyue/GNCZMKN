@@ -250,18 +250,6 @@ else()
     target_compile_options(gnc_sim PRIVATE -Wall -Wextra -pedantic)
 endif()
 
-add_executable(gnc_aero src/aero_runner.cpp)
-target_link_libraries(gnc_aero PRIVATE gnc_framework)
-target_include_directories(gnc_aero PRIVATE
-    "${GENERATED_DIR}"
-    "${CMAKE_SOURCE_DIR}"
-)
-if(MSVC)
-    target_compile_options(gnc_aero PRIVATE /W4 /utf-8)
-else()
-    target_compile_options(gnc_aero PRIVATE -Wall -Wextra -pedantic)
-endif()
-
 option(BUILD_TESTS "Build test programs" OFF)
 if(BUILD_TESTS)
     enable_testing()
@@ -313,7 +301,6 @@ if(BUILD_TESTS)
     add_gnc_test(test_parser_facade tests/test_parser_facade.cpp)
     add_gnc_test(test_interaction_routes tests/test_interaction_routes.cpp)
     add_gnc_test(test_form_extension_contract tests/test_form_extension_contract.cpp)
-    add_gnc_test(test_aero_grid_assets tests/test_aero_grid_assets.cpp)
 
     list(LENGTH TEST_PROJECT_COMPONENT_FILES TEST_PROJECT_COMPONENT_COUNT)
     message(STATUS

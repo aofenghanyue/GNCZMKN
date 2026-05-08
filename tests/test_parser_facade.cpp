@@ -90,43 +90,6 @@ int main() {
     try {
         test_support::registerBuiltinComponentTypes();
 
-        {
-            gnc::core::ConfigManager manager;
-            const char* commented_json = R"json({
-              // User-authored configs can explain fields.
-              "name": "aero // not a comment",
-              "block": "value /* not a comment */",
-              "numbers": [1.0, 2.0,],
-              "object": {
-                "enabled": true,
-              },
-              /*
-                Block comments are allowed between fields.
-              */
-              "after_comment": 3.0,
-            })json";
-            test_support::require(manager.loadFromString(commented_json),
-                                  "Builtin JSON parser should accept comments and trailing commas.");
-            test_support::require(manager.root()["name"].asString() ==
-                                      "aero // not a comment",
-                                  "Line-comment marker inside string was altered.");
-            test_support::require(manager.root()["block"].asString() ==
-                                      "value /* not a comment */",
-                                  "Block-comment marker inside string was altered.");
-            test_support::require(manager.root()["numbers"].size() == 2,
-                                  "Trailing comma in array produced an extra value.");
-            test_support::requireNear(manager.root()["numbers"][1].asDouble(),
-                                      2.0,
-                                      1e-12,
-                                      "Array value after comment sanitizing changed.");
-            test_support::require(manager.root()["object"]["enabled"].asBool(),
-                                  "Trailing comma in object prevented bool parse.");
-            test_support::requireNear(manager.root()["after_comment"].asDouble(),
-                                      3.0,
-                                      1e-12,
-                                      "Value after block comment did not parse.");
-        }
-
         auto parser = std::make_unique<MockConfigParser>(makeMission());
         gnc::core::SimulationBuilder builder(std::move(parser));
         test_support::require(builder.loadConfigString("ignored by mock parser"),

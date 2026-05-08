@@ -67,35 +67,6 @@ int main() {
             aero_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
             "aero.table2d should execute in the vehicle.output stage.");
 
-        const auto aero_asset_it = findInfo("aero.asset.grid");
-        test_support::require(aero_asset_it != infos.end(),
-                              "Grid aero asset builtin was not registered.");
-        test_support::require(
-            containsValue(aero_asset_it->interface_names, "IAeroGridAssetProvider"),
-            "aero.asset.grid should advertise IAeroGridAssetProvider.");
-        test_support::require(
-            aero_asset_it->package_role == gnc::core::ComponentPackageRole::VehicleCommon,
-            "aero.asset.grid should be labeled as a vehicle.common package.");
-        test_support::require(
-            aero_asset_it->execution_stage == gnc::core::ExecutionStage::None,
-            "aero.asset.grid should not execute in a runtime stage.");
-
-        const auto aero_grid_it = findInfo("aero.grid");
-        test_support::require(aero_grid_it != infos.end(),
-                              "Grid aero runtime builtin was not registered.");
-        test_support::require(
-            containsValue(aero_grid_it->interface_names, "IAeroModel"),
-            "aero.grid should advertise IAeroModel.");
-        test_support::require(
-            containsValue(aero_grid_it->interface_names, "IObservable"),
-            "aero.grid should advertise IObservable.");
-        test_support::require(
-            aero_grid_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
-            "aero.grid should be labeled as a vehicle.output package.");
-        test_support::require(
-            aero_grid_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
-            "aero.grid should execute in the vehicle.output stage.");
-
         const auto mass_it = findInfo("mass.constant");
         test_support::require(mass_it != infos.end(),
                               "Generic constant mass builtin was not registered.");
