@@ -229,6 +229,10 @@ endif()
 message(STATUS "Auto-registered user project component headers: ${USER_COMPONENT_COUNT}")
 
 add_executable(gnc_sim src/runner.cpp src/runner_component_registration.cpp)
+if(MINGW)
+    set_source_files_properties(src/runner_component_registration.cpp
+        PROPERTIES COMPILE_OPTIONS "-Wa,-mbig-obj")
+endif()
 target_link_libraries(gnc_sim PRIVATE gnc_framework)
 target_include_directories(gnc_sim PRIVATE
     "${GENERATED_DIR}"
@@ -267,6 +271,11 @@ if(BUILD_TESTS)
         "gnc_register_test_component"
         ${TEST_PROJECT_COMPONENT_FILES})
 
+    if(MINGW)
+        set_source_files_properties(tests/test_support_registration.cpp
+            PROPERTIES COMPILE_OPTIONS "-Wa,-mbig-obj")
+    endif()
+
     function(add_gnc_test target source)
         add_executable(${target} ${source} tests/test_support_registration.cpp)
         target_link_libraries(${target} PRIVATE gnc_framework)
@@ -302,6 +311,7 @@ if(BUILD_TESTS)
     add_gnc_test(test_interaction_routes tests/test_interaction_routes.cpp)
     add_gnc_test(test_form_extension_contract tests/test_form_extension_contract.cpp)
     add_gnc_test(test_local_spherical_6dof_form tests/test_local_spherical_6dof_form.cpp)
+    add_gnc_test(test_ideal_3dof_mission tests/test_ideal_3dof_mission.cpp)
     add_gnc_test(test_ideal_6dof_components tests/test_ideal_6dof_components.cpp)
     add_gnc_test(test_ideal_6dof_process tests/test_ideal_6dof_process.cpp)
     add_gnc_test(test_ideal_6dof_mission tests/test_ideal_6dof_mission.cpp)

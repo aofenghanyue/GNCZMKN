@@ -185,6 +185,100 @@ int main() {
         test_support::require(target_it->form_family == "target_point",
                               "Target point form should advertise target_point.");
 
+        const auto assets_3dof_it = findInfo("vehicle.common.aero_assets_3dof.zero");
+        test_support::require(assets_3dof_it != infos.end(),
+                              "3DOF zero aero assets builtin was not registered.");
+        requireRoleStage(*assets_3dof_it,
+                         gnc::core::ComponentPackageRole::VehicleCommon,
+                         gnc::core::ExecutionStage::None,
+                         "vehicle.common.aero_assets_3dof.zero");
+        test_support::require(containsValue(assets_3dof_it->interface_names,
+                                            "IAerodynamicAssets3Dof"),
+                              "3DOF aero assets should advertise IAerodynamicAssets3Dof.");
+
+        const std::vector<std::string> input_3dof_types = {
+            "vehicle.input.imu_3dof.ideal",
+            "vehicle.input.satellite_nav_3dof.ideal",
+            "vehicle.input.air_data_3dof.ideal",
+            "vehicle.input.seeker_3dof.ideal",
+        };
+        for (const auto& type_name : input_3dof_types) {
+            const auto input_it = findInfo(type_name);
+            test_support::require(input_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*input_it,
+                             gnc::core::ComponentPackageRole::VehicleInput,
+                             gnc::core::ExecutionStage::VehicleInput,
+                             type_name);
+        }
+
+        const std::vector<std::string> process_3dof_types = {
+            "vehicle.process.phase_sequencer_3dof.ideal",
+            "vehicle.process.trajectory_planner_3dof.ideal",
+            "vehicle.process.navigation_3dof.ideal",
+            "vehicle.process.target_tracking_3dof.ideal",
+            "vehicle.process.guidance_3dof.ideal",
+            "vehicle.process.flight_control_3dof.ideal",
+            "vehicle.process.control_allocation_3dof.ideal",
+        };
+        for (const auto& type_name : process_3dof_types) {
+            const auto process_it = findInfo(type_name);
+            test_support::require(process_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*process_it,
+                             gnc::core::ComponentPackageRole::VehicleProcess,
+                             gnc::core::ExecutionStage::VehicleProcess,
+                             type_name);
+            test_support::require(process_it->form_family == "local_spherical_3dof",
+                                  type_name + " should advertise local_spherical_3dof.");
+        }
+
+        const std::vector<std::string> output_3dof_types = {
+            "vehicle.output.mass_3dof.constant",
+            "vehicle.output.propulsion_3dof.zero",
+            "vehicle.output.actuator_3dof.ideal",
+            "vehicle.output.aerodynamics_3dof.zero",
+        };
+        for (const auto& type_name : output_3dof_types) {
+            const auto output_it = findInfo(type_name);
+            test_support::require(output_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*output_it,
+                             gnc::core::ComponentPackageRole::VehicleOutput,
+                             gnc::core::ExecutionStage::VehicleOutput,
+                             type_name);
+        }
+
+        const auto interaction_3dof_it =
+            findInfo("interaction.local_spherical_3dof.standard");
+        test_support::require(interaction_3dof_it != infos.end(),
+                              "3DOF standard interaction was not registered.");
+        requireRoleStage(*interaction_3dof_it,
+                         gnc::core::ComponentPackageRole::Interaction,
+                         gnc::core::ExecutionStage::Interaction,
+                         "interaction.local_spherical_3dof.standard");
+        test_support::require(interaction_3dof_it->form_family ==
+                                  "local_spherical_3dof",
+                              "3DOF interaction should advertise local_spherical_3dof.");
+
+        const auto engagement_3dof_termination_it =
+            findInfo("termination.engagement_3dof");
+        test_support::require(engagement_3dof_termination_it != infos.end(),
+                              "3DOF engagement termination was not registered.");
+        requireRoleStage(*engagement_3dof_termination_it,
+                         gnc::core::ComponentPackageRole::Termination,
+                         gnc::core::ExecutionStage::Termination,
+                         "termination.engagement_3dof");
+
+        const auto engagement_3dof_summary_it =
+            findInfo("summary.engagement_3dof.ideal");
+        test_support::require(engagement_3dof_summary_it != infos.end(),
+                              "3DOF engagement summary was not registered.");
+        requireRoleStage(*engagement_3dof_summary_it,
+                         gnc::core::ComponentPackageRole::Summary,
+                         gnc::core::ExecutionStage::Summary,
+                         "summary.engagement_3dof.ideal");
+
         const auto assets_it = findInfo("vehicle.common.aero_assets_6dof.zero");
         test_support::require(assets_it != infos.end(),
                               "6DOF zero aero assets builtin was not registered.");
