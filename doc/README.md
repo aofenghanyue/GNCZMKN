@@ -25,6 +25,7 @@
 | `user/example_04_ideal_6dof_baseline/config/mission.json` | ideal local-spherical 6DoF baseline flow |
 | `user/example_05_ideal_3dof_geographic_baseline/config/mission.json` | ideal local-spherical 3DoF geographic baseline flow |
 | `user/example_06_ideal_cartesian_3dof_baseline/config/mission.json` | ideal launch-frame Cartesian 3DoF baseline flow |
+| `user/example_07_ideal_cartesian_6dof_baseline/config/mission.json` | ideal launch-frame Cartesian 6DoF baseline flow |
 
 ## 文档质量标准
 

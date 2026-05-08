@@ -27,9 +27,11 @@ int main() {
             "mass.constant",
             "vehicle.process.programmed_aoa",
             "form.cartesian_3dof.point_mass",
+            "form.cartesian_6dof.rigid_body",
             "interaction.cartesian_3dof.direct_accel",
             "interaction.cartesian_3dof.force_accel",
             "interaction.cartesian_3dof.standard",
+            "interaction.cartesian_6dof.standard",
             "form.local_spherical_3dof.point_mass",
             "form.local_spherical_3dof.flight_state_view",
             "interaction.local_spherical_3dof.direct_accel",
@@ -46,7 +48,20 @@ int main() {
             "vehicle.process.cartesian_flight_control_3dof.ideal",
             "vehicle.process.cartesian_control_allocation_3dof.ideal",
             "termination.engagement_cartesian_3dof",
-            "summary.engagement_cartesian_3dof.ideal"};
+            "summary.engagement_cartesian_3dof.ideal",
+            "vehicle.input.cartesian_imu_6dof.ideal",
+            "vehicle.input.cartesian_satellite_nav_6dof.ideal",
+            "vehicle.input.cartesian_air_data_6dof.ideal",
+            "vehicle.input.cartesian_seeker_6dof.ideal",
+            "vehicle.process.cartesian_phase_sequencer_6dof.ideal",
+            "vehicle.process.cartesian_trajectory_planner_6dof.ideal",
+            "vehicle.process.cartesian_navigation_6dof.ideal",
+            "vehicle.process.cartesian_target_tracking_6dof.ideal",
+            "vehicle.process.cartesian_guidance_6dof.ideal",
+            "vehicle.process.cartesian_attitude_control_6dof.ideal",
+            "vehicle.process.cartesian_control_allocation_6dof.ideal",
+            "termination.engagement_cartesian_6dof",
+            "summary.engagement_cartesian_6dof.ideal"};
 
         for (const auto& type_name : required_component_types) {
             test_support::require(factory.hasType(type_name),

@@ -186,6 +186,25 @@ int main() {
                                             "ITruthView"),
                               "6DOF form should advertise ITruthView.");
 
+        const auto cartesian_rigid_6dof_it =
+            findInfo("form.cartesian_6dof.rigid_body");
+        test_support::require(cartesian_rigid_6dof_it != infos.end(),
+                              "Cartesian 6DOF form builtin was not registered.");
+        requireRoleStage(*cartesian_rigid_6dof_it,
+                         gnc::core::ComponentPackageRole::Form,
+                         gnc::core::ExecutionStage::Form,
+                         "form.cartesian_6dof.rigid_body");
+        test_support::require(cartesian_rigid_6dof_it->form_family ==
+                                  "cartesian_6dof",
+                              "Cartesian 6DOF form should advertise cartesian_6dof.");
+        test_support::require(
+            containsValue(cartesian_rigid_6dof_it->interface_names,
+                          "IContinuousSystem"),
+            "Cartesian 6DOF form should advertise IContinuousSystem.");
+        test_support::require(containsValue(cartesian_rigid_6dof_it->interface_names,
+                                            "ITruthView"),
+                              "Cartesian 6DOF form should advertise ITruthView.");
+
         const auto target_it = findInfo("form.target_point.kinematic");
         test_support::require(target_it != infos.end(),
                               "Target point form builtin was not registered.");
@@ -374,6 +393,24 @@ int main() {
                              type_name);
         }
 
+        const std::vector<std::string> cartesian_input_6dof_types = {
+            "vehicle.input.cartesian_imu_6dof.ideal",
+            "vehicle.input.cartesian_satellite_nav_6dof.ideal",
+            "vehicle.input.cartesian_air_data_6dof.ideal",
+            "vehicle.input.cartesian_seeker_6dof.ideal",
+        };
+        for (const auto& type_name : cartesian_input_6dof_types) {
+            const auto input_it = findInfo(type_name);
+            test_support::require(input_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*input_it,
+                             gnc::core::ComponentPackageRole::VehicleInput,
+                             gnc::core::ExecutionStage::VehicleInput,
+                             type_name);
+            test_support::require(input_it->form_family == "cartesian_6dof",
+                                  type_name + " should advertise cartesian_6dof.");
+        }
+
         const std::vector<std::string> process_types = {
             "vehicle.process.phase_sequencer_6dof.ideal",
             "vehicle.process.trajectory_planner_6dof.ideal",
@@ -393,6 +430,27 @@ int main() {
                              type_name);
             test_support::require(process_it->form_family == "local_spherical_6dof",
                                   type_name + " should advertise local_spherical_6dof.");
+        }
+
+        const std::vector<std::string> cartesian_process_6dof_types = {
+            "vehicle.process.cartesian_phase_sequencer_6dof.ideal",
+            "vehicle.process.cartesian_trajectory_planner_6dof.ideal",
+            "vehicle.process.cartesian_navigation_6dof.ideal",
+            "vehicle.process.cartesian_target_tracking_6dof.ideal",
+            "vehicle.process.cartesian_guidance_6dof.ideal",
+            "vehicle.process.cartesian_attitude_control_6dof.ideal",
+            "vehicle.process.cartesian_control_allocation_6dof.ideal",
+        };
+        for (const auto& type_name : cartesian_process_6dof_types) {
+            const auto process_it = findInfo(type_name);
+            test_support::require(process_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*process_it,
+                             gnc::core::ComponentPackageRole::VehicleProcess,
+                             gnc::core::ExecutionStage::VehicleProcess,
+                             type_name);
+            test_support::require(process_it->form_family == "cartesian_6dof",
+                                  type_name + " should advertise cartesian_6dof.");
         }
 
         const std::vector<std::string> output_types = {
@@ -423,6 +481,18 @@ int main() {
                                   "local_spherical_6dof",
                               "6DOF interaction should advertise local_spherical_6dof.");
 
+        const auto cartesian_interaction_6dof_it =
+            findInfo("interaction.cartesian_6dof.standard");
+        test_support::require(cartesian_interaction_6dof_it != infos.end(),
+                              "Cartesian 6DOF standard interaction was not registered.");
+        requireRoleStage(*cartesian_interaction_6dof_it,
+                         gnc::core::ComponentPackageRole::Interaction,
+                         gnc::core::ExecutionStage::Interaction,
+                         "interaction.cartesian_6dof.standard");
+        test_support::require(cartesian_interaction_6dof_it->form_family ==
+                                  "cartesian_6dof",
+                              "Cartesian 6DOF interaction should advertise cartesian_6dof.");
+
         const auto engagement_termination_it =
             findInfo("termination.engagement_6dof");
         test_support::require(engagement_termination_it != infos.end(),
@@ -440,6 +510,24 @@ int main() {
                          gnc::core::ComponentPackageRole::Summary,
                          gnc::core::ExecutionStage::Summary,
                          "summary.engagement_6dof.ideal");
+
+        const auto cartesian_engagement_6dof_termination_it =
+            findInfo("termination.engagement_cartesian_6dof");
+        test_support::require(cartesian_engagement_6dof_termination_it != infos.end(),
+                              "Cartesian 6DOF engagement termination was not registered.");
+        requireRoleStage(*cartesian_engagement_6dof_termination_it,
+                         gnc::core::ComponentPackageRole::Termination,
+                         gnc::core::ExecutionStage::Termination,
+                         "termination.engagement_cartesian_6dof");
+
+        const auto cartesian_engagement_6dof_summary_it =
+            findInfo("summary.engagement_cartesian_6dof.ideal");
+        test_support::require(cartesian_engagement_6dof_summary_it != infos.end(),
+                              "Cartesian 6DOF engagement summary was not registered.");
+        requireRoleStage(*cartesian_engagement_6dof_summary_it,
+                         gnc::core::ComponentPackageRole::Summary,
+                         gnc::core::ExecutionStage::Summary,
+                         "summary.engagement_cartesian_6dof.ideal");
 
         std::cout << "component listing checks passed\n";
         return 0;

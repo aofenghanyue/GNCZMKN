@@ -42,8 +42,9 @@ example_02_atmospheric_3dof
 | `example_02_atmospheric_3dof` | 主 atmospheric local-spherical 3DoF 示例 |
 | `example_03_coordinate_tree` | coordinate-tree service 和项目组件示例 |
 | `example_04_ideal_6dof_baseline` | ideal geographic 6DoF baseline |
-| `example_05_ideal_3dof_baseline` | ideal geographic 3DoF baseline |
+| `example_05_ideal_3dof_geographic_baseline` | ideal geographic 3DoF baseline |
 | `example_06_ideal_cartesian_3dof_baseline` | ideal Cartesian launch-frame 3DoF baseline |
+| `example_07_ideal_cartesian_6dof_baseline` | ideal Cartesian launch-frame 6DoF baseline |
 
 ## 常用命令
 

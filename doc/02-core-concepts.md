@@ -25,15 +25,16 @@ and perturbation state -> interaction closure -> form input
 `Form` 是连续状态和导数方程所在的位置。它负责定义状态变量、计算导数、发布 truth view，并消费 form input。内置示例包括：
 
 - `form.cartesian_3dof.point_mass`
+- `form.cartesian_6dof.rigid_body`
 - `form.local_spherical_3dof.point_mass`
 - `form.local_spherical_3dof.flight_state_view`
 - `form.local_spherical_6dof.rigid_body`
 
-`form.cartesian_3dof.point_mass` is a first-class launch-frame Cartesian
-form family. It is not a legacy demo plugin. Mission-specific Cartesian
-guidance, control, force, aero, or target logic should still live in user
-projects or in explicitly named ideal baseline components, not inside the
-form itself.
+`form.cartesian_3dof.point_mass` and `form.cartesian_6dof.rigid_body` are
+first-class launch-frame Cartesian form families. They are not legacy demo
+plugins. Mission-specific Cartesian guidance, control, force, aero, or target
+logic should still live in user projects or in explicitly named ideal baseline
+components, not inside the form itself.
 
 连续 form 在周期开始的 `publish()` 中刷新 truth/view；连续状态推进由积分器调用 `computeDerivatives()` 完成。`form.local_spherical_3dof.flight_state_view` 是 truth/form 层真实飞行状态视图，也在 publish 阶段刷新。机上导航或估计飞行状态应放在 `vehicle.process` 组件中，而不是混入 form truth view。
 
