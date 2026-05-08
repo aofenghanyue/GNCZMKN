@@ -13,6 +13,17 @@ bool containsValue(const std::vector<std::string>& values, const std::string& ex
     return std::find(values.begin(), values.end(), expected) != values.end();
 }
 
+void requireRoleStage(
+    const gnc::core::ComponentFactory::RegisteredTypeInfo& info,
+    gnc::core::ComponentPackageRole role,
+    gnc::core::ExecutionStage stage,
+    const std::string& message) {
+    test_support::require(info.package_role == role,
+                          message + " has the wrong package role.");
+    test_support::require(info.execution_stage == stage,
+                          message + " has the wrong execution stage.");
+}
+
 } // namespace
 
 int main() {
@@ -147,6 +158,126 @@ int main() {
                               "Hardcoded CAVH mass primitive should not appear in the builtin list.");
         test_support::require(findInfo("cavh.aero_table") == infos.end(),
                               "Hardcoded CAVH aero primitive should not appear in the builtin list.");
+
+        const auto rigid_6dof_it = findInfo("form.local_spherical_6dof.rigid_body");
+        test_support::require(rigid_6dof_it != infos.end(),
+                              "6DOF placeholder form builtin was not registered.");
+        requireRoleStage(*rigid_6dof_it,
+                         gnc::core::ComponentPackageRole::Form,
+                         gnc::core::ExecutionStage::Form,
+                         "form.local_spherical_6dof.rigid_body");
+        test_support::require(rigid_6dof_it->form_family == "local_spherical_6dof",
+                              "6DOF form should advertise local_spherical_6dof.");
+        test_support::require(containsValue(rigid_6dof_it->interface_names,
+                                            "IContinuousSystem"),
+                              "6DOF form should advertise IContinuousSystem.");
+        test_support::require(containsValue(rigid_6dof_it->interface_names,
+                                            "ITruthView"),
+                              "6DOF form should advertise ITruthView.");
+
+        const auto target_it = findInfo("form.target_point.kinematic");
+        test_support::require(target_it != infos.end(),
+                              "Target point form builtin was not registered.");
+        requireRoleStage(*target_it,
+                         gnc::core::ComponentPackageRole::Form,
+                         gnc::core::ExecutionStage::Form,
+                         "form.target_point.kinematic");
+        test_support::require(target_it->form_family == "target_point",
+                              "Target point form should advertise target_point.");
+
+        const auto assets_it = findInfo("vehicle.common.aero_assets_6dof.zero");
+        test_support::require(assets_it != infos.end(),
+                              "6DOF zero aero assets builtin was not registered.");
+        requireRoleStage(*assets_it,
+                         gnc::core::ComponentPackageRole::VehicleCommon,
+                         gnc::core::ExecutionStage::None,
+                         "vehicle.common.aero_assets_6dof.zero");
+        test_support::require(containsValue(assets_it->interface_names,
+                                            "IAerodynamicAssets6Dof"),
+                              "6DOF aero assets should advertise IAerodynamicAssets6Dof.");
+
+        const std::vector<std::string> input_types = {
+            "vehicle.input.imu_6dof.ideal",
+            "vehicle.input.satellite_nav_6dof.ideal",
+            "vehicle.input.air_data_6dof.ideal",
+            "vehicle.input.seeker_6dof.ideal",
+        };
+        for (const auto& type_name : input_types) {
+            const auto input_it = findInfo(type_name);
+            test_support::require(input_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*input_it,
+                             gnc::core::ComponentPackageRole::VehicleInput,
+                             gnc::core::ExecutionStage::VehicleInput,
+                             type_name);
+        }
+
+        const std::vector<std::string> process_types = {
+            "vehicle.process.phase_sequencer_6dof.ideal",
+            "vehicle.process.trajectory_planner_6dof.ideal",
+            "vehicle.process.navigation_6dof.ideal",
+            "vehicle.process.target_tracking_6dof.ideal",
+            "vehicle.process.guidance_6dof.ideal",
+            "vehicle.process.attitude_control_6dof.ideal",
+            "vehicle.process.control_allocation_6dof.ideal",
+        };
+        for (const auto& type_name : process_types) {
+            const auto process_it = findInfo(type_name);
+            test_support::require(process_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*process_it,
+                             gnc::core::ComponentPackageRole::VehicleProcess,
+                             gnc::core::ExecutionStage::VehicleProcess,
+                             type_name);
+            test_support::require(process_it->form_family == "local_spherical_6dof",
+                                  type_name + " should advertise local_spherical_6dof.");
+        }
+
+        const std::vector<std::string> output_types = {
+            "vehicle.output.mass_properties_6dof.constant",
+            "vehicle.output.propulsion_6dof.zero",
+            "vehicle.output.actuator_6dof.ideal",
+            "vehicle.output.aerodynamics_6dof.zero",
+        };
+        for (const auto& type_name : output_types) {
+            const auto output_it = findInfo(type_name);
+            test_support::require(output_it != infos.end(),
+                                  type_name + " was not registered.");
+            requireRoleStage(*output_it,
+                             gnc::core::ComponentPackageRole::VehicleOutput,
+                             gnc::core::ExecutionStage::VehicleOutput,
+                             type_name);
+        }
+
+        const auto interaction_6dof_it =
+            findInfo("interaction.local_spherical_6dof.standard");
+        test_support::require(interaction_6dof_it != infos.end(),
+                              "6DOF standard interaction was not registered.");
+        requireRoleStage(*interaction_6dof_it,
+                         gnc::core::ComponentPackageRole::Interaction,
+                         gnc::core::ExecutionStage::Interaction,
+                         "interaction.local_spherical_6dof.standard");
+        test_support::require(interaction_6dof_it->form_family ==
+                                  "local_spherical_6dof",
+                              "6DOF interaction should advertise local_spherical_6dof.");
+
+        const auto engagement_termination_it =
+            findInfo("termination.engagement_6dof");
+        test_support::require(engagement_termination_it != infos.end(),
+                              "6DOF engagement termination was not registered.");
+        requireRoleStage(*engagement_termination_it,
+                         gnc::core::ComponentPackageRole::Termination,
+                         gnc::core::ExecutionStage::Termination,
+                         "termination.engagement_6dof");
+
+        const auto engagement_summary_it =
+            findInfo("summary.engagement_6dof.ideal");
+        test_support::require(engagement_summary_it != infos.end(),
+                              "6DOF engagement summary was not registered.");
+        requireRoleStage(*engagement_summary_it,
+                         gnc::core::ComponentPackageRole::Summary,
+                         gnc::core::ExecutionStage::Summary,
+                         "summary.engagement_6dof.ideal");
 
         std::cout << "component listing checks passed\n";
         return 0;

@@ -306,6 +306,33 @@ void requireP2ExtensionBoundaries(const fs::path& root) {
     }
 }
 
+void requireNoFineGrained6DofProviderInterfaces(const fs::path& root) {
+    const std::vector<fs::path> roots = {
+        root / "framework/include/gnc/forms/local_spherical_6dof",
+        root / "framework/include/gnc/vehicle",
+        root / "framework/include/gnc/interactions/local_spherical_6dof",
+    };
+    const std::vector<std::string> forbidden_symbols = {
+        "IPositionProvider",
+        "IVelocityProvider",
+        "IAttitudeProvider",
+        "IMassProvider6Dof",
+    };
+
+    for (const auto& scan_root : roots) {
+        for (const auto& file : collectFiles(scan_root)) {
+            const std::string text = readFile(file);
+            const std::string normalized_file = normalizePath(file);
+            for (const auto& symbol : forbidden_symbols) {
+                test_support::require(
+                    text.find(symbol) == std::string::npos,
+                    "6DOF baseline should use module-level interfaces, not fine-grained '" +
+                        symbol + "': " + normalized_file);
+            }
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -324,6 +351,7 @@ int main() {
         requireProjectPrivateIncludeContract(root);
         requireConfigParsingFacadeAndNewUserRoots(root);
         requireP2ExtensionBoundaries(root);
+        requireNoFineGrained6DofProviderInterfaces(root);
 
         std::cout << "architecture guard checks passed\n";
         return 0;

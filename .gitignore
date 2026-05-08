@@ -19,6 +19,9 @@ temp/
 *.temp
 .ignore
 
+# Locally bundled third-party tools and vendor binaries
+tools/external/
+
 # Log files
 *.log
 *temp_*

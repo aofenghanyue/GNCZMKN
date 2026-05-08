@@ -81,6 +81,36 @@ build-mingw\bin\gnc_sim.exe user/example_01_minimal_pluginized/config/mission.js
 
 相对路径可以相对当前工作目录，也可以相对仓库根目录。runner 会从当前目录和可执行文件目录向上搜索。
 
+## 运行 RunSet 批量任务
+
+RunSet 是批量 case 的外层配置。它引用一个 base mission，再把每个 case 的数值拉偏输入写入该 case 的 `effective_mission.json`：
+
+```powershell
+build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json
+```
+
+显式多进程运行：
+
+```powershell
+build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json --jobs auto
+build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json --jobs 4
+```
+
+`--jobs auto` 使用 `max(1, CPU 核心数 - 1)`，留一个核心给系统。RunSet 输出目录下会生成：
+
+```text
+case_000001/effective_mission.json
+case_000001/perturbation_inputs.json
+generated_cases.csv
+runset_summary.csv
+```
+
+复现单个 case 时，不需要重新运行整个 RunSet，直接运行生成出的 effective mission：
+
+```powershell
+build-mingw\bin\gnc_sim.exe --config user/outputs/my_runset/case_000001/effective_mission.json
+```
+
 ## 查看组件注册
 
 查看 type id：
@@ -153,6 +183,7 @@ build-mingw\bin\gnc_sim.exe --help
 build-mingw\bin\gnc_sim.exe --list-components
 build-mingw\bin\gnc_sim.exe --list-components-verbose
 build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
+build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json --jobs auto
 ```
 
 ## 常见问题

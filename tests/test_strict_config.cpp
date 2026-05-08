@@ -235,6 +235,122 @@ std::string cartesianMissionWithEnvironment(const std::string& environment_block
 )json";
 }
 
+std::string ideal6DofMissionWithConfig(const std::string& imu_config,
+                                       const std::string& guidance_config,
+                                       const std::string& mass_config,
+                                       const std::string& interaction_config,
+                                       const std::string& termination_config,
+                                       const std::string& summary_config) {
+    return std::string(R"json(
+{
+  "simulation": { "dt": 0.1, "duration": 0.1, "integrator": "rk4" },
+  "environment": {
+    "components": [
+      { "type": "environment.spherical_earth", "name": "earth", "config": {} },
+      { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} },
+      { "type": "environment.spherical_gravity", "name": "gravity", "config": {} }
+    ]
+  },
+  "vehicles": [
+    {
+      "id": "interceptor",
+      "form": {
+        "components": [
+          {
+            "type": "form.local_spherical_6dof.rigid_body",
+            "name": "dynamics",
+            "config": {
+              "initial_state": {
+                "longitude_rad": 0.0,
+                "latitude_rad": 0.0,
+                "altitude_m": 1000.0,
+                "velocity_nue_mps": [100.0, 0.0, 0.0],
+                "attitude_body_to_nue": [1.0, 0.0, 0.0, 0.0],
+                "angular_rate_body_radps": [0.0, 0.0, 0.0]
+              }
+            }
+          }
+        ]
+      },
+      "common": [
+        { "type": "vehicle.common.aero_assets_6dof.zero", "name": "aero_assets", "config": {} }
+      ],
+      "input": [
+        { "type": "vehicle.input.imu_6dof.ideal", "name": "imu", "config": )json") +
+           imu_config + R"json( },
+        { "type": "vehicle.input.satellite_nav_6dof.ideal", "name": "satnav", "config": {} },
+        { "type": "vehicle.input.air_data_6dof.ideal", "name": "air_data", "config": {} },
+        {
+          "type": "vehicle.input.seeker_6dof.ideal",
+          "name": "seeker",
+          "config": { "target_truth_lookup_name": "target.truth" }
+        }
+      ],
+      "process": [
+        { "type": "vehicle.process.phase_sequencer_6dof.ideal", "name": "phase", "config": {} },
+        { "type": "vehicle.process.trajectory_planner_6dof.ideal", "name": "planner", "config": {} },
+        { "type": "vehicle.process.navigation_6dof.ideal", "name": "navigation", "config": {} },
+        { "type": "vehicle.process.target_tracking_6dof.ideal", "name": "tracking", "config": {} },
+        { "type": "vehicle.process.guidance_6dof.ideal", "name": "guidance", "config": )json" +
+           guidance_config + R"json( },
+        { "type": "vehicle.process.attitude_control_6dof.ideal", "name": "attitude_control", "config": {} },
+        { "type": "vehicle.process.control_allocation_6dof.ideal", "name": "control_allocation", "config": {} }
+      ],
+      "output": [
+        { "type": "vehicle.output.mass_properties_6dof.constant", "name": "mass", "config": )json" +
+           mass_config + R"json( },
+        { "type": "vehicle.output.propulsion_6dof.zero", "name": "propulsion", "config": {} },
+        { "type": "vehicle.output.actuator_6dof.ideal", "name": "actuator", "config": {} },
+        { "type": "vehicle.output.aerodynamics_6dof.zero", "name": "aero", "config": {} }
+      ],
+      "interaction": {
+        "components": [
+          {
+            "type": "interaction.local_spherical_6dof.standard",
+            "name": "interaction",
+            "config": )json" +
+           interaction_config + R"json(
+          }
+        ]
+      }
+    },
+    {
+      "id": "target",
+      "form": {
+        "components": [
+          {
+            "type": "form.target_point.kinematic",
+            "name": "truth",
+            "config": {
+              "initial_position_ecef_m": [6373000.0, 100.0, 0.0],
+              "velocity_ecef_mps": [0.0, 0.0, 0.0]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": []
+    }
+  ],
+  "outputs": { "enabled": false },
+  "termination": {
+    "type": "termination.engagement_6dof",
+    "name": "termination",
+    "config": )json" +
+           termination_config + R"json(
+  },
+  "summary": {
+    "type": "summary.engagement_6dof.ideal",
+    "name": "summary",
+    "config": )json" +
+           summary_config + R"json(
+  }
+}
+)json";
+}
+
 const char* kValidCartesianDynamics = R"json({
   "initial_position": [0.0, 0.0, 1000.0],
   "initial_velocity": [0.0, 0.0, 0.0]
@@ -242,6 +358,18 @@ const char* kValidCartesianDynamics = R"json({
 
 const char* kValidCartesianInteraction = R"json({
   "acceleration_mps2": [0.0, 0.0, -9.81]
+})json";
+
+const char* kValid6DofMassProperties = R"json({
+  "mass_kg": 100.0,
+  "center_of_gravity_body_m": [0.0, 0.0, 0.0],
+  "inertia_body_kgm2": [10.0, 11.0, 12.0]
+})json";
+
+const char* kValid6DofTermination = R"json({
+  "min_range_m": 1.0,
+  "min_altitude_m": -1.0,
+  "max_time_s": 0.1
 })json";
 
 } // namespace
@@ -672,6 +800,78 @@ int main() {
       ])json"),
             "rate_hz must not exceed",
             "rate_hz above the simulation frequency should be a build error.");
+
+        expectBuildFailure(
+            ideal6DofMissionWithConfig(R"json({ "truth_lookup_nam": "dynamics" })json",
+                                       "{}",
+                                       kValid6DofMassProperties,
+                                       "{}",
+                                       kValid6DofTermination,
+                                       "{}"),
+            "vehicles[0].input[0].config has unrecognized config key",
+            "6DOF ideal IMU should reject unknown config keys.");
+
+        expectBuildFailure(
+            ideal6DofMissionWithConfig("{}",
+                                       R"json({ "tracking_lookup_nam": "tracking" })json",
+                                       kValid6DofMassProperties,
+                                       "{}",
+                                       kValid6DofTermination,
+                                       "{}"),
+            "vehicles[0].process[4].config has unrecognized config key",
+            "6DOF guidance should reject unknown config keys.");
+
+        expectBuildFailure(
+            ideal6DofMissionWithConfig(
+                "{}",
+                "{}",
+                R"json({
+  "mass_kg": 100.0,
+  "center_of_gravity_body_m": [0.0, 0.0, 0.0],
+  "inertia_body_kgm2": [10.0, 11.0, 12.0],
+  "mass_source": "bad"
+})json",
+                "{}",
+                kValid6DofTermination,
+                "{}"),
+            "vehicles[0].output[0].config has unrecognized config key",
+            "6DOF mass properties should reject unknown config keys.");
+
+        expectBuildFailure(
+            ideal6DofMissionWithConfig("{}",
+                                       "{}",
+                                       kValid6DofMassProperties,
+                                       R"json({ "force_model": "bad" })json",
+                                       kValid6DofTermination,
+                                       "{}"),
+            "vehicles[0].interaction.components[0].config has unrecognized config key",
+            "6DOF standard interaction should reject unknown config keys.");
+
+        expectBuildFailure(
+            ideal6DofMissionWithConfig(
+                "{}",
+                "{}",
+                kValid6DofMassProperties,
+                "{}",
+                R"json({
+  "min_range_m": 1.0,
+  "min_altitude_m": -1.0,
+  "max_time_s": 0.1,
+  "stop_reason": "bad"
+})json",
+                "{}"),
+            "termination.config has unrecognized config key",
+            "6DOF engagement termination should reject unknown config keys.");
+
+        expectBuildFailure(
+            ideal6DofMissionWithConfig("{}",
+                                       "{}",
+                                       kValid6DofMassProperties,
+                                       "{}",
+                                       kValid6DofTermination,
+                                       R"json({ "summary_mode": "bad" })json"),
+            "summary.config has unrecognized config key",
+            "6DOF engagement summary should reject unknown config keys.");
 
         expectBuildWarning(
             cartesianMissionWith(kValidCartesianDynamics,

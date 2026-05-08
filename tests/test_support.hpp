@@ -1,9 +1,6 @@
 #pragma once
 
-#include "auto_registered_test_components.hpp"
-#include "gnc/bootstrap/register_builtin_packages.hpp"
 #include "gnc/common/math/eigen_types.hpp"
-#include "gnc/core/component_factory.hpp"
 #include "gnc/core/config_manager.hpp"
 
 #include <cmath>
@@ -82,18 +79,10 @@ inline gnc::core::ConfigNode array(
     return node;
 }
 
-inline void registerBuiltinComponentTypes() {
-    auto& factory = gnc::core::ComponentFactory::instance();
-    gnc::bootstrap::registerBuiltinPackages(factory);
-}
+void registerBuiltinComponentTypes();
 
-inline void registerStableTestProjectComponentTypes() {
-    auto& factory = gnc::core::ComponentFactory::instance();
-    gnc::build::registerAutoRegisteredTestComponents(factory);
-}
+void registerStableTestProjectComponentTypes();
 
-inline void registerAvailableComponentTypes() {
-    registerBuiltinComponentTypes();
-}
+void registerAvailableComponentTypes();
 
 } // namespace test_support
