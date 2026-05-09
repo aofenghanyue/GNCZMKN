@@ -44,6 +44,8 @@ set(USER_PROJECT_DIR "")
 set(USER_COMPONENTS_DIR "")
 set(GNC_DEFAULT_CONFIG_RELATIVE "")
 set(USER_COMPONENT_FILES "")
+set(USER_SIMFLOW_DIR "")
+set(USER_SIMFLOW_FILES "")
 
 if(NOT GNC_ACTIVE_PROJECT STREQUAL "")
     if(GNC_ACTIVE_PROJECT MATCHES "[/\\\\]")
@@ -88,6 +90,36 @@ if(NOT GNC_ACTIVE_PROJECT STREQUAL "")
                 "Move shared project interfaces or utilities to interfaces/, common/, "
                 "or include/. Offending files: "
                 "${USER_COMPONENT_HEADERS_WITHOUT_REGISTRATION_TEXT}")
+        endif()
+    endif()
+
+    set(USER_SIMFLOW_DIR "${USER_PROJECT_DIR}/simflows")
+    if(IS_DIRECTORY "${USER_SIMFLOW_DIR}")
+        file(GLOB_RECURSE USER_SIMFLOW_FILES CONFIGURE_DEPENDS
+            RELATIVE "${CMAKE_SOURCE_DIR}"
+            "user/${GNC_ACTIVE_PROJECT}/simflows/*.hpp"
+        )
+        set(USER_SIMFLOW_HEADERS_WITHOUT_REGISTRATION "")
+        foreach(USER_SIMFLOW_FILE IN LISTS USER_SIMFLOW_FILES)
+            file(READ "${CMAKE_SOURCE_DIR}/${USER_SIMFLOW_FILE}" USER_SIMFLOW_HEADER_TEXT)
+            string(FIND "${USER_SIMFLOW_HEADER_TEXT}"
+                        "GNC_REGISTER_SIMFLOW_MATERIALIZER"
+                        USER_SIMFLOW_REGISTRATION_POS)
+            if(USER_SIMFLOW_REGISTRATION_POS EQUAL -1)
+                list(APPEND USER_SIMFLOW_HEADERS_WITHOUT_REGISTRATION
+                    "${USER_SIMFLOW_FILE}")
+            endif()
+        endforeach()
+        if(USER_SIMFLOW_HEADERS_WITHOUT_REGISTRATION)
+            string(JOIN ", "
+                USER_SIMFLOW_HEADERS_WITHOUT_REGISTRATION_TEXT
+                ${USER_SIMFLOW_HEADERS_WITHOUT_REGISTRATION})
+            message(FATAL_ERROR
+                "Headers under user/${GNC_ACTIVE_PROJECT}/simflows/ must be "
+                "registrable simflow materializer headers containing "
+                "GNC_REGISTER_SIMFLOW_MATERIALIZER. Move shared helpers to "
+                "common/ or include/. Offending files: "
+                "${USER_SIMFLOW_HEADERS_WITHOUT_REGISTRATION_TEXT}")
         endif()
     endif()
 
@@ -207,12 +239,47 @@ function(generate_component_registration_header output_file function_name symbol
     file(APPEND "${output_file}" "} // namespace gnc::build\n")
 endfunction()
 
+function(generate_simflow_registration_header output_file function_name symbol_prefix)
+    set(simflow_files ${ARGN})
+
+    file(WRITE "${output_file}" "#pragma once\n\n")
+
+    set(auto_register_calls "")
+    if(simflow_files)
+        set(simflow_index 0)
+        foreach(simflow_file IN LISTS simflow_files)
+            file(APPEND "${output_file}" "#define GNC_SIMFLOW_MATERIALIZER_REGISTRATION_FN ${symbol_prefix}_${simflow_index}\n")
+            file(APPEND "${output_file}" "#include \"${simflow_file}\"\n")
+            file(APPEND "${output_file}" "#undef GNC_SIMFLOW_MATERIALIZER_REGISTRATION_FN\n\n")
+            string(APPEND auto_register_calls "    ::${symbol_prefix}_${simflow_index}(registry);\n")
+            math(EXPR simflow_index "${simflow_index} + 1")
+        endforeach()
+    endif()
+
+    file(APPEND "${output_file}" "#include \"gnc/simflow/simflow_materializer_registry.hpp\"\n\n")
+    file(APPEND "${output_file}" "namespace gnc::build {\n")
+    file(APPEND "${output_file}" "inline void ${function_name}(::gnc::simflow::SimFlowMaterializerRegistry& registry) {\n")
+    file(APPEND "${output_file}" "    (void)registry;\n")
+    if(auto_register_calls)
+        file(APPEND "${output_file}" "${auto_register_calls}")
+    endif()
+    file(APPEND "${output_file}" "}\n")
+    file(APPEND "${output_file}" "} // namespace gnc::build\n")
+endfunction()
+
 set(AUTO_REGISTER_FILE "${GENERATED_DIR}/auto_registered_components.hpp")
 generate_component_registration_header(
     "${AUTO_REGISTER_FILE}"
     "registerAutoRegisteredProjectComponents"
     "gnc_register_project_component"
     ${USER_COMPONENT_FILES})
+
+set(AUTO_REGISTER_SIMFLOW_FILE "${GENERATED_DIR}/auto_registered_simflow_materializers.hpp")
+generate_simflow_registration_header(
+    "${AUTO_REGISTER_SIMFLOW_FILE}"
+    "registerAutoRegisteredSimFlowMaterializers"
+    "gnc_register_project_simflow_materializer"
+    ${USER_SIMFLOW_FILES})
 
 set(ACTIVE_PROJECT_CONFIG_FILE "${GENERATED_DIR}/active_project_config.hpp")
 file(WRITE "${ACTIVE_PROJECT_CONFIG_FILE}" "#pragma once\n\n")
@@ -247,6 +314,11 @@ if(USER_COMPONENTS_DIR)
         "${USER_COMPONENTS_DIR}"
     )
 endif()
+if(USER_SIMFLOW_DIR)
+    target_include_directories(gnc_sim PRIVATE
+        "${USER_SIMFLOW_DIR}"
+    )
+endif()
 
 if(MSVC)
     target_compile_options(gnc_sim PRIVATE /W4 /utf-8)
@@ -270,6 +342,20 @@ if(BUILD_TESTS)
         "registerAutoRegisteredTestComponents"
         "gnc_register_test_component"
         ${TEST_PROJECT_COMPONENT_FILES})
+
+    set(TEST_PROJECT_SIMFLOW_FILES "")
+    file(GLOB_RECURSE TEST_PROJECT_SIMFLOW_FILES CONFIGURE_DEPENDS
+        RELATIVE "${CMAKE_SOURCE_DIR}"
+        "tests/project_simflows/*.hpp"
+    )
+
+    set(TEST_AUTO_REGISTER_SIMFLOW_FILE
+        "${GENERATED_DIR}/auto_registered_test_simflow_materializers.hpp")
+    generate_simflow_registration_header(
+        "${TEST_AUTO_REGISTER_SIMFLOW_FILE}"
+        "registerAutoRegisteredTestSimFlowMaterializers"
+        "gnc_register_test_simflow_materializer"
+        ${TEST_PROJECT_SIMFLOW_FILES})
 
     if(MINGW)
         set_source_files_properties(tests/test_support_registration.cpp
@@ -299,8 +385,8 @@ if(BUILD_TESTS)
     add_gnc_test(test_mission_contract tests/test_mission_contract.cpp)
     add_gnc_test(test_perturbation_contract tests/test_perturbation_contract.cpp)
     add_gnc_test(test_component_listing tests/test_component_listing.cpp)
-    add_gnc_test(test_runset_matrix tests/test_runset_matrix.cpp)
-    add_gnc_test(test_runset_full tests/test_runset_full.cpp)
+    add_gnc_test(test_simflow_materializer tests/test_simflow_materializer.cpp)
+    add_gnc_test(test_simflow_runner tests/test_simflow_runner.cpp)
     add_gnc_test(test_architecture_guards tests/test_architecture_guards.cpp)
     add_gnc_test(test_auto_data_logger tests/test_auto_data_logger.cpp)
     add_gnc_test(test_publish_semantics tests/test_publish_semantics.cpp)

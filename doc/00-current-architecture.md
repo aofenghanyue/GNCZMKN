@@ -2,7 +2,7 @@
 
 GNCZMKN 当前是显式装配的固定步长仿真框架。mission 使用顶层 `vehicles[]` 描述广义飞行器实体；每个实体拥有自己的 `form/services/perturbation/common/input/process/output/interaction` 块，并注册到 `<id>.<name>` 作用域。
 
-单次仿真直接运行 mission。批量拉偏仿真通过 RunSet 先生成每个 case 的 `effective_mission.json`，再把每个 effective mission 当作普通 mission 运行。因此 RunSet 是 mission 生成和调度层，不改变 `Simulator` 对单次 mission 的运行语义。
+单次仿真直接运行 mission。批量或参数化仿真通过 SimFlow 先生成每个 case 的 `effective_mission.json`，再把每个 effective mission 当作普通 mission 运行。因此 SimFlow 是仿真前置物化和调度层，不改变 `Simulator` 对单次 mission 的运行语义。
 
 旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 会被运行时拒绝。想先理解概念边界，先读 [02-core-concepts.md](02-core-concepts.md)；想看源码细节，再读 [05-architecture.md](05-architecture.md)。
 
@@ -11,8 +11,8 @@ GNCZMKN 当前是显式装配的固定步长仿真框架。mission 使用顶层 
 ```mermaid
 flowchart TB
     Mission["Mission JSON<br/>simulation / environment / vehicles / outputs"]
-    RunSet["RunSet JSON<br/>single / matrix / random cases"]
-    RunSetRunner["RunSetRunner<br/>case files + serial/multiprocess dispatch"]
+    SimFlow["SimFlow JSON<br/>materializer config"]
+    SimFlowRunner["SimFlowRunner<br/>case files + serial/multiprocess dispatch"]
     Effective["effective_mission.json<br/>ordinary replay mission"]
     Config["ConfigManager<br/>parse + include preprocess"]
     Factory["ComponentFactory<br/>type id / role / stage / interface metadata"]
@@ -26,7 +26,7 @@ flowchart TB
 
     User --> Factory
     Builtin --> Factory
-    RunSet --> RunSetRunner --> Effective
+    SimFlow --> SimFlowRunner --> Effective
     Effective --> Config
     Mission --> Config --> Assembler
     Factory --> Assembler
@@ -36,7 +36,7 @@ flowchart TB
     Simulator --> Logger
 ```
 
-核心关系是：mission 不直接创建 C++ 对象；它只引用 `ComponentFactory` 中已注册的 type id。`MissionAssembler` 根据 mission placement 创建组件、命名、注入服务、放入调度 stage，并把装配结果交给 `ValidationPipeline` 和 `Simulator`。RunSet 只负责把 case 输入叠加到 base mission 上并生成普通 mission 文件；复现某个 case 时直接运行该 case 的 `effective_mission.json`。
+核心关系是：mission 不直接创建 C++ 对象；它只引用 `ComponentFactory` 中已注册的 type id。`MissionAssembler` 根据 mission placement 创建组件、命名、注入服务、放入调度 stage，并把装配结果交给 `ValidationPipeline` 和 `Simulator`。SimFlow 只负责把仿真前置配置物化为普通 mission 文件；复现某个 case 时直接运行该 case 的 `effective_mission.json`。
 
 ## 职责边界
 
@@ -45,13 +45,13 @@ flowchart TB
 | `Form` | 连续状态、导数方程、truth view、form input 和 form-local math |
 | `Environment` | 地球、大气、重力等只读环境查询 |
 | `Vehicle` | 飞行器侧资产、传感器、制导控制、气动、质量和推进能力 |
-| `Perturbation` | 飞行器级拉偏状态源，把 RunSet 或单次配置中的数值输入解析成 number/string/vector 状态 |
+| `Perturbation` | 飞行器级拉偏状态源，把 SimFlow 或单次配置中的数值输入解析成 number/string/vector 状态 |
 | `Interaction` | form-specific closure，把 truth、环境、命令和 output 能力组合成 form input |
 | `Service` | 稳定基础设施能力，例如 vehicle-scoped 坐标树 |
 | `Output` | CSV、debug snapshot、summary 等仿真结果持久化 |
-| `RunSet` | 批量 case 生成和调度；每个 case 最终仍进入普通 mission build/run 链路 |
+| `SimFlow` | 仿真前置物化和调度；每个 case 最终仍进入普通 mission build/run 链路 |
 
-`vehicle.common` 是非调度的资产/profile 层。运行时物理能力放在 `vehicle.output`，不要放回 `common`。任务流程、制导控制和模式切换属于 `vehicle.process`，不要放进 service。拉偏状态由 `vehicles[].perturbation` 集中提供；其它组件通过接口读取，不直接解析 RunSet 配置。
+`vehicle.common` 是非调度的资产/profile 层。运行时物理能力放在 `vehicle.output`，不要放回 `common`。任务流程、制导控制和模式切换属于 `vehicle.process`，不要放进 service。拉偏状态由 `vehicles[].perturbation` 集中提供；其它组件通过接口读取，不直接解析 SimFlow 配置。
 
 ## Mission Build 主链路
 
@@ -88,30 +88,29 @@ sequenceDiagram
 - `MissionAssembler` 是 mission 到 runtime 对象的边界。
 - `ValidationPipeline` 在真正运行前做依赖 preflight，尽量把错误提前到 build 阶段。
 
-RunSet 路径先生成 case，再复用普通 `--config` 语义：
+SimFlow 路径先生成 case，再复用普通 `--config` 语义：
 
 ```mermaid
 sequenceDiagram
     participant R as runner.cpp
-    participant RS as RunSetRunner
+    participant SF as SimFlowRunner
     participant M as base mission
     participant E as effective_mission.json
     participant S as Simulator
 
-    R->>RS: --runset runset.json, jobs
-    RS->>M: load base mission
-    RS->>RS: generate single/matrix/random numeric cases
-    RS->>E: write case_000001/effective_mission.json
-    RS->>E: write perturbation_inputs.json
+    R->>SF: --simflow simflow.json, jobs
+    SF->>M: load base mission
+    SF->>SF: run configured materializer
+    SF->>E: write case_000001/effective_mission.json
     alt serial
-        RS->>S: build/run each effective mission in-process
+        SF->>S: build/run each effective mission in-process
     else multiprocess
-        RS->>R: launch child gnc_sim --config effective_mission.json
+        SF->>R: launch child gnc_sim --config effective_mission.json
     end
-    RS->>RS: write generated_cases.csv and runset_summary.csv
+    SF->>SF: write simflow_summary.csv
 ```
 
-`generated_cases.csv` 是批量输入的复现索引；`effective_mission.json` 是单个 case 的完整复现入口。普通 `--config` 运行不会额外写 RunSet 专用快照文件。
+`effective_mission.json` 是单个 case 的完整复现入口。普通 `--config` 运行不会额外写 SimFlow 专用快照文件。
 
 ## 组件作用域
 

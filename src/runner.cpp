@@ -1,7 +1,8 @@
 #include "gnc/common/logger.hpp"
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
-#include "gnc/runset/runset_runner.hpp"
+#include "gnc/simflow/simflow_materializer_registry.hpp"
+#include "gnc/simflow/simflow_runner.hpp"
 #include "active_project_config.hpp"
 
 #include <algorithm>
@@ -17,6 +18,8 @@
 using namespace gnc::core;
 
 void registerRunnerComponentTypes(gnc::core::ComponentFactory& factory);
+void registerRunnerSimFlowMaterializers(
+    gnc::simflow::SimFlowMaterializerRegistry& registry);
 
 namespace {
 
@@ -24,7 +27,7 @@ namespace fs = std::filesystem;
 
 enum class RunnerMode {
     Run,
-    RunSet,
+    SimFlow,
     ListComponents,
     Help
 };
@@ -34,7 +37,7 @@ struct RunnerOptions {
     bool list_verbose = false;
     bool use_default_config = true;
     std::string requested_config;
-    std::string requested_runset;
+    std::string requested_simflow;
     int jobs = 1;
     bool jobs_specified = false;
 };
@@ -205,19 +208,19 @@ bool parseArgs(int argc, char* argv[], RunnerOptions& options, std::string& erro
             continue;
         }
 
-        if (arg == "--runset") {
+        if (arg == "--simflow") {
             if (i + 1 >= argc) {
-                error = "Missing path after --runset.";
+                error = "Missing path after --simflow.";
                 return false;
             }
             if (!options.requested_config.empty()) {
-                error = "The --runset option cannot be combined with a config path.";
+                error = "The --simflow option cannot be combined with a config path.";
                 return false;
             }
-            if (!setMode(options, RunnerMode::RunSet, error)) {
+            if (!setMode(options, RunnerMode::SimFlow, error)) {
                 return false;
             }
-            options.requested_runset = argv[++i];
+            options.requested_simflow = argv[++i];
             options.use_default_config = false;
             continue;
         }
@@ -264,12 +267,12 @@ bool parseArgs(int argc, char* argv[], RunnerOptions& options, std::string& erro
         options.use_default_config = false;
     }
 
-    if (options.jobs_specified && options.mode != RunnerMode::RunSet) {
-        error = "--jobs can only be used with --runset.";
+    if (options.jobs_specified && options.mode != RunnerMode::SimFlow) {
+        error = "--jobs can only be used with --simflow.";
         return false;
     }
-    if (options.mode == RunnerMode::RunSet && options.requested_runset.empty()) {
-        error = "RunSet mode requires --runset <runset.json>.";
+    if (options.mode == RunnerMode::SimFlow && options.requested_simflow.empty()) {
+        error = "SimFlow mode requires --simflow <simflow.json>.";
         return false;
     }
     return true;
@@ -281,9 +284,9 @@ void printUsage(const char* program_name) {
               << "  " << program_name << "\n"
               << "  " << program_name << " <config.json>\n"
               << "  " << program_name << " --config <config.json>\n"
-              << "  " << program_name << " --runset <runset.json>\n"
-              << "  " << program_name << " --runset <runset.json> --jobs auto\n"
-              << "  " << program_name << " --runset <runset.json> --jobs <N>\n"
+              << "  " << program_name << " --simflow <simflow.json>\n"
+              << "  " << program_name << " --simflow <simflow.json> --jobs auto\n"
+              << "  " << program_name << " --simflow <simflow.json> --jobs <N>\n"
               << "  " << program_name << " --list-components\n"
               << "  " << program_name << " --list-components-verbose\n"
               << "  " << program_name << " --help\n";
@@ -359,7 +362,7 @@ void listComponents(bool verbose) {
     }
 }
 
-size_t resolveRunSetJobs(const RunnerOptions& options) {
+size_t resolveSimFlowJobs(const RunnerOptions& options) {
     if (options.jobs > 0) {
         return static_cast<size_t>(options.jobs);
     }
@@ -386,6 +389,8 @@ std::string executablePath(const char* program_name) {
 int main(int argc, char* argv[]) {
     auto& factory = ComponentFactory::instance();
     registerRunnerComponentTypes(factory);
+    registerRunnerSimFlowMaterializers(
+        gnc::simflow::SimFlowMaterializerRegistry::instance());
 
     RunnerOptions options;
     std::string parse_error;
@@ -403,21 +408,21 @@ int main(int argc, char* argv[]) {
         listComponents(options.list_verbose);
         return 0;
     }
-    if (options.mode == RunnerMode::RunSet) {
+    if (options.mode == RunnerMode::SimFlow) {
         try {
-            gnc::runset::RunSetRunner runner;
-            const size_t jobs = resolveRunSetJobs(options);
+            gnc::simflow::SimFlowRunner runner;
+            const size_t jobs = resolveSimFlowJobs(options);
             if (jobs == 1) {
-                runner.runSerial(options.requested_runset);
+                runner.runSerial(options.requested_simflow);
             } else {
-                runner.runMultiprocess(options.requested_runset,
+                runner.runMultiprocess(options.requested_simflow,
                                        executablePath(argv[0]),
                                        jobs);
             }
-            LOG_INFO("=== RunSet Completed ===");
+            LOG_INFO("=== SimFlow Completed ===");
             return 0;
         } catch (const std::exception& e) {
-            LOG_ERROR("RunSet failed: {}", e.what());
+            LOG_ERROR("SimFlow failed: {}", e.what());
             return 1;
         }
     }

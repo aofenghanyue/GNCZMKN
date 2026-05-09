@@ -25,7 +25,7 @@ GNCZMKN 的架构优先保证：
 | mission parse 和 `$include` | `framework/include/gnc/core/config_manager.hpp` |
 | required/optional 字段读取 | `framework/include/gnc/core/config_reader.hpp` |
 | build 协调器 | `framework/include/gnc/core/simulation_builder.hpp` |
-| RunSet batch layer | `framework/include/gnc/runset/runset_runner.hpp` |
+| SimFlow materialization layer | `framework/include/gnc/simflow/simflow_runner.hpp` |
 | environment/vehicle/component/service 装配 | `framework/include/gnc/core/mission_assembler.hpp` |
 | scoped dependency lookup | `framework/include/gnc/core/scoped_registry.hpp` |
 | role/stage/form-family/dependency 验证 | `framework/include/gnc/core/validation_pipeline.hpp` |
@@ -58,39 +58,39 @@ runner.cpp
        -> SimulationBuilder::loadConfig()
        -> SimulationBuilder::build()
        -> Simulator::run()
-  -> --runset path:
-       -> RunSetRunner::runSerial() when jobs == 1
-       -> RunSetRunner::runMultiprocess() when jobs > 1
+  -> --simflow path:
+       -> SimFlowRunner::runSerial() when jobs == 1
+       -> SimFlowRunner::runMultiprocess() when jobs > 1
        -> parent generates case files and each effective_mission.json
        -> serial path builds a fresh SimulationBuilder/Simulator per case
        -> multiprocess path launches child gnc_sim --config effective_mission.json
-       -> parent writes generated_cases.csv and runset_summary.csv
+       -> parent writes simflow_summary.csv
 ```
 
-普通 `--config` 路径始终只构建一个 mission。RunSet 不把批量状态塞进
+普通 `--config` 路径始终只构建一个 mission。SimFlow 不把批量状态塞进
 `Simulator`，而是在 `Simulator` 外层生成多个 ordinary mission：
 
 ```text
-runset.json
-  -> parse RunSetConfig
+simflow.json
+  -> parse SimFlowConfig
   -> load base_mission
-  -> generate per-vehicle numeric cases
-  -> overlay each case into vehicles[].perturbation.config.inputs
+  -> create configured materializer
+  -> materialize ordinary mission cases
   -> rewrite outputs.directory to the case directory
   -> write case_N/effective_mission.json
   -> execute each effective mission through the normal build/run path
 ```
 
-串行 RunSet 在父进程内为每个 case 新建 `SimulationBuilder` 和 `Simulator`。
-多进程 RunSet 先写完所有 case 文件，再启动子进程：
+串行 SimFlow 在父进程内为每个 case 新建 `SimulationBuilder` 和 `Simulator`。
+多进程 SimFlow 先写完所有 case 文件，再启动子进程：
 
 ```powershell
 gnc_sim.exe --config <case>/effective_mission.json
 ```
 
-父进程只负责并发控制和汇总 `runset_summary.csv`；子进程不知道自己来自
-RunSet。这个边界很重要：复现单个 case 时直接运行 `effective_mission.json`，
-不需要重新进入 RunSet，也不需要额外快照文件。
+父进程只负责并发控制和汇总 `simflow_summary.csv`；子进程不知道自己来自
+SimFlow。这个边界很重要：复现单个 case 时直接运行 `effective_mission.json`，
+不需要重新进入 SimFlow，也不需要额外快照文件。
 
 `MissionAssembler` 的装配顺序是 environment、vehicles、termination、summary。每个组件被创建后会经历：
 

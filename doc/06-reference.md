@@ -7,19 +7,20 @@
 | `gnc_sim.exe` | 运行构建时 active project 的默认 mission |
 | `gnc_sim.exe <config.json>` | 运行指定 mission |
 | `gnc_sim.exe --config <config.json>` | 运行指定 mission |
-| `gnc_sim.exe --runset <runset.json>` | 串行运行 RunSet batch cases |
-| `gnc_sim.exe --runset <runset.json> --jobs 1` | 显式串行运行 RunSet batch cases |
-| `gnc_sim.exe --runset <runset.json> --jobs auto` | 多进程运行；并发数为 `max(1, hardware_concurrency - 1)` |
-| `gnc_sim.exe --runset <runset.json> --jobs <N>` | 多进程运行；最多同时运行 `N` 个 case |
+| `gnc_sim.exe --simflow <simflow.json>` | 串行运行 SimFlow cases |
+| `gnc_sim.exe --simflow <simflow.json> --jobs 1` | 显式串行运行 SimFlow cases |
+| `gnc_sim.exe --simflow <simflow.json> --jobs auto` | 多进程运行；并发数为 `max(1, hardware_concurrency - 1)` |
+| `gnc_sim.exe --simflow <simflow.json> --jobs <N>` | 多进程运行；最多同时运行 `N` 个 case |
 | `gnc_sim.exe --list-components` | 列出已注册 type id |
 | `gnc_sim.exe --list-components-verbose` | 列出 type id、接口、role、stage、form family 和注册来源 |
 | `gnc_sim.exe --help` | 打印帮助 |
 
 相对 mission 路径会从当前目录和可执行文件目录向上搜索。默认 mission 来自构建时 active project 的 `user/<project>/config/mission.json`。
 
-RunSet paths are loaded as provided. A RunSet references a base mission,
-generates one effective mission per case, writes case reproduction files, and
-then runs each case through the normal `SimulationBuilder` / `Simulator` path.
+SimFlow paths are loaded as provided. A SimFlow references a base mission,
+uses a materializer to generate one effective mission per case, writes case
+reproduction files, and then runs each case through the normal
+`SimulationBuilder` / `Simulator` path.
 
 ## 源码入口速查
 
@@ -30,7 +31,7 @@ then runs each case through the normal `SimulationBuilder` / `Simulator` path.
 | `framework/include/gnc/core/mission_assembler.hpp` | environment、vehicles、services、components、termination、summary 装配 |
 | `framework/include/gnc/core/simulator.hpp` | publish、stage update、record、termination、integration、finalize |
 | `framework/include/gnc/core/component_factory.hpp` | type id 注册、接口元数据、role/stage/form family 元数据 |
-| `framework/include/gnc/runset/runset_runner.hpp` | RunSet config loading, case generation, effective mission writing, serial/multiprocess case execution |
+| `framework/include/gnc/simflow/simflow_runner.hpp` | SimFlow config loading, case materialization, effective mission writing, serial/multiprocess case execution |
 | `framework/include/gnc/core/scoped_registry.hpp` | 当前 scope 内短名依赖解析和接口绑定 |
 | `framework/include/gnc/infrastructure/auto_data_logger.hpp` | `outputs` 配置、observable 字段发现、CSV/debug snapshot 输出 |
 
@@ -174,9 +175,9 @@ For each matching enum map, it exposes `<key>.resolved` as a string.
 `interaction.local_spherical_3dof.standard` accepts optional `local_acceleration_nue_mps2` and binds the normal 3DOF output chain.
 Task-specific aerodynamic tables, guidance laws, and closure models belong in `user/<project>/components`; see `user/example_08_cavh_geographic_3dof_custom`.
 
-## RunSet
+## SimFlow
 
-RunSet config is a separate JSON file for batch execution:
+SimFlow config is a separate JSON file for pre-simulation materialization and batch execution:
 
 This section is a field reference. For the mechanism and component dependency
 model, read [03-mission-configuration.md](03-mission-configuration.md) and
@@ -185,23 +186,30 @@ model, read [03-mission-configuration.md](03-mission-configuration.md) and
 ```json
 {
   "base_mission": "user/example/config/mission.json",
-  "vehicles": {
-    "vehicle": {
-      "cases": {
+  "materializer": {
+    "type": "simflow.materializer.numeric_perturbation",
+    "config": {
+      "case_source": {
         "mode": "matrix",
         "file": "user/data/perturb.csv",
         "rows": [0, 1]
+      },
+      "vehicles": {
+        "vehicle": {
+          "inputs": ["engine.temp_level", "aero.drag_bias"]
+        }
       }
     }
   },
   "outputs": {
-    "directory": "user/outputs/runset",
+    "directory": "user/outputs/simflow",
     "case_directory": "case_{case_index}"
   }
 }
 ```
 
-RunSet supports `single`, `matrix`, and `random` case sources:
+The built-in `simflow.materializer.numeric_perturbation` materializer supports
+`single`, `matrix`, and `random` case sources:
 
 ```json
 {
@@ -233,43 +241,46 @@ RunSet supports `single`, `matrix`, and `random` case sources:
 }
 ```
 
-`single.inputs` values must be finite numbers. The matrix file must have a
-header row, `case_id` as the first column, and numeric input columns after that.
+`case_source.single.inputs` values must be finite numbers. The matrix file must have a
+header row, `case_id` as the first column, and input columns after that.
 Selected row indices are zero-based non-negative integers. `random.count` must
 be positive, `random.seed` must be a non-negative integer, and random inputs
 support numeric constants plus `constant`, `uniform`, `normal`, and
 `uniform_int` distribution objects.
 
-All configured vehicles must produce the same case count. Vehicles are paired by
-case ordinal: run `k` uses the `k`th generated row from each vehicle source.
-For each case, RunSet injects numeric inputs into
-`vehicles[].perturbation.config.inputs` and rewrites `outputs.directory` in the
-effective mission to the current case directory while preserving the rest of the
-base mission outputs config. A vehicle referenced by RunSet must already define
-a `perturbation` block in the base mission.
+`materializer.config.vehicles.<vehicle_id>.inputs` lists which case variables
+are injected into that vehicle's `vehicles[].perturbation.config.inputs`.
+For each case, the runner also rewrites `outputs.directory` in the effective
+mission to the current case directory while preserving the rest of the base
+mission outputs config. A vehicle referenced by the built-in numeric
+materializer must already define a `perturbation` block in the base mission.
+
+Project-specific materializers can be added under
+`user/<active_project>/simflows/*.hpp` and registered with
+`GNC_REGISTER_SIMFLOW_MATERIALIZER`. A custom materializer receives the SimFlow
+config, base mission, repo/project roots, output directory, and case-directory
+pattern, then returns ordinary materialized cases.
 
 Each generated case directory contains:
 
 - `effective_mission.json`
-- `perturbation_inputs.json`
 
-The RunSet output root contains:
+The SimFlow output root contains:
 
-- `generated_cases.csv`
-- `runset_summary.csv`
+- `simflow_summary.csv`
 
-`generated_cases.csv` records the actual numeric cases, including random
-samples, for replay. Its first column is `case_id`; remaining columns are
-vehicle-prefixed numeric input keys. `runset_summary.csv` contains
-`case_index,case_directory,status,exit_code,message`. In multiprocess mode, the
+`effective_mission.json` is the replay contract for a generated case.
+`simflow_summary.csv` contains
+`case_index,case_id,case_directory,status,exit_code,message`.
+In multiprocess mode, the
 parent process generates all case files first, launches child processes with
 `--config <case>/effective_mission.json`, continues after individual case
-failures, and writes collected exit codes to `runset_summary.csv`.
+failures, and writes collected exit codes to `simflow_summary.csv`.
 
-To replay a single RunSet case, run its effective mission directly:
+To replay a single SimFlow case, run its effective mission directly:
 
 ```powershell
-gnc_sim.exe --config user/outputs/runset/case_000001/effective_mission.json
+gnc_sim.exe --config user/outputs/simflow/case_000001/effective_mission.json
 ```
 
 ## Outputs

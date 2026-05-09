@@ -101,24 +101,24 @@ Controlflow is a process-level concern. Use `gnc::libraries::StateMachine` insid
 
 Perturbation is a vehicle-level source of resolved case state. A perturbation
 component must implement `IPerturbationProvider`; it may also implement
-`IPerturbationSnapshot` for local inspection or diagnostics. RunSet replay is
+`IPerturbationSnapshot` for local inspection or diagnostics. SimFlow replay is
 based on the generated `effective_mission.json`, so ordinary single-case replay
-does not depend on any RunSet-specific snapshot file.
+does not depend on any SimFlow-specific snapshot file.
 
 The intended dependency direction is one-way:
 
 ```text
-RunSet numeric inputs or mission static inputs
+SimFlow numeric inputs or mission static inputs
 -> vehicles[].perturbation
 -> IPerturbationProvider
 -> input/process/output/interaction components
 ```
 
-Do not let every aero, engine, or mass component parse the RunSet file. The
-RunSet format is a batch input format; the perturbation provider is the runtime
+Do not let every aero, engine, or mass component parse the SimFlow file. The
+SimFlow format is a pre-simulation materialization format; the perturbation provider is the runtime
 contract. This keeps single-case replay simple and lets project-specific
 perturbation components map numeric inputs to strings, vectors, assets, or
-flight-state-dependent values without changing the batch runner.
+flight-state-dependent values without changing the simflow runner.
 
 Components that load assets or choose behavior from perturbation state should
 bind the provider in `injectDependencies()`, then read the resolved state in
@@ -162,7 +162,7 @@ private:
 If the component cannot run without a required perturbation item, throw a clear
 error in `initialize()` after dependency injection. If the perturbation is
 optional, use a physical nominal fallback as shown above. Either way, the
-component should depend on the provider interface, not on a RunSet file path or
+component should depend on the provider interface, not on a SimFlow file path or
 case index.
 
 Custom perturbation components should keep their inputs numeric at the config

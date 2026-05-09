@@ -240,19 +240,19 @@ Local-spherical 3DoF：
 
 拉偏机制分三层：
 
-1. **case 输入**：RunSet 的 `single/matrix/random` 或单次 mission 给出纯数字输入，例如温度档位、阻力偏置、推力倍率。
+1. **case 输入**：SimFlow 内置数值 materializer 的 `single/matrix/random` 或单次 mission 给出纯数字输入，例如温度档位、阻力偏置、推力倍率。
 2. **拉偏组件解析**：`vehicles[].perturbation` 把这些数字解释成 number/string/vector 状态。字符串通常由整数输入通过 `enum_maps` 或项目自定义逻辑映射得到。
-3. **其它组件读取**：气动、发动机、质量、制导等组件通过 `IPerturbationProvider` 读取解析后的状态，不直接读取 RunSet 配置。
+3. **其它组件读取**：气动、发动机、质量、制导等组件通过 `IPerturbationProvider` 读取解析后的状态，不直接读取 SimFlow 配置。
 
-RunSet 会在构建每个 case 的 effective mission 前，把该 case 的数值输入写入：
+SimFlow 内置数值 materializer 会在构建每个 case 的 effective mission 前，把该 case 的数值输入写入：
 
 ```text
 vehicles[].perturbation.config.inputs
 ```
 
-因此被 RunSet 引用的 vehicle 必须在 base mission 中已经声明
-`perturbation` 块，RunSet 只替换其中的 `config.inputs`。effective mission 本身
-就是完整的单 case 复现文件。复现时不需要再次读取 RunSet，也不依赖额外的
+因此被内置数值 materializer 引用的 vehicle 必须在 base mission 中已经声明
+`perturbation` 块，materializer 只替换其中的 `config.inputs`。effective mission 本身
+就是完整的单 case 复现文件。复现时不需要再次读取 SimFlow，也不依赖额外的
 快照文件。
 
 ```json
@@ -295,14 +295,14 @@ matches an integer input, it also publishes a string value at
 
 | 类型 | 写在哪里 | 何时生效 |
 | --- | --- | --- |
-| 静态 case 输入 | RunSet case source 或单次 mission 的 `perturbation.config.inputs` | effective mission 构建完成后固定 |
+| 静态 case 输入 | SimFlow 数值 materializer 或单次 mission 的 `perturbation.config.inputs` | effective mission 构建完成后固定 |
 | 静态解析状态 | 拉偏组件 `initialize()` 或 `configure()` 内部解析输入 | 其它组件 `initialize()` 后可读 |
 | 动态拉偏逻辑 | 用户自定义拉偏组件的 `update()` | 每个周期在 `perturbation` stage 刷新 |
 
-配置文件只描述静态 case 输入。随高度、马赫数、飞行阶段或其它状态变化的拉偏逻辑应写在自定义拉偏组件的 `update()` 中，而不是写成 RunSet 配置语法。由于 `perturbation` stage 位于 `environment` 之后、`vehicle.input/process/output/interaction` 之前，同一周期内后续组件可以读到本周期刷新的拉偏状态。
+配置文件只描述静态 case 输入。随高度、马赫数、飞行阶段或其它状态变化的拉偏逻辑应写在自定义拉偏组件的 `update()` 中，而不是写成 SimFlow 配置语法。由于 `perturbation` stage 位于 `environment` 之后、`vehicle.input/process/output/interaction` 之前，同一周期内后续组件可以读到本周期刷新的拉偏状态。
 
-多飞行器任务中，每个 vehicle 都可以有自己的 `perturbation` 块。RunSet 的
-`vehicles` 字段按 vehicle id 指定 case source；不同飞行器可以读取同一个矩阵文件，也可以读取不同文件或选用不同 rows。RunSet 要求所有参与的 vehicle 生成相同 case 数，按 case 序号配对运行。
+多飞行器任务中，每个 vehicle 都可以有自己的 `perturbation` 块。SimFlow 内置数值 materializer 的
+`vehicles` 字段按 vehicle id 指定该 vehicle 从 case 变量中读取哪些输入；项目自定义 materializer 可以在用户代码中实现更复杂的 case 生成、资产读取和多飞行器配对逻辑。
 
 ## Component Scheduling
 

@@ -81,34 +81,32 @@ build-mingw\bin\gnc_sim.exe user/example_06_ideal_cartesian_3dof_baseline/config
 
 相对路径可以相对当前工作目录，也可以相对仓库根目录。runner 会从当前目录和可执行文件目录向上搜索。
 
-## 运行 RunSet 批量任务
+## 运行 SimFlow 批量任务
 
-RunSet 是批量 case 的外层配置。它引用一个 base mission，再把每个 case 的数值拉偏输入写入该 case 的 `effective_mission.json`：
+SimFlow 是仿真前置物化层。它引用一个 base mission，再通过 materializer 生成每个 case 的 `effective_mission.json`。内置 `simflow.materializer.numeric_perturbation` 提供纯数值拉偏注入：
 
 ```powershell
-build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json
+build-mingw\bin\gnc_sim.exe --simflow user/outputs/my_simflow/simflow.json
 ```
 
 显式多进程运行：
 
 ```powershell
-build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json --jobs auto
-build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json --jobs 4
+build-mingw\bin\gnc_sim.exe --simflow user/outputs/my_simflow/simflow.json --jobs auto
+build-mingw\bin\gnc_sim.exe --simflow user/outputs/my_simflow/simflow.json --jobs 4
 ```
 
-`--jobs auto` 使用 `max(1, CPU 核心数 - 1)`，留一个核心给系统。RunSet 输出目录下会生成：
+`--jobs auto` 使用 `max(1, CPU 核心数 - 1)`，留一个核心给系统。SimFlow 输出目录下会生成：
 
 ```text
 case_000001/effective_mission.json
-case_000001/perturbation_inputs.json
-generated_cases.csv
-runset_summary.csv
+simflow_summary.csv
 ```
 
-复现单个 case 时，不需要重新运行整个 RunSet，直接运行生成出的 effective mission：
+复现单个 case 时，不需要重新运行整个 SimFlow，直接运行生成出的 effective mission：
 
 ```powershell
-build-mingw\bin\gnc_sim.exe --config user/outputs/my_runset/case_000001/effective_mission.json
+build-mingw\bin\gnc_sim.exe --config user/outputs/my_simflow/case_000001/effective_mission.json
 ```
 
 ## 查看组件注册
@@ -183,7 +181,7 @@ build-mingw\bin\gnc_sim.exe --help
 build-mingw\bin\gnc_sim.exe --list-components
 build-mingw\bin\gnc_sim.exe --list-components-verbose
 build-mingw\bin\gnc_sim.exe --config user/example_05_ideal_3dof_geographic_baseline/config/mission.json
-build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json --jobs auto
+build-mingw\bin\gnc_sim.exe --simflow user/outputs/my_simflow/simflow.json --jobs auto
 ```
 
 ## 常见问题

@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace gnc::runset {
+namespace gnc::simflow {
 
 inline std::string escapeJsonString(const std::string& value) {
     std::string result;
@@ -80,4 +80,4 @@ inline std::string writeJson(const gnc::core::ConfigNode& node) {
     return out.str();
 }
 
-} // namespace gnc::runset
+} // namespace gnc::simflow
