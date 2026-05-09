@@ -183,7 +183,7 @@ flowchart LR
     Output --> Observable
 ```
 
-`form.local_spherical_3dof.flight_state_view` 是 form/truth 层真实飞行状态视图，在 publish 阶段刷新。机上导航或估计飞行状态应作为 `vehicle.process` 组件建模，例如 `navigation_flight_state` 或 `estimated_flight_state`，不要混入 form truth view。
+form 层只发布真实连续状态和 truth view。机上导航、估计飞行状态或任务化视图应作为 `vehicle.input` / `vehicle.process` 组件建模，不要混入 form truth view。
 
 ## 连续积分近似
 

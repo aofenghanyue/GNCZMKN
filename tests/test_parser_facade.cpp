@@ -67,7 +67,7 @@ gnc::core::ConfigNode makeMission() {
                                       array({
                                           object({
                                               field("type",
-                                                    string("interaction.cartesian_3dof.direct_accel")),
+                                                    string("test_fixture.cartesian_3dof.acceleration_input")),
                                               field("name", string("interaction")),
                                               field("config",
                                                     object({

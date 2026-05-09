@@ -19,13 +19,11 @@
 
 | 示例 | 用途 |
 | --- | --- |
-| `user/example_01_minimal_pluginized/config/mission.json` | 最小 Cartesian 3DoF：form + direct acceleration interaction |
-| `user/example_02_atmospheric_3dof/config/mission.json` | 主示例：local-spherical 3DoF、大气、重力、气动、质量、制导 |
-| `user/example_03_coordinate_tree/config/mission.json` | vehicle-scoped coordinate-tree service 和项目组件示例 |
 | `user/example_04_ideal_6dof_baseline/config/mission.json` | ideal local-spherical 6DoF baseline flow |
 | `user/example_05_ideal_3dof_geographic_baseline/config/mission.json` | ideal local-spherical 3DoF geographic baseline flow |
 | `user/example_06_ideal_cartesian_3dof_baseline/config/mission.json` | ideal launch-frame Cartesian 3DoF baseline flow |
 | `user/example_07_ideal_cartesian_6dof_baseline/config/mission.json` | ideal launch-frame Cartesian 6DoF baseline flow |
+| `user/example_08_cavh_geographic_3dof_custom/config/mission.json` | CAVH custom geographic 3DoF user project |
 
 ## 文档质量标准
 

@@ -49,7 +49,7 @@ void registerTestTypes() {
     auto& factory = gnc::core::ComponentFactory::instance();
     factory.registerType<Constant6DofInput,
                          gnc::forms::local_spherical_6dof::IInputProvider>(
-        "test.local_spherical_6dof.direct_accel",
+        "test.local_spherical_6dof.acceleration_input",
         gnc::core::ComponentCategory::Project,
         __FILE__,
         gnc::core::ComponentPackageRole::Interaction,
@@ -94,7 +94,7 @@ std::string formMission() {
       "interaction": {
         "components": [
           {
-            "type": "test.local_spherical_6dof.direct_accel",
+            "type": "test.local_spherical_6dof.acceleration_input",
             "name": "interaction",
             "config": {
               "local_acceleration_nue_mps2": [0.0, 2.0, 0.0],

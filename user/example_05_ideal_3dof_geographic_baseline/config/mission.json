@@ -31,11 +31,6 @@
                 "heading_angle_rad": 1.5707963267948966
               }
             }
-          },
-          {
-            "type": "form.local_spherical_3dof.flight_state_view",
-            "name": "flight_state",
-            "config": {}
           }
         ]
       },
@@ -107,7 +102,6 @@
     "session_name": "ideal_3dof_geographic_baseline",
     "record": {
       "interceptor.dynamics": "all",
-      "interceptor.flight_state": "all",
       "interceptor.imu": "all",
       "interceptor.satnav": "all",
       "interceptor.air_data": "all",

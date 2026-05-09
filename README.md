@@ -47,7 +47,7 @@ build-mingw\bin\gnc_sim.exe
 显式运行示例：
 
 ```powershell
-build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
+build-mingw\bin\gnc_sim.exe --config user/example_05_ideal_3dof_geographic_baseline/config/mission.json
 ```
 
 查看已注册组件：
@@ -58,7 +58,7 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 
 ## Mission Skeleton
 
-下面是可运行的最小 Cartesian 3DoF mission 形状；完整示例见 `user/example_01_minimal_pluginized/config/mission.json`。
+下面是可运行的最小 Cartesian 3DoF mission 形状；完整示例见 `user/example_06_ideal_cartesian_3dof_baseline/config/mission.json`。
 
 ```json
 {
@@ -83,14 +83,21 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
           }
         ]
       },
-      "common": [],
+      "common": [
+        { "type": "vehicle.common.aero_assets_3dof.zero", "name": "aero_assets", "config": {} }
+      ],
       "input": [],
       "process": [],
-      "output": [],
+      "output": [
+        { "type": "vehicle.output.mass_3dof.constant", "name": "mass", "config": { "mass_kg": 100.0 } },
+        { "type": "vehicle.output.propulsion_3dof.zero", "name": "propulsion", "config": {} },
+        { "type": "vehicle.output.actuator_3dof.ideal", "name": "actuator", "config": {} },
+        { "type": "vehicle.output.aerodynamics_3dof.zero", "name": "aero", "config": {} }
+      ],
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "interaction.cartesian_3dof.standard",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, -9.81]

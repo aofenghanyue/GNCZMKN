@@ -108,18 +108,7 @@ it is a single component entry at vehicle scope and must implement
 | `environment.spherical_gravity` | `environment.components` | `IGravity` |
 | `form.cartesian_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, Cartesian `ITruthView`, `IObservable` |
 | `form.local_spherical_3dof.point_mass` | `vehicles[].form.components` | `IContinuousSystem`, local-spherical `ITruthView`, `IObservable` |
-| `form.local_spherical_3dof.flight_state_view` | `vehicles[].form.components` | truth/form `IFlightStateView`, `IObservable` |
 | `perturbation.static` | `vehicles[].perturbation` | `IPerturbationProvider`, `IPerturbationSnapshot` |
-| `interaction.cartesian_3dof.direct_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
-| `interaction.cartesian_3dof.force_accel` | `vehicles[].interaction.components` | Cartesian `IInputProvider` |
-| `interaction.local_spherical_3dof.direct_accel` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
-| `interaction.local_spherical_3dof.aero_propulsive` | `vehicles[].interaction.components` | local-spherical `IInputProvider` |
-| `vehicle.process.programmed_aoa` | `vehicles[].process` | `IAeroGuidanceProvider`, `IObservable` |
-| `aero.simple_polynomial` | `vehicles[].output` | `IAeroModel`, `IObservable` |
-| `aero.table2d` | `vehicles[].output` | `IAeroModel`, `IObservable` |
-| `force.constant` | `vehicles[].output` | `IForceProvider`, `IObservable` |
-| `mass.constant` | `vehicles[].output` | `IConstantMass`, `IObservable` |
-| `mass.continuous_constant_rate` | `vehicles[].output` | `IContinuousMass`, `IContinuousSystem`, `IObservable` |
 | `termination.component_field_below` | `termination` | `ITerminationEvaluator` |
 | `termination.component_field_above` | `termination` | `ITerminationEvaluator` |
 
@@ -179,25 +168,11 @@ it is a single component entry at vehicle scope and must implement
 For each numeric input, `perturbation.static` exposes the same key as a number.
 For each matching enum map, it exposes `<key>.resolved` as a string.
 
-`mass.constant` 要求 `mass_kg`，可来自 inline config 或 JSON asset。
-`mass.continuous_constant_rate` 要求 `initial_mass_kg` 和 `mass_rate_kg_per_s`，可来自 inline config 或 JSON asset。
-`force.constant` 要求 `force_n`，必须是 3 个 number。
-`interaction.cartesian_3dof.force_accel` 支持可选 `force_lookup_name` 和 `mass_lookup_name`，默认分别是 `force` 和 `mass`。force lookup 必须解析到 `IForceProvider`；mass lookup 必须且只能解析到 `IConstantMass` 或 `IContinuousMass` 之一。
-
-`interaction.cartesian_3dof.direct_accel` 接受 3 元素 `acceleration_mps2`。兼容别名是 `constant_acceleration`，或标量 `ax_mps2/ay_mps2/az_mps2`。
-`interaction.local_spherical_3dof.direct_accel` 接受 3 元素 `local_acceleration_nue_mps2`。兼容别名是标量 `tangential_accel_mps2/normal_accel_mps2/lateral_accel_mps2`。
-`interaction.local_spherical_3dof.aero_propulsive` 需要 `env.atmosphere`、`env.gravity`、vehicle scope 内的 `aero` provider，以及且仅一个 `mass` provider。`guidance` 可选。
-
-`aero.simple_polynomial` 要求 `lift_offset`、`lift_slope_per_rad`、`drag_zero`、`drag_quadratic`、`reference_area_m2`、`reference_length_m`。
-`aero.table2d` 要求 `reference_area_m2`、`reference_length_m`、`alpha_breaks_rad`、`mach_breaks`、`lift_coefficients`、`drag_coefficients`。
-
-`vehicle.process.programmed_aoa`:
-
-| 字段 | 规则 |
-| --- | --- |
-| `bank_angle_deg` | 必填 number |
-| `schedule_altitude_m` | 必填 number array，至少 1 项 |
-| `schedule_angle_of_attack_deg` | 必填 number array，长度必须等于 `schedule_altitude_m` |
+`vehicle.output.mass_3dof.constant` requires `mass_kg`.
+`vehicle.output.mass_properties_6dof.constant` requires `mass_kg`, `center_of_gravity_body_m`, and `inertia_body_kgm2`.
+`interaction.cartesian_3dof.standard` accepts optional `acceleration_mps2` and binds the normal 3DOF output chain.
+`interaction.local_spherical_3dof.standard` accepts optional `local_acceleration_nue_mps2` and binds the normal 3DOF output chain.
+Task-specific aerodynamic tables, guidance laws, and closure models belong in `user/<project>/components`; see `user/example_08_cavh_geographic_3dof_custom`.
 
 ## RunSet
 

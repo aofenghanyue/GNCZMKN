@@ -65,15 +65,6 @@ size_t columnIndex(const std::vector<std::string>& header,
     throw std::runtime_error("CSV header missing column: " + name);
 }
 
-bool hasColumn(const std::vector<std::string>& header, const std::string& name) {
-    for (const auto& column : header) {
-        if (column == name) {
-            return true;
-        }
-    }
-    return false;
-}
-
 double csvNumber(const std::vector<std::string>& row, size_t index) {
     return std::stod(row.at(index));
 }
@@ -115,7 +106,7 @@ std::string cartesianMission(const std::string& output_dir,
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, -2.0]
@@ -155,8 +146,7 @@ std::string cartesianMission(const std::string& output_dir,
 }
 
 std::string localSphericalMission(const std::string& output_dir,
-                                  const std::string& session_name,
-                                  bool view_before_dynamics) {
+                                  const std::string& session_name) {
     const char* dynamics_component = R"json(
           {
             "type": "form.local_spherical_3dof.point_mass",
@@ -173,20 +163,6 @@ std::string localSphericalMission(const std::string& output_dir,
               }
             }
           })json";
-
-    const char* view_component = R"json(
-          {
-            "type": "form.local_spherical_3dof.flight_state_view",
-            "name": "flight_state",
-            "config": {}
-          })json";
-
-    std::ostringstream form_components;
-    if (view_before_dynamics) {
-        form_components << view_component << "," << dynamics_component;
-    } else {
-        form_components << dynamics_component << "," << view_component;
-    }
 
     std::ostringstream json;
     json << R"json(
@@ -216,28 +192,19 @@ std::string localSphericalMission(const std::string& output_dir,
       "form": {
         "components": [
 )json"
-         << form_components.str() << R"json(
+         << dynamics_component << R"json(
         ]
       },
       "common": [],
-      "input": [],
-      "process": [
-        {
-          "type": "vehicle.process.programmed_aoa",
-          "name": "guidance",
-          "rate_hz": 10.0,
-          "config": {
-            "bank_angle_deg": 0.0,
-            "schedule_altitude_m": [60000.0, 45000.0],
-            "schedule_angle_of_attack_deg": [20.0, 10.0]
-          }
-        }
+      "input": [
+        { "type": "vehicle.input.air_data_3dof.ideal", "name": "air_data", "config": {} }
       ],
+      "process": [],
       "output": [],
       "interaction": {
         "components": [
           {
-            "type": "interaction.local_spherical_3dof.direct_accel",
+            "type": "test_fixture.local_spherical_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
@@ -254,8 +221,7 @@ std::string localSphericalMission(const std::string& output_dir,
          << session_name << R"json(",
     "record": {
       "vehicle.dynamics": "all",
-      "vehicle.flight_state": "all",
-      "vehicle.guidance": "all"
+      "vehicle.air_data": "all"
     }
   }
 }
@@ -444,35 +410,30 @@ int main() {
             gnc::core::SimulationBuilder builder;
             test_support::require(
                 builder.loadConfigString(localSphericalMission(
-                    (root / "view_order").generic_string(), "view_order", true)),
-                "View-order mission JSON could not be parsed.");
+                    (root / "local_spherical_publish").generic_string(),
+                    "local_spherical_publish")),
+                "Local-spherical publish mission JSON could not be parsed.");
             auto& simulator = builder.build();
             simulator.run();
 
-            const auto rows = readCsv(root / "view_order" / "view_order.csv");
+            const auto rows = readCsv(root / "local_spherical_publish" /
+                                      "local_spherical_publish.csv");
             test_support::require(rows.size() == 3,
-                                  "View-order CSV should contain header plus t0 and t1.");
+                                  "Local-spherical CSV should contain header plus t0 and t1.");
             const auto& header = rows.front();
             const auto dynamics_alt_col =
                 columnIndex(header, "vehicle.dynamics.altitude_m");
-            const auto flight_state_alt_col =
-                columnIndex(header, "vehicle.flight_state.altitude_m");
-            const auto guidance_alpha_col =
-                columnIndex(header, "vehicle.guidance.angle_of_attack_deg");
-
-            test_support::requireNear(csvNumber(rows[1], guidance_alpha_col),
-                                      20.0,
-                                      1e-9,
-                                      "Guidance observable in the t0 row should be produced by update(t0).");
-            test_support::require(
-                !hasColumn(header, "vehicle.flight_state.angle_of_attack_rad") &&
-                    !hasColumn(header, "vehicle.flight_state.bank_angle_rad"),
-                "Truth FlightStateView must not expose guidance command-derived fields.");
+            const auto air_data_alt_col =
+                columnIndex(header, "vehicle.air_data.altitude_m");
+            const auto air_data_mach_col =
+                columnIndex(header, "vehicle.air_data.mach_number");
             test_support::requireNear(
-                csvNumber(rows[2], flight_state_alt_col),
+                csvNumber(rows[2], air_data_alt_col),
                 csvNumber(rows[2], dynamics_alt_col),
                 1e-6,
-                "FlightStateView should publish after dynamics even when JSON lists it first.");
+                "Ideal air-data should observe the published local-spherical truth.");
+            test_support::require(csvNumber(rows[1], air_data_mach_col) > 5.0,
+                                  "Ideal air-data Mach number should reflect the initial state.");
         }
 
         {
@@ -523,7 +484,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, 0.0]
@@ -712,7 +673,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, 0.0]

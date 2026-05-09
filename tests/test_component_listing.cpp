@@ -68,50 +68,6 @@ int main() {
             it->form_family == "local_spherical_3dof",
             "form.local_spherical_3dof.point_mass should advertise the local_spherical_3dof family.");
 
-        const auto aero_it = findInfo("aero.table2d");
-        test_support::require(aero_it != infos.end(),
-                              "Generic table2d aero builtin was not registered.");
-        test_support::require(
-            aero_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
-            "aero.table2d should be labeled as a vehicle.output package.");
-        test_support::require(
-            aero_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
-            "aero.table2d should execute in the vehicle.output stage.");
-
-        const auto mass_it = findInfo("mass.constant");
-        test_support::require(mass_it != infos.end(),
-                              "Generic constant mass builtin was not registered.");
-        test_support::require(
-            mass_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
-            "mass.constant should be labeled as a vehicle.output package.");
-        test_support::require(
-            mass_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
-            "mass.constant should execute in the vehicle.output stage.");
-
-        const auto continuous_mass_it = findInfo("mass.continuous_constant_rate");
-        test_support::require(continuous_mass_it != infos.end(),
-                              "Continuous mass builtin was not registered.");
-        test_support::require(
-            continuous_mass_it->package_role ==
-                gnc::core::ComponentPackageRole::VehicleOutput,
-            "mass.continuous_constant_rate should be labeled as a vehicle.output package.");
-        test_support::require(
-            continuous_mass_it->execution_stage ==
-                gnc::core::ExecutionStage::VehicleOutput,
-            "mass.continuous_constant_rate should execute in the vehicle.output stage.");
-
-        const auto force_it = findInfo("force.constant");
-        test_support::require(force_it != infos.end(),
-                              "Constant force builtin was not registered.");
-        test_support::require(
-            containsValue(force_it->interface_names, "IForceProvider"),
-            "force.constant should advertise IForceProvider.");
-        test_support::require(
-            force_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
-            "force.constant should be labeled as a vehicle.output package.");
-        test_support::require(
-            force_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
-            "force.constant should execute in the vehicle.output stage.");
         test_support::require(
             std::string(gnc::core::toString(gnc::core::ComponentPackageRole::Perturbation)) ==
                 "perturbation",
@@ -134,16 +90,6 @@ int main() {
             containsValue(perturbation_it->interface_names, "IPerturbationProvider"),
             "perturbation.static should advertise IPerturbationProvider.");
 
-        const auto force_accel_it = findInfo("interaction.cartesian_3dof.force_accel");
-        test_support::require(force_accel_it != infos.end(),
-                              "Cartesian force_accel interaction was not registered.");
-        test_support::require(
-            force_accel_it->package_role == gnc::core::ComponentPackageRole::Interaction,
-            "force_accel should be labeled as an interaction package.");
-        test_support::require(
-            force_accel_it->form_family == "cartesian_3dof",
-            "force_accel should advertise the cartesian_3dof form family.");
-
         const auto cartesian_standard_it =
             findInfo("interaction.cartesian_3dof.standard");
         test_support::require(cartesian_standard_it != infos.end(),
@@ -154,16 +100,6 @@ int main() {
                          "interaction.cartesian_3dof.standard");
         test_support::require(cartesian_standard_it->form_family == "cartesian_3dof",
                               "Cartesian standard interaction should advertise cartesian_3dof.");
-
-        const auto simple_aero_it = findInfo("aero.simple_polynomial");
-        test_support::require(simple_aero_it != infos.end(),
-                              "Simple polynomial aero builtin was not registered.");
-        test_support::require(
-            simple_aero_it->package_role == gnc::core::ComponentPackageRole::VehicleOutput,
-            "aero.simple_polynomial should be labeled as a vehicle.output package.");
-        test_support::require(
-            simple_aero_it->execution_stage == gnc::core::ExecutionStage::VehicleOutput,
-            "aero.simple_polynomial should execute in the vehicle.output stage.");
 
         test_support::require(findInfo("cavh.constant_mass") == infos.end(),
                               "Hardcoded CAVH mass primitive should not appear in the builtin list.");

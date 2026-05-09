@@ -421,7 +421,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": { "acceleration_mps2": [0.0, 0.0, 0.0] }
           }

@@ -3,48 +3,61 @@
 #include "gnc/core/component_registry.hpp"
 #include "gnc/core/scoped_registry.hpp"
 #include "gnc/environment/components/spherical_earth.hpp"
-#include "gnc/environment/components/spherical_gravity.hpp"
-#include "gnc/environment/components/standard_atmosphere.hpp"
 #include "gnc/forms/cartesian_3dof/components/point_mass.hpp"
 #include "gnc/forms/cartesian_3dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/cartesian_3dof/interfaces/i_truth_view.hpp"
-#include "gnc/forms/local_spherical_3dof/components/flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/components/point_mass.hpp"
-#include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
-#include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
-#include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
-#include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
-#include "gnc/vehicle/output/components/constant_mass.hpp"
-#include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
-#include "gnc/vehicle/output/components/table2d_aero.hpp"
 
 #include <exception>
-#include <functional>
 #include <iostream>
 #include <memory>
 
 namespace {
 
-class ConstantGuidance final : public gnc::core::ComponentBase,
-                               public gnc::vehicle::process::IAeroGuidanceProvider {
+class CartesianConstantInput final
+    : public gnc::core::ComponentBase,
+      public gnc::forms::cartesian_3dof::IInputProvider {
 public:
-    ConstantGuidance() : ComponentBase("ConstantGuidance") {
-        command_.angle_of_attack_rad = 15.0 * gnc::math::constants::DEG_TO_RAD;
-        command_.bank_angle_rad = 0.0;
-    }
+    explicit CartesianConstantInput(gnc::math::Vector3 acceleration_mps2)
+        : ComponentBase("CartesianConstantInput"),
+          acceleration_mps2_(std::move(acceleration_mps2)) {}
 
     void update(double) override {}
 
-    const gnc::vehicle::process::AeroGuidanceCommand& getAeroGuidanceCommand() const override {
-        return command_;
+    gnc::forms::cartesian_3dof::Input computeCartesian3DoFInput(
+        const gnc::forms::cartesian_3dof::Truth&,
+        double) const override {
+        gnc::forms::cartesian_3dof::Input input;
+        input.acceleration_mps2 = acceleration_mps2_;
+        return input;
     }
 
-    bool isGuidanceActive() const override { return true; }
+private:
+    gnc::math::Vector3 acceleration_mps2_ = gnc::math::Vector3::Zero();
+};
+
+class LocalSphericalConstantInput final
+    : public gnc::core::ComponentBase,
+      public gnc::forms::local_spherical_3dof::IInputProvider {
+public:
+    explicit LocalSphericalConstantInput(gnc::math::Vector3 acceleration_nue_mps2)
+        : ComponentBase("LocalSphericalConstantInput"),
+          acceleration_nue_mps2_(std::move(acceleration_nue_mps2)) {}
+
+    void update(double) override {}
+
+    gnc::forms::local_spherical_3dof::Input computeLocalSpherical3DoFInput(
+        const gnc::forms::local_spherical_3dof::Truth&,
+        double) const override {
+        gnc::forms::local_spherical_3dof::Input input;
+        input.local_acceleration_nue_mps2 = acceleration_nue_mps2_;
+        return input;
+    }
 
 private:
-    gnc::vehicle::process::AeroGuidanceCommand command_{};
+    gnc::math::Vector3 acceleration_nue_mps2_ = gnc::math::Vector3::Zero();
 };
 
 gnc::core::ConfigNode makeCartesianConfig() {
@@ -52,77 +65,6 @@ gnc::core::ConfigNode makeCartesianConfig() {
     return object({
         field("initial_position", array({number(0.0), number(0.0), number(1000.0)})),
         field("initial_velocity", array({number(250.0), number(0.0), number(40.0)})),
-    });
-}
-
-gnc::core::ConfigNode makeCartesianInteractionConfig() {
-    using namespace test_support;
-    return object({
-        field("acceleration_mps2", array({number(0.0), number(0.0), number(-9.81)})),
-    });
-}
-
-gnc::core::ConfigNode makeContinuousMassConfig() {
-    using namespace test_support;
-    return object({
-        field("initial_mass_kg", number(100.0)),
-        field("mass_rate_kg_per_s", number(-2.0)),
-    });
-}
-
-gnc::core::ConfigNode makeConstantMassConfig() {
-    using namespace test_support;
-    return object({
-        field("asset_file",
-              string("framework/data/vehicles/cavh/output/mass_atmospheric_reference.json")),
-    });
-}
-
-gnc::core::ConfigNode makeTable2dAeroConfig() {
-    using namespace test_support;
-    return object({
-        field("asset_file",
-              string("framework/data/vehicles/cavh/output/aero_table2d.json")),
-    });
-}
-
-gnc::core::ConfigNode makeWrongSchemaMassConfig() {
-    using namespace test_support;
-    return object({
-        field("asset_file",
-              string("framework/data/vehicles/cavh/output/aero_table2d.json")),
-    });
-}
-
-gnc::core::ConfigNode makeMissingMassFieldConfig() {
-    using namespace test_support;
-    return object({
-        field("asset_file",
-              string("tests/assets/phase5/mass_missing_mass_kg.json")),
-    });
-}
-
-gnc::core::ConfigNode makeWrongSchemaTable2dAeroConfig() {
-    using namespace test_support;
-    return object({
-        field("asset_file",
-              string("framework/data/vehicles/cavh/output/mass_atmospheric_reference.json")),
-    });
-}
-
-gnc::core::ConfigNode makeMissingTable2dAeroFieldConfig() {
-    using namespace test_support;
-    return object({
-        field("asset_file",
-              string("tests/assets/phase5/aero_missing_tables.json")),
-    });
-}
-
-gnc::core::ConfigNode makeBadDimensionsTable2dAeroConfig() {
-    using namespace test_support;
-    return object({
-        field("asset_file",
-              string("tests/assets/phase5/aero_bad_dimensions.json")),
     });
 }
 
@@ -142,33 +84,19 @@ gnc::core::ConfigNode makeSphericalConfig() {
     });
 }
 
-void requireConfigureFailure(const std::function<void()>& configure_action,
-                             const std::string& expected_fragment,
-                             const std::string& message) {
-    bool failed_as_expected = false;
-    try {
-        configure_action();
-    } catch (const std::exception& ex) {
-        failed_as_expected =
-            std::string(ex.what()).find(expected_fragment) != std::string::npos;
-    }
-    test_support::require(failed_as_expected, message);
-}
-
 } // namespace
 
 int main() {
     try {
+        const gnc::math::Vector3 cartesian_acceleration(0.0, 0.0, -9.81);
         gnc::core::ComponentRegistry cartesian_registry;
-        auto cartesian_interaction =
-            std::make_unique<gnc::interactions::cartesian_3dof::DirectAccel>();
-        cartesian_interaction->configure(makeCartesianInteractionConfig());
-        cartesian_registry.add<gnc::interactions::cartesian_3dof::DirectAccel,
+        cartesian_registry.add<CartesianConstantInput,
                                gnc::forms::cartesian_3dof::IInputProvider>(
             "cartesian.interaction",
-            std::move(cartesian_interaction));
+            std::make_unique<CartesianConstantInput>(cartesian_acceleration));
 
-        auto cartesian_component = std::make_unique<gnc::forms::cartesian_3dof::PointMass>();
+        auto cartesian_component =
+            std::make_unique<gnc::forms::cartesian_3dof::PointMass>();
         auto* cartesian_ptr = cartesian_component.get();
         cartesian_ptr->configure(makeCartesianConfig());
         cartesian_registry.add<gnc::forms::cartesian_3dof::PointMass,
@@ -196,182 +124,53 @@ int main() {
                                   "Cartesian altitude accessor returned an unexpected value.");
         test_support::requireVectorNear(
             cartesian_ptr->getCartesian3DoFTruth().acceleration_mps2,
-            gnc::math::Vector3(0.0, 0.0, -9.81),
+            cartesian_acceleration,
             1e-9,
             "Cartesian truth view lost the interaction acceleration.");
 
-        gnc::vehicle::output::ContinuousConstantRateMass continuous_mass;
-        continuous_mass.configure(makeContinuousMassConfig());
-        Eigen::VectorXd mass_dx;
-        continuous_mass.computeDerivatives(0.0, continuous_mass.getState(), mass_dx);
-        test_support::requireNear(continuous_mass.getMassKg(), 100.0, 1e-9,
-                                  "Continuous mass initial value is wrong.");
-        test_support::requireNear(continuous_mass.getMassRateKgPerSec(), -2.0, 1e-9,
-                                  "Continuous mass rate accessor is wrong.");
-        test_support::requireNear(mass_dx[0], -2.0, 1e-9,
-                                  "Continuous mass derivative must equal the configured rate.");
-
-        bool missing_initial_mass_failed = false;
-        try {
-            gnc::vehicle::output::ContinuousConstantRateMass missing_initial_mass;
-            missing_initial_mass.configure(test_support::object({}));
-        } catch (const std::exception& ex) {
-            missing_initial_mass_failed =
-                std::string(ex.what()).find("initial_mass_kg") != std::string::npos;
-        }
-        test_support::require(
-            missing_initial_mass_failed,
-            "Continuous mass should fail fast when no initial_mass_kg is provided by config or asset.");
-
-        requireConfigureFailure(
-            []() {
-                gnc::vehicle::output::ConstantMass wrong_schema_mass;
-                wrong_schema_mass.configure(makeWrongSchemaMassConfig());
-            },
-            "mass_kg",
-            "Constant mass should reject asset files that do not define mass_kg.");
-
-        requireConfigureFailure(
-            []() {
-                gnc::vehicle::output::ConstantMass missing_mass_field;
-                missing_mass_field.configure(makeMissingMassFieldConfig());
-            },
-            "mass_kg",
-            "Constant mass should reject assets that omit mass_kg.");
-
-        requireConfigureFailure(
-            []() {
-                gnc::vehicle::output::Table2DAero wrong_schema_aero;
-                wrong_schema_aero.configure(makeWrongSchemaTable2dAeroConfig());
-            },
-            "reference_area_m2",
-            "Table2D aero should reject asset files that do not expose aerodynamic tables.");
-
-        requireConfigureFailure(
-            []() {
-                gnc::vehicle::output::Table2DAero missing_aero_tables;
-                missing_aero_tables.configure(makeMissingTable2dAeroFieldConfig());
-            },
-            "alpha_breaks_rad",
-            "Table2D aero should reject assets that omit required table fields.");
-
-        requireConfigureFailure(
-            []() {
-                gnc::vehicle::output::Table2DAero bad_dimension_aero;
-                bad_dimension_aero.configure(makeBadDimensionsTable2dAeroConfig());
-            },
-            "lift_coefficients",
-            "Table2D aero should reject assets whose table dimensions do not match the breakpoints.");
-
-        gnc::core::ComponentRegistry registry;
-        registry.add<gnc::environment::StandardAtmosphere,
-                     gnc::environment::IAtmosphere>(
-            "env.atmosphere",
-            std::make_unique<gnc::environment::StandardAtmosphere>());
-        registry.add<gnc::environment::SphericalGravity,
-                     gnc::environment::IGravity>(
-            "env.gravity",
-            std::make_unique<gnc::environment::SphericalGravity>());
-        registry.add<gnc::environment::SphericalEarth,
-                     gnc::environment::IEarth>(
+        const gnc::math::Vector3 local_acceleration(0.0, -9.80665, 0.0);
+        gnc::core::ComponentRegistry spherical_registry;
+        spherical_registry.add<gnc::environment::SphericalEarth,
+                               gnc::environment::IEarth>(
             "env.earth",
             std::make_unique<gnc::environment::SphericalEarth>());
-        registry.add<ConstantGuidance,
-                     gnc::vehicle::process::IAeroGuidanceProvider>(
-            "missile.guidance",
-            std::make_unique<ConstantGuidance>());
-
-        auto mass = std::make_unique<gnc::vehicle::output::ConstantMass>();
-        auto* mass_ptr = mass.get();
-        mass_ptr->configure(makeConstantMassConfig());
-        registry.add<gnc::vehicle::output::ConstantMass,
-                     gnc::vehicle::output::IConstantMass,
-                     gnc::interfaces::IObservable>("missile.mass", std::move(mass));
-
-        auto aero = std::make_unique<gnc::vehicle::output::Table2DAero>();
-        aero->configure(makeTable2dAeroConfig());
-        registry.add<gnc::vehicle::output::Table2DAero,
-                     gnc::vehicle::output::IAeroModel,
-                     gnc::interfaces::IObservable>(
-            "missile.aero",
-            std::move(aero));
-
-        auto interaction =
-            std::make_unique<gnc::interactions::local_spherical_3dof::AeroPropulsive>();
-        auto* interaction_ptr = interaction.get();
-        registry.add<gnc::interactions::local_spherical_3dof::AeroPropulsive,
-                     gnc::forms::local_spherical_3dof::IInputProvider>(
+        spherical_registry.add<LocalSphericalConstantInput,
+                               gnc::forms::local_spherical_3dof::IInputProvider>(
             "missile.interaction",
-            std::move(interaction));
+            std::make_unique<LocalSphericalConstantInput>(local_acceleration));
 
-        auto dynamics = std::make_unique<gnc::forms::local_spherical_3dof::PointMass>();
+        auto dynamics =
+            std::make_unique<gnc::forms::local_spherical_3dof::PointMass>();
         auto* dynamics_ptr = dynamics.get();
         dynamics_ptr->configure(makeSphericalConfig());
-        registry.add<gnc::forms::local_spherical_3dof::PointMass,
-                     gnc::interfaces::IContinuousSystem,
-                     gnc::forms::local_spherical_3dof::ITruthView,
-                     gnc::interfaces::IObservable>("missile.dynamics", std::move(dynamics));
+        spherical_registry.add<gnc::forms::local_spherical_3dof::PointMass,
+                               gnc::interfaces::IContinuousSystem,
+                               gnc::forms::local_spherical_3dof::ITruthView,
+                               gnc::interfaces::IObservable>(
+            "missile.dynamics",
+            std::move(dynamics));
 
-        auto observer =
-            std::make_unique<gnc::forms::local_spherical_3dof::FlightStateView>();
-        auto* observer_ptr = observer.get();
-        registry.add<gnc::forms::local_spherical_3dof::FlightStateView,
-                     gnc::forms::local_spherical_3dof::IFlightStateView,
-                     gnc::interfaces::IObservable>(
-            "missile.flight_state",
-            std::move(observer));
-
-        gnc::core::ScopedRegistry interaction_scoped("missile", registry, "missile.interaction");
-        interaction_ptr->injectDependencies(interaction_scoped);
-
-        gnc::core::ScopedRegistry dynamics_scoped("missile", registry, "missile.dynamics");
+        gnc::core::ScopedRegistry dynamics_scoped("missile",
+                                                  spherical_registry,
+                                                  "missile.dynamics");
         dynamics_ptr->injectDependencies(dynamics_scoped);
-
-        gnc::core::ScopedRegistry observer_scoped("missile", registry, "missile.flight_state");
-        observer_ptr->injectDependencies(observer_scoped);
         dynamics_ptr->initialize();
-        observer_ptr->initialize();
-
-        const auto interaction_acceleration =
-            interaction_ptr->computeLocalAccelerationNue(
-                dynamics_ptr->getLocalSpherical3DoFTruth());
 
         Eigen::VectorXd spherical_dx;
         dynamics_ptr->computeDerivatives(0.0, dynamics_ptr->getState(), spherical_dx);
         test_support::require(dynamics_ptr->getStateLayout().dimension() == 6,
-                              "Soviet spherical 3DOF state dimension must remain 6.");
+                              "Local-spherical 3DOF state dimension must remain 6.");
         test_support::require(spherical_dx[2] < 0.0,
                               "Descending initial condition should reduce altitude.");
         test_support::require(dynamics_ptr->getVelocityInLaunchFrame().x() > 0.0,
                               "Launch-frame velocity should point downrange.");
         test_support::require(dynamics_ptr->getPosition().norm() > 6.3e6,
                               "ECEF position magnitude is inconsistent with altitude.");
-        test_support::require(interaction_acceleration.norm() > 1.0,
-                              "Interaction acceleration should include gravity and aerodynamic terms.");
-
-        observer_ptr->publish(0.0);
-        const auto& flight_state = observer_ptr->getFlightState();
-        test_support::require(flight_state.mach_number > 5.0,
-                              "Observer Mach number is inconsistent with the initial state.");
-        test_support::require(flight_state.dynamic_pressure_pa > 0.0,
-                              "Observer dynamic pressure must be positive.");
-        test_support::requireNear(flight_state.local_velocity_nue_mps.norm(),
-                                  dynamics_ptr->getLocalSpherical3DoFTruth().state.speed_mps,
-                                  1e-6,
-                                  "Observer local velocity norm drifted from speed.");
         test_support::requireVectorNear(
-            flight_state.local_acceleration_nue_mps2,
-            interaction_acceleration,
-            1e-6,
-            "Flight-state view local acceleration disagrees with the interaction output.");
-        test_support::requireNear(flight_state.local_velocity_nue_mps.norm(),
-                                  dynamics_ptr->getLocalSpherical3DoFTruth().state.speed_mps,
-                                  1e-6,
-                                  "Flight-state view local velocity norm drifted from speed.");
-        test_support::requireNear(mass_ptr->getMassKg(),
-                                  900.0,
-                                  1e-9,
-                                  "Constant mass no longer returns its configured value.");
+            dynamics_ptr->getLocalSpherical3DoFTruth().local_acceleration_nue_mps2,
+            local_acceleration,
+            1e-9,
+            "Local-spherical truth view lost the interaction acceleration.");
 
         std::cout << "form slice checks passed\n";
         return 0;

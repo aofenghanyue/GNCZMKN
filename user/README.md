@@ -29,7 +29,7 @@ CMake 按以下顺序选择 active project：
 当前仓库默认：
 
 ```text
-example_02_atmospheric_3dof
+example_05_ideal_3dof_geographic_baseline
 ```
 
 只有 active project 的 `components/*.hpp` 会自动注册进 `gnc_sim`。修改 `user/active_project`、`-DGNC_ACTIVE_PROJECT` 或组件头文件后，需要重新运行 CMake 配置并重新构建。
@@ -38,13 +38,11 @@ example_02_atmospheric_3dof
 
 | Project | Purpose |
 | --- | --- |
-| `example_01_minimal_pluginized` | 最小 Cartesian 3DoF mission |
-| `example_02_atmospheric_3dof` | 主 atmospheric local-spherical 3DoF 示例 |
-| `example_03_coordinate_tree` | coordinate-tree service 和项目组件示例 |
 | `example_04_ideal_6dof_baseline` | ideal geographic 6DoF baseline |
 | `example_05_ideal_3dof_geographic_baseline` | ideal geographic 3DoF baseline |
 | `example_06_ideal_cartesian_3dof_baseline` | ideal Cartesian launch-frame 3DoF baseline |
 | `example_07_ideal_cartesian_6dof_baseline` | ideal Cartesian launch-frame 6DoF baseline |
+| `example_08_cavh_geographic_3dof_custom` | CAVH geographic 3DoF custom user project |
 
 ## 常用命令
 
@@ -57,7 +55,7 @@ build-mingw\bin\gnc_sim.exe
 运行指定 mission：
 
 ```powershell
-build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
+build-mingw\bin\gnc_sim.exe --config user/example_05_ideal_3dof_geographic_baseline/config/mission.json
 ```
 
 查看已注册组件：
@@ -69,6 +67,6 @@ build-mingw\bin\gnc_sim.exe --list-components-verbose
 切换 active project 的推荐方式：
 
 ```powershell
-cmake -S . -B build-mingw -G "MinGW Makefiles" -DGNC_ACTIVE_PROJECT=example_03_coordinate_tree
+cmake -S . -B build-mingw -G "MinGW Makefiles" -DGNC_ACTIVE_PROJECT=example_08_cavh_geographic_3dof_custom
 cmake --build build-mingw -j 4
 ```

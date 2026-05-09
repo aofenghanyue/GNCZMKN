@@ -3,9 +3,9 @@
 #include "gnc/core/component_factory.hpp"
 #include "gnc/core/simulation_builder.hpp"
 #include "gnc/forms/cartesian_3dof/interfaces/i_truth_view.hpp"
-#include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/interfaces/i_summary_observer.hpp"
+#include "gnc/vehicle/input/interfaces/i_air_data_3dof.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -280,7 +280,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [
@@ -363,7 +363,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [
@@ -442,7 +442,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [
@@ -507,7 +507,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, -9.81]
@@ -537,7 +537,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, 0.0]
@@ -624,7 +624,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, -9.81]
@@ -661,7 +661,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.local_spherical_3dof.direct_accel",
+            "type": "test_fixture.local_spherical_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
@@ -1260,7 +1260,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.local_spherical_3dof.direct_accel",
+            "type": "test_fixture.local_spherical_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "local_acceleration_nue_mps2": [
@@ -1299,7 +1299,7 @@ int main() {
             containsSubstring(real_family_mismatch_builder.getBuildErrors(), "cartesian_3dof"),
             "Real form-family mismatch did not mention the selected cartesian_3dof family.");
 
-        const char* direct_accel_mission = R"json(
+        const char* local_acceleration_mission = R"json(
 {
   "simulation": {
     "dt": 0.1,
@@ -1339,22 +1339,19 @@ int main() {
                 "heading_angle_rad": -1.5707963267948966
               }
             }
-          },
-          {
-            "type": "form.local_spherical_3dof.flight_state_view",
-            "name": "flight_state",
-            "config": {}
           }
         ]
       },
       "common": [],
-      "input": [],
+      "input": [
+        { "type": "vehicle.input.air_data_3dof.ideal", "name": "air_data", "config": {} }
+      ],
       "process": [],
       "output": [],
       "interaction": {
         "components": [
           {
-            "type": "interaction.local_spherical_3dof.direct_accel",
+            "type": "test_fixture.local_spherical_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "local_acceleration_nue_mps2": [
@@ -1375,20 +1372,20 @@ int main() {
 )json";
 
         gnc::core::SimulationBuilder direct_builder;
-        test_support::require(direct_builder.loadConfigString(direct_accel_mission),
-                              "Direct-accel local_spherical_3dof mission could not be parsed.");
+        test_support::require(direct_builder.loadConfigString(local_acceleration_mission),
+                              "Local-spherical acceleration mission could not be parsed.");
 
         auto& direct_simulator = direct_builder.build();
         auto* direct_dynamics =
             direct_simulator.getRegistry().get<gnc::forms::local_spherical_3dof::ITruthView>(
                 "vehicle.dynamics");
-        auto* direct_flight_state = direct_simulator.getRegistry().get<
-            gnc::forms::local_spherical_3dof::IFlightStateView>(
-            "vehicle.flight_state");
+        auto* direct_air_data =
+            direct_simulator.getRegistry().get<gnc::vehicle::input::IAirData3Dof>(
+                "vehicle.air_data");
         test_support::require(direct_dynamics != nullptr,
-                              "Direct-accel mission did not expose local_spherical truth view.");
-        test_support::require(direct_flight_state != nullptr,
-                              "Direct-accel mission did not expose flight-state view.");
+                              "Local-spherical acceleration mission did not expose truth view.");
+        test_support::require(direct_air_data != nullptr,
+                              "Local-spherical acceleration mission did not expose air-data.");
 
         direct_simulator.initialize();
         const double initial_direct_altitude =
@@ -1398,12 +1395,12 @@ int main() {
         test_support::require(
             direct_dynamics->getLocalSpherical3DoFTruth().state.altitude_m <
                 initial_direct_altitude,
-                              "Direct-accel local_spherical_3dof mission did not descend.");
+                              "Local-spherical acceleration mission did not descend.");
         test_support::require(
-            direct_flight_state->getFlightState().dynamic_pressure_pa > 0.0,
-            "Direct-accel local_spherical_3dof mission returned a non-physical flight state.");
+            direct_air_data->airDataMeasurement3Dof().dynamic_pressure_pa > 0.0,
+            "Local-spherical acceleration mission returned non-physical air-data.");
 
-        const char* cartesian_direct_accel_mission = R"json(
+        const char* cartesian_acceleration_mission = R"json(
 {
   "simulation": {
     "dt": 0.1,
@@ -1441,7 +1438,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [
@@ -1472,8 +1469,8 @@ int main() {
 )json";
 
         gnc::core::SimulationBuilder cartesian_builder;
-        test_support::require(cartesian_builder.loadConfigString(cartesian_direct_accel_mission),
-                              "Cartesian direct-accel mission could not be parsed.");
+        test_support::require(cartesian_builder.loadConfigString(cartesian_acceleration_mission),
+                              "Cartesian acceleration mission could not be parsed.");
 
         auto& cartesian_simulator = cartesian_builder.build();
         auto* cartesian_dynamics =

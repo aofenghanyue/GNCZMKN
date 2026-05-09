@@ -14,9 +14,7 @@
 #include "gnc/forms/cartesian_6dof/components/rigid_body.hpp"
 #include "gnc/forms/cartesian_6dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/cartesian_6dof/interfaces/i_truth_view.hpp"
-#include "gnc/forms/local_spherical_3dof/components/flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/components/point_mass.hpp"
-#include "gnc/forms/local_spherical_3dof/interfaces/i_flight_state_view.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_input_provider.hpp"
 #include "gnc/forms/local_spherical_3dof/interfaces/i_truth_view.hpp"
 #include "gnc/forms/local_spherical_6dof/components/rigid_body.hpp"
@@ -26,12 +24,8 @@
 #include "gnc/forms/target_point/interfaces/i_truth_view.hpp"
 #include "gnc/interfaces/i_continuous_system.hpp"
 #include "gnc/interfaces/i_observable.hpp"
-#include "gnc/interactions/cartesian_3dof/components/direct_accel.hpp"
-#include "gnc/interactions/cartesian_3dof/components/force_accel.hpp"
 #include "gnc/interactions/cartesian_3dof/components/standard_closure.hpp"
 #include "gnc/interactions/cartesian_6dof/components/standard_closure.hpp"
-#include "gnc/interactions/local_spherical_3dof/components/aero_propulsive.hpp"
-#include "gnc/interactions/local_spherical_3dof/components/direct_accel.hpp"
 #include "gnc/interactions/local_spherical_3dof/components/standard_closure.hpp"
 #include "gnc/interactions/local_spherical_6dof/components/standard_closure.hpp"
 #include "gnc/interfaces/i_termination_evaluator.hpp"
@@ -81,7 +75,6 @@
 #include "gnc/vehicle/process/components/ideal_phase_sequencer_3dof.hpp"
 #include "gnc/vehicle/process/components/ideal_target_tracking_3dof.hpp"
 #include "gnc/vehicle/process/components/ideal_trajectory_planner_3dof.hpp"
-#include "gnc/vehicle/process/components/programmed_aoa_guidance.hpp"
 #include "gnc/vehicle/process/components/ideal_attitude_control_6dof.hpp"
 #include "gnc/vehicle/process/components/ideal_control_allocation_6dof.hpp"
 #include "gnc/vehicle/process/components/ideal_guidance_6dof.hpp"
@@ -89,7 +82,6 @@
 #include "gnc/vehicle/process/components/ideal_phase_sequencer_6dof.hpp"
 #include "gnc/vehicle/process/components/ideal_target_tracking_6dof.hpp"
 #include "gnc/vehicle/process/components/ideal_trajectory_planner_6dof.hpp"
-#include "gnc/vehicle/process/interfaces/i_aero_guidance_provider.hpp"
 #include "gnc/vehicle/process/interfaces/i_control_allocation_3dof.hpp"
 #include "gnc/vehicle/process/interfaces/i_flight_control_3dof.hpp"
 #include "gnc/vehicle/process/interfaces/i_guidance_3dof.hpp"
@@ -104,15 +96,10 @@
 #include "gnc/vehicle/process/interfaces/i_phase_sequencer_6dof.hpp"
 #include "gnc/vehicle/process/interfaces/i_target_tracking_6dof.hpp"
 #include "gnc/vehicle/process/interfaces/i_trajectory_planner_6dof.hpp"
-#include "gnc/vehicle/output/components/constant_force.hpp"
 #include "gnc/vehicle/output/components/constant_mass_3dof.hpp"
 #include "gnc/vehicle/output/components/constant_mass_properties_6dof.hpp"
-#include "gnc/vehicle/output/components/constant_mass.hpp"
-#include "gnc/vehicle/output/components/continuous_constant_rate_mass.hpp"
 #include "gnc/vehicle/output/components/ideal_actuator_3dof.hpp"
 #include "gnc/vehicle/output/components/ideal_actuator_6dof.hpp"
-#include "gnc/vehicle/output/components/simple_polynomial_aero.hpp"
-#include "gnc/vehicle/output/components/table2d_aero.hpp"
 #include "gnc/vehicle/output/components/zero_aerodynamics_3dof.hpp"
 #include "gnc/vehicle/output/components/zero_aerodynamics_6dof.hpp"
 #include "gnc/vehicle/output/components/zero_propulsion_3dof.hpp"
@@ -323,15 +310,6 @@ inline void registerVehicleInputPackages(gnc::core::ComponentFactory& factory) {
 
 inline void registerVehicleProcessPackages(gnc::core::ComponentFactory& factory) {
     using namespace gnc::core;
-    factory.registerType<gnc::vehicle::process::ProgrammedAoAGuidance,
-                         gnc::vehicle::process::IAeroGuidanceProvider,
-                         gnc::interfaces::IObservable>(
-        "vehicle.process.programmed_aoa",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleProcess,
-        ExecutionStage::VehicleProcess,
-        "local_spherical_3dof");
     factory.registerType<gnc::vehicle::process::IdealPhaseSequencer3Dof,
                          gnc::vehicle::process::IPhaseSequencer3Dof,
                          gnc::interfaces::IObservable>(
@@ -600,47 +578,6 @@ inline void registerPerturbationPackages(gnc::core::ComponentFactory& factory) {
 
 inline void registerVehicleOutputPackages(gnc::core::ComponentFactory& factory) {
     using namespace gnc::core;
-    factory.registerType<gnc::vehicle::output::SimplePolynomialAero,
-                         gnc::vehicle::output::IAeroModel,
-                         gnc::interfaces::IObservable>(
-        "aero.simple_polynomial",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleOutput,
-        ExecutionStage::VehicleOutput);
-    factory.registerType<gnc::vehicle::output::Table2DAero,
-                         gnc::vehicle::output::IAeroModel,
-                         gnc::interfaces::IObservable>(
-        "aero.table2d",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleOutput,
-        ExecutionStage::VehicleOutput);
-    factory.registerType<gnc::vehicle::output::ContinuousConstantRateMass,
-                         gnc::vehicle::output::IContinuousMass,
-                         gnc::interfaces::IContinuousSystem,
-                         gnc::interfaces::IObservable>(
-        "mass.continuous_constant_rate",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleOutput,
-        ExecutionStage::VehicleOutput);
-    factory.registerType<gnc::vehicle::output::ConstantMass,
-                         gnc::vehicle::output::IConstantMass,
-                         gnc::interfaces::IObservable>(
-        "mass.constant",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleOutput,
-        ExecutionStage::VehicleOutput);
-    factory.registerType<gnc::vehicle::output::ConstantForce,
-                         gnc::vehicle::output::IForceProvider,
-                         gnc::interfaces::IObservable>(
-        "force.constant",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::VehicleOutput,
-        ExecutionStage::VehicleOutput);
     factory.registerType<gnc::vehicle::output::ZeroPropulsion3Dof,
                          gnc::vehicle::output::IForceProvider,
                          gnc::interfaces::IObservable>(
@@ -767,22 +704,6 @@ inline void registerState3DoFPackages(gnc::core::ComponentFactory& factory) {
 
 inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
     using namespace gnc::core;
-    factory.registerType<gnc::interactions::cartesian_3dof::DirectAccel,
-                         gnc::forms::cartesian_3dof::IInputProvider>(
-        "interaction.cartesian_3dof.direct_accel",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::Interaction,
-        ExecutionStage::Interaction,
-        "cartesian_3dof");
-    factory.registerType<gnc::interactions::cartesian_3dof::ForceAccel,
-                         gnc::forms::cartesian_3dof::IInputProvider>(
-        "interaction.cartesian_3dof.force_accel",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::Interaction,
-        ExecutionStage::Interaction,
-        "cartesian_3dof");
     factory.registerType<gnc::interactions::cartesian_3dof::StandardClosure,
                          gnc::forms::cartesian_3dof::IInputProvider,
                          gnc::interfaces::IObservable>(
@@ -803,24 +724,6 @@ inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
         ExecutionStage::Interaction,
         "cartesian_6dof");
 
-    factory.registerType<gnc::interactions::local_spherical_3dof::DirectAccel,
-                         gnc::forms::local_spherical_3dof::IInputProvider>(
-        "interaction.local_spherical_3dof.direct_accel",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::Interaction,
-        ExecutionStage::Interaction,
-        "local_spherical_3dof");
-
-    factory.registerType<gnc::interactions::local_spherical_3dof::AeroPropulsive,
-                         gnc::forms::local_spherical_3dof::IInputProvider>(
-        "interaction.local_spherical_3dof.aero_propulsive",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::Interaction,
-        ExecutionStage::Interaction,
-        "local_spherical_3dof");
-
     factory.registerType<gnc::interactions::local_spherical_3dof::StandardClosure,
                          gnc::forms::local_spherical_3dof::IInputProvider,
                          gnc::interfaces::IObservable>(
@@ -840,19 +743,6 @@ inline void registerInteractionPackages(gnc::core::ComponentFactory& factory) {
         ComponentPackageRole::Interaction,
         ExecutionStage::Interaction,
         "local_spherical_6dof");
-}
-
-inline void registerFormViewPackages(gnc::core::ComponentFactory& factory) {
-    using namespace gnc::core;
-    factory.registerType<gnc::forms::local_spherical_3dof::FlightStateView,
-                         gnc::forms::local_spherical_3dof::IFlightStateView,
-                         gnc::interfaces::IObservable>(
-        "form.local_spherical_3dof.flight_state_view",
-        ComponentCategory::Builtin,
-        __FILE__,
-        ComponentPackageRole::Form,
-        ExecutionStage::Form,
-        "local_spherical_3dof");
 }
 
 inline void registerTerminationPackages(gnc::core::ComponentFactory& factory) {
@@ -942,7 +832,6 @@ inline void registerBuiltinPackages(gnc::core::ComponentFactory& factory) {
     registerVehicleOutputPackages(factory);
     registerState3DoFPackages(factory);
     registerInteractionPackages(factory);
-    registerFormViewPackages(factory);
     registerTerminationPackages(factory);
     registerSummaryPackages(factory);
 }

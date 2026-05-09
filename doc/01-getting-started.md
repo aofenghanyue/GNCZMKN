@@ -45,13 +45,13 @@ user/active_project
 如果 active project 存在 `config/mission.json`，它会成为默认任务。当前仓库默认选择：
 
 ```text
-example_02_atmospheric_3dof
+example_05_ideal_3dof_geographic_baseline
 ```
 
 对应 mission：
 
 ```text
-user/example_02_atmospheric_3dof/config/mission.json
+user/example_05_ideal_3dof_geographic_baseline/config/mission.json
 ```
 
 修改 `user/active_project` 或新增项目组件后，重新运行 CMake 配置和构建。
@@ -59,7 +59,7 @@ user/example_02_atmospheric_3dof/config/mission.json
 也可以在配置阶段显式指定 active project：
 
 ```powershell
-cmake -S . -B build-mingw -G "MinGW Makefiles" -DGNC_ACTIVE_PROJECT=example_03_coordinate_tree
+cmake -S . -B build-mingw -G "MinGW Makefiles" -DGNC_ACTIVE_PROJECT=example_08_cavh_geographic_3dof_custom
 cmake --build build-mingw -j 4
 ```
 
@@ -70,13 +70,13 @@ cmake --build build-mingw -j 4
 可以显式传入 mission 路径：
 
 ```powershell
-build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
+build-mingw\bin\gnc_sim.exe --config user/example_05_ideal_3dof_geographic_baseline/config/mission.json
 ```
 
 也可以省略 `--config`：
 
 ```powershell
-build-mingw\bin\gnc_sim.exe user/example_01_minimal_pluginized/config/mission.json
+build-mingw\bin\gnc_sim.exe user/example_06_ideal_cartesian_3dof_baseline/config/mission.json
 ```
 
 相对路径可以相对当前工作目录，也可以相对仓库根目录。runner 会从当前目录和可执行文件目录向上搜索。
@@ -182,7 +182,7 @@ CSV 的 `time` 列表示周期开始发布态 `t_k`。如果你在 `t0` 行看�
 build-mingw\bin\gnc_sim.exe --help
 build-mingw\bin\gnc_sim.exe --list-components
 build-mingw\bin\gnc_sim.exe --list-components-verbose
-build-mingw\bin\gnc_sim.exe --config user/example_02_atmospheric_3dof/config/mission.json
+build-mingw\bin\gnc_sim.exe --config user/example_05_ideal_3dof_geographic_baseline/config/mission.json
 build-mingw\bin\gnc_sim.exe --runset user/outputs/my_runset/runset.json --jobs auto
 ```
 

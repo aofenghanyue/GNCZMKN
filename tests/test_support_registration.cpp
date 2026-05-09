@@ -9,6 +9,7 @@ namespace test_support {
 void registerBuiltinComponentTypes() {
     auto& factory = gnc::core::ComponentFactory::instance();
     gnc::bootstrap::registerBuiltinPackages(factory);
+    gnc::build::registerAutoRegisteredTestComponents(factory);
 }
 
 void registerStableTestProjectComponentTypes() {

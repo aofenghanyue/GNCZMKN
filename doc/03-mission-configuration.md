@@ -172,37 +172,29 @@ Local-spherical 3DoF：
 
 ```json
 {
+  "common": [
+    { "type": "vehicle.common.aero_assets_3dof.zero", "name": "aero_assets", "config": {} }
+  ],
+  "input": [
+    { "type": "vehicle.input.satellite_nav_3dof.ideal", "name": "satnav", "config": {} },
+    { "type": "vehicle.input.air_data_3dof.ideal", "name": "air_data", "config": {} }
+  ],
   "process": [
-    {
-      "type": "vehicle.process.programmed_aoa",
-      "name": "guidance",
-      "config": {
-        "bank_angle_deg": 0.0,
-        "schedule_altitude_m": [60000, 45000, 30000, 15000],
-        "schedule_angle_of_attack_deg": [20, 12, 10, 8]
-      }
-    }
+    { "type": "vehicle.process.navigation_3dof.ideal", "name": "navigation", "config": {} },
+    { "type": "vehicle.process.guidance_3dof.ideal", "name": "guidance", "config": {} },
+    { "type": "vehicle.process.flight_control_3dof.ideal", "name": "flight_control", "config": {} },
+    { "type": "vehicle.process.control_allocation_3dof.ideal", "name": "control_allocation", "config": {} }
   ],
   "output": [
-    {
-      "type": "mass.constant",
-      "name": "mass",
-      "config": {
-        "asset_file": "framework/data/vehicles/cavh/output/mass_atmospheric_reference.json"
-      }
-    },
-    {
-      "type": "aero.table2d",
-      "name": "aero",
-      "config": {
-        "asset_file": "framework/data/vehicles/cavh/output/aero_table2d.json"
-      }
-    }
+    { "type": "vehicle.output.mass_3dof.constant", "name": "mass", "config": { "mass_kg": 100.0 } },
+    { "type": "vehicle.output.propulsion_3dof.zero", "name": "propulsion", "config": {} },
+    { "type": "vehicle.output.actuator_3dof.ideal", "name": "actuator", "config": {} },
+    { "type": "vehicle.output.aerodynamics_3dof.zero", "name": "aero", "config": {} }
   ],
   "interaction": {
     "components": [
       {
-        "type": "interaction.local_spherical_3dof.aero_propulsive",
+        "type": "interaction.local_spherical_3dof.standard",
         "name": "interaction",
         "config": {}
       }
@@ -238,7 +230,7 @@ Local-spherical 3DoF：
 }
 ```
 
-服务先创建句柄，再在组件装配后 finalize，因此 service spec 可以绑定同一 vehicle 内的 form truth。项目组件通过 `injectServices(ServiceContext&)` 获取服务；示例见 `user/example_03_coordinate_tree/components/coordinate_probe.hpp`。
+服务先创建句柄，再在组件装配后 finalize，因此 service spec 可以绑定同一 vehicle 内的 form truth。项目组件通过 `injectServices(ServiceContext&)` 获取服务；当前内置示例不再把 coordinate tree 作为主学习流程。
 
 ## Perturbation
 
@@ -318,7 +310,7 @@ matches an integer input, it also publishes a string value at
 
 ```json
 {
-  "type": "vehicle.process.programmed_aoa",
+  "type": "vehicle.process.guidance_3dof.ideal",
   "name": "guidance",
   "priority": 10,
   "rate_hz": 10.0,
@@ -336,7 +328,7 @@ matches an integer input, it also publishes a string value at
   "outputs": {
     "directory": "user/outputs/{timestamp}",
     "format": "csv",
-    "session_name": "cavh_3dof",
+    "session_name": "ideal_3dof",
     "record_initial_state": true,
     "record": {
       "vehicle.dynamics": "all",
@@ -350,7 +342,7 @@ matches an integer input, it also publishes a string value at
 
 CSV 行在 `update(t_k)` 之后写出：form/dynamics/truth view 字段是周期开始发布态 `x_k` 及其真实派生量；input/process/guidance/output 字段是组件在 record 时刻暴露的本周期离散输出。`t0` 行不是未经离散计算的纯初值行，而是初始状态 `x_0` 加上基于 `x_0` 计算出的第一周期离散输出。框架不保证所有 observable 在物理意义上无延迟；延迟语义由组件模型自身定义。`outputs` 顶层未知字段只产生 warning，不作为 build error。
 
-`form.local_spherical_3dof.flight_state_view` 是 form/truth 层真实状态视图，在 publish 阶段刷新。机上导航或估计飞行状态应另建 `vehicle.process` 组件。
+form 只负责真实连续状态和 truth 发布；机上导航、估计飞行状态或任务化视图应另建 `vehicle.input` / `vehicle.process` 组件。
 
 `record` 支持三种常用写法：
 

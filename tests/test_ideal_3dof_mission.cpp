@@ -60,8 +60,7 @@ std::string missionText(const fs::path& output_dir) {
                 "heading_angle_rad": 1.5707963267948966
               }
             }
-          },
-          { "type": "form.local_spherical_3dof.flight_state_view", "name": "flight_state", "config": {} }
+          }
         ]
       },
       "common": [
@@ -125,7 +124,6 @@ std::string missionText(const fs::path& output_dir) {
     "session_name": "ideal_3dof_mission",
     "record": {
       "interceptor.dynamics": "all",
-      "interceptor.flight_state": "all",
       "interceptor.imu": "all",
       "interceptor.satnav": "all",
       "interceptor.air_data": "all",
@@ -180,7 +178,6 @@ void checkGeneratedArtifacts(const fs::path& output_dir,
     const auto csv_text = readText(output_dir / (session_name + ".csv"));
     const std::vector<std::string> required_columns = {
         "interceptor.dynamics.altitude_m",
-        "interceptor.flight_state.dynamic_pressure_pa",
         "interceptor.imu.local_acceleration_nue.x",
         "interceptor.satnav.position_ecef.x",
         "interceptor.air_data.mach_number",

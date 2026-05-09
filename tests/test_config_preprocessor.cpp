@@ -37,7 +37,7 @@ void writeFile(const fs::path& path, const std::string& text) {
 struct ScratchDirs {
     explicit ScratchDirs(fs::path root)
         : scratch(root / "user/outputs/test_config_preprocessor"),
-          project(root / "user/example_02_atmospheric_3dof/config/preprocessor_test"),
+          project(root / "user/example_05_ideal_3dof_geographic_baseline/config/preprocessor_test"),
           user_data(root / "user/data/preprocessor_test") {
         cleanup();
         std::error_code ec;
@@ -240,7 +240,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "acceleration_mps2": [0.0, 0.0, -9.81]

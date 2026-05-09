@@ -1,0 +1,170 @@
+{
+  "simulation": {
+    "dt": 0.1,
+    "duration": 600.0,
+    "integrator": "rk4"
+  },
+  "environment": {
+    "components": [
+      { "type": "environment.spherical_earth", "name": "earth", "config": {} },
+      { "type": "environment.standard_atmosphere", "name": "atmosphere", "config": {} },
+      { "type": "environment.spherical_gravity", "name": "gravity", "config": {} }
+    ]
+  },
+  "vehicles": [
+    {
+      "id": "vehicle",
+      "form": {
+        "components": [
+          {
+            "type": "form.local_spherical_3dof.point_mass",
+            "name": "dynamics",
+            "config": {
+              "launch_azimuth_rad": 1.5707963267948966,
+              "initial_state": {
+                "longitude_rad": 1.9198621771937625,
+                "latitude_rad": 0.5235987755982988,
+                "altitude_m": 60000.0,
+                "speed_mps": 3200.0,
+                "flight_path_angle_rad": -0.1047197551196598,
+                "heading_angle_rad": -1.5707963267948966
+              }
+            }
+          }
+        ]
+      },
+      "common": [
+        {
+          "type": "cavh.common.aero_assets_3dof.table2d",
+          "name": "aero_assets",
+          "config": {
+            "asset_file": "user/example_08_cavh_geographic_3dof_custom/data/aero_table2d.csv"
+          }
+        }
+      ],
+      "input": [
+        { "type": "vehicle.input.imu_3dof.ideal", "name": "imu", "config": {} },
+        { "type": "vehicle.input.satellite_nav_3dof.ideal", "name": "satnav", "config": {} },
+        { "type": "vehicle.input.air_data_3dof.ideal", "name": "air_data", "config": {} },
+        {
+          "type": "vehicle.input.seeker_3dof.ideal",
+          "name": "seeker",
+          "config": { "target_truth_lookup_name": "target.truth" }
+        }
+      ],
+      "process": [
+        {
+          "type": "vehicle.process.phase_sequencer_3dof.ideal",
+          "name": "phase",
+          "config": { "phase_name": "cavh_entry" }
+        },
+        { "type": "vehicle.process.trajectory_planner_3dof.ideal", "name": "planner", "config": {} },
+        { "type": "vehicle.process.navigation_3dof.ideal", "name": "navigation", "config": {} },
+        { "type": "vehicle.process.target_tracking_3dof.ideal", "name": "tracking", "config": {} },
+        {
+          "type": "cavh.process.guidance_3dof.programmed_aoa",
+          "name": "guidance",
+          "rate_hz": 10.0,
+          "config": {
+            "navigation_lookup_name": "navigation",
+            "bank_angle_deg": 0.0,
+            "schedule_altitude_m": [60000.0, 45000.0, 30000.0, 15000.0],
+            "schedule_angle_of_attack_deg": [20.0, 12.0, 10.0, 8.0]
+          }
+        },
+        { "type": "vehicle.process.flight_control_3dof.ideal", "name": "flight_control", "config": {} },
+        { "type": "vehicle.process.control_allocation_3dof.ideal", "name": "control_allocation", "config": {} }
+      ],
+      "output": [
+        { "type": "vehicle.output.mass_3dof.constant", "name": "mass", "config": { "mass_kg": 900.0 } },
+        { "type": "vehicle.output.propulsion_3dof.zero", "name": "propulsion", "config": {} },
+        { "type": "vehicle.output.actuator_3dof.ideal", "name": "actuator", "priority": 0, "config": {} },
+        {
+          "type": "vehicle.output.aerodynamics_3dof.zero",
+          "name": "aero",
+          "priority": 10,
+          "config": {
+            "assets_lookup_name": "aero_assets",
+            "actuator_lookup_name": "actuator",
+            "reference_area_m2": 0.48387,
+            "reference_length_m": 3.0
+          }
+        }
+      ],
+      "interaction": {
+        "components": [
+          {
+            "type": "cavh.interaction.local_spherical_3dof.aero_propulsive",
+            "name": "interaction",
+            "config": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": "target",
+      "form": {
+        "components": [
+          {
+            "type": "form.target_point.kinematic",
+            "name": "truth",
+            "config": {
+              "initial_position_ecef_m": [6300000.0, -250000.0, 120000.0],
+              "velocity_ecef_mps": [0.0, 0.0, 0.0]
+            }
+          }
+        ]
+      },
+      "common": [],
+      "input": [],
+      "process": [],
+      "output": []
+    }
+  ],
+  "outputs": {
+    "directory": "user/outputs/example_08_cavh_geographic_3dof_custom",
+    "format": "csv",
+    "session_name": "cavh_geographic_3dof_custom",
+    "record": {
+      "vehicle.dynamics": "all",
+      "vehicle.imu": "all",
+      "vehicle.satnav": "all",
+      "vehicle.air_data": "all",
+      "vehicle.seeker": "all",
+      "vehicle.phase": "all",
+      "vehicle.planner": "all",
+      "vehicle.navigation": "all",
+      "vehicle.tracking": "all",
+      "vehicle.guidance": "all",
+      "vehicle.flight_control": "all",
+      "vehicle.control_allocation": "all",
+      "vehicle.mass": "all",
+      "vehicle.propulsion": "all",
+      "vehicle.actuator": "all",
+      "vehicle.aero": "all",
+      "vehicle.aero_assets": "all",
+      "vehicle.interaction": "all",
+      "target.truth": "all"
+    }
+  },
+  "termination": {
+    "type": "termination.component_field_below",
+    "name": "termination",
+    "config": {
+      "component": "vehicle.dynamics",
+      "field": "altitude_m",
+      "value": 10000.0,
+      "description": "Terminate below 10 km altitude"
+    }
+  },
+  "summary": {
+    "type": "summary.engagement_3dof.ideal",
+    "name": "summary",
+    "config": {
+      "interceptor_truth_lookup_name": "vehicle.dynamics",
+      "target_truth_lookup_name": "target.truth",
+      "mass_lookup_name": "vehicle.mass",
+      "air_data_lookup_name": "vehicle.air_data"
+    }
+  }
+}

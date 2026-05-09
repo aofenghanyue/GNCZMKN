@@ -219,7 +219,7 @@ std::string cartesianMissionWithEnvironment(const std::string& environment_block
       "interaction": {
         "components": [
           {
-            "type": "interaction.cartesian_3dof.direct_accel",
+            "type": "test_fixture.cartesian_3dof.acceleration_input",
             "name": "interaction",
             "config": )json" +
            R"json({
@@ -386,7 +386,7 @@ int main() {
   "initial_velocity": [0.0, 0.0, 0.0],
   "initial_postion": [1.0, 2.0, 3.0]
 })json",
-                "interaction.cartesian_3dof.direct_accel",
+                "test_fixture.cartesian_3dof.acceleration_input",
                 kValidCartesianInteraction,
                 "[]",
                 ""),
@@ -426,7 +426,7 @@ int main() {
       "interaction": {
         "components": [
           {
-            "type": "interaction.local_spherical_3dof.direct_accel",
+            "type": "test_fixture.local_spherical_3dof.acceleration_input",
             "name": "interaction",
             "config": {
               "local_acceleration_nue_mps2": [0.0, -9.80665, 0.0]
@@ -444,7 +444,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -454,7 +454,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -464,7 +464,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -543,7 +543,7 @@ int main() {
         expectBuildFailure(
             cartesianMissionWith(
                 kValidCartesianDynamics,
-                "interaction.cartesian_3dof.direct_accel",
+                "test_fixture.cartesian_3dof.acceleration_input",
                 kValidCartesianInteraction,
                 "[]",
                 R"json(,
@@ -561,7 +561,7 @@ int main() {
         expectBuildFailure(
             cartesianMissionWith(
                 kValidCartesianDynamics,
-                "interaction.cartesian_3dof.direct_accel",
+                "test_fixture.cartesian_3dof.acceleration_input",
                 kValidCartesianInteraction,
                 "[]",
                 R"json(,
@@ -579,11 +579,11 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  R"json([
         {
-          "type": "mass.constant",
+          "type": "vehicle.output.mass_3dof.constant",
           "name": "mass",
           "config": {}
         }
@@ -594,37 +594,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
-                                 kValidCartesianInteraction,
-                                 R"json([
-        {
-          "type": "mass.constant",
-          "name": "mass",
-          "config": { "asset_file": 123 }
-        }
-      ])json",
-                                 ""),
-            "vehicles[0].output[0].config.asset_file must be a string",
-            "asset_file type errors should report the component config path.");
-
-        expectBuildFailure(
-            cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
-                                 kValidCartesianInteraction,
-                                 R"json([
-        {
-          "type": "mass.constant",
-          "name": "mass",
-          "config": { "asset_file": "tests/assets/phase5/missing_asset.json" }
-        }
-      ])json",
-                                 ""),
-            "was not found",
-            "Missing asset_file target should be a build error.");
-
-        expectBuildFailure(
-            cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -642,7 +612,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -661,40 +631,6 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
-                                 kValidCartesianInteraction,
-                                 R"json([
-        {
-          "type": "aero.table2d",
-          "name": "aero",
-          "config": {
-            "asset_file": "tests/assets/phase5/aero_missing_tables.json"
-          }
-        }
-      ])json",
-                                 ""),
-            "alpha_breaks_rad",
-            "Missing aero table fields should be a build error.");
-
-        expectBuildFailure(
-            cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
-                                 kValidCartesianInteraction,
-                                 R"json([
-        {
-          "type": "aero.table2d",
-          "name": "aero",
-          "config": {
-            "asset_file": "tests/assets/phase5/aero_non_number.json"
-          }
-        }
-      ])json",
-                                 ""),
-            "row 0 column 1 must be a number",
-            "Aero table non-number entries should be a build error.");
-
-        expectBuildFailure(
-            cartesianMissionWith(kValidCartesianDynamics,
                                  "test.no_family_interaction",
                                  "{}",
                                  "[]",
@@ -704,7 +640,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -724,7 +660,7 @@ int main() {
 
         expectBuildSuccess(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -743,7 +679,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -763,7 +699,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -783,7 +719,7 @@ int main() {
 
         expectBuildFailure(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
@@ -875,7 +811,7 @@ int main() {
 
         expectBuildWarning(
             cartesianMissionWith(kValidCartesianDynamics,
-                                 "interaction.cartesian_3dof.direct_accel",
+                                 "test_fixture.cartesian_3dof.acceleration_input",
                                  kValidCartesianInteraction,
                                  "[]",
                                  "",
