@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace cavh::components {
@@ -29,38 +28,19 @@ public:
                    const std::string& config_path) override {
         gnc::core::ConfigReader reader(config, config_path);
         navigation_lookup_name_ =
-            reader.optionalString("navigation_lookup_name",
+            reader.optionalString(kNavigationLookupNameKey,
                                   navigation_lookup_name_);
         bank_angle_rad_ = gnc::math::deg2rad(
-            reader.requiredDouble("bank_angle_deg"));
-        auto altitudes = reader.requiredDoubleArray("schedule_altitude_m");
-        auto alphas = reader.requiredDoubleArray("schedule_angle_of_attack_deg");
-        if (altitudes.empty()) {
-            throw std::runtime_error(config_path +
-                                     ".schedule_altitude_m must not be empty.");
-        }
-        if (altitudes.size() != alphas.size()) {
-            throw std::runtime_error(
-                config_path +
-                ".schedule_altitude_m and .schedule_angle_of_attack_deg must have the same length.");
-        }
+            reader.requiredDouble(kBankAngleDegKey));
 
-        schedule_.clear();
-        schedule_.reserve(altitudes.size());
-        for (size_t i = 0; i < altitudes.size(); ++i) {
-            schedule_.push_back({altitudes[i], alphas[i]});
-        }
-        std::sort(schedule_.begin(), schedule_.end(), [](const auto& lhs,
-                                                         const auto& rhs) {
-            return lhs.first < rhs.first;
-        });
-        for (size_t i = 1; i < schedule_.size(); ++i) {
-            if (schedule_[i - 1].first == schedule_[i].first) {
-                throw std::runtime_error(
-                    config_path +
-                    ".schedule_altitude_m must not contain duplicate nodes.");
-            }
-        }
+        const auto mach_numbers =
+            reader.requiredDoubleArray(kScheduleMachNumberKey);
+        const auto angle_of_attack_deg =
+            reader.requiredDoubleArray(kScheduleAngleOfAttackDegKey);
+        angle_of_attack_schedule_ =
+            makeAngleOfAttackSchedule(mach_numbers,
+                                      angle_of_attack_deg,
+                                      config_path);
         reader.validateNoUnknownKeys();
     }
 
@@ -71,9 +51,9 @@ public:
     void initialize() override { update(0.0); }
 
     void update(double) override {
-        altitude_m_ = navigation_->navigationState3Dof().altitude_m;
+        mach_number_ = navigation_->navigationState3Dof().mach_number;
         command_.angle_of_attack_rad =
-            gnc::math::deg2rad(interpolateAngleOfAttackDeg(altitude_m_));
+            gnc::math::deg2rad(interpolateAngleOfAttackDeg(mach_number_));
         command_.bank_angle_rad = bank_angle_rad_;
         command_.acceleration_command_nue_mps2 = gnc::math::Vector3::Zero();
     }
@@ -86,7 +66,7 @@ public:
     std::vector<gnc::interfaces::ObservableField> getObservableFields()
         const override {
         gnc::core::ObservableFieldBuilder builder;
-        builder.addScalar("altitude_m", [this]() { return altitude_m_; });
+        builder.addScalar("mach_number", [this]() { return mach_number_; });
         builder.addScalar("angle_of_attack_rad",
                           [this]() { return command_.angle_of_attack_rad; });
         builder.addScalar("angle_of_attack_deg",
@@ -104,35 +84,97 @@ public:
     }
 
 private:
-    double interpolateAngleOfAttackDeg(double altitude_m) const {
-        if (schedule_.size() == 1) {
-            return schedule_.front().second;
+    struct AngleOfAttackScheduleNode {
+        double mach_number = 0.0;
+        double angle_of_attack_deg = 0.0;
+    };
+
+    static constexpr const char* kNavigationLookupNameKey =
+        "navigation_lookup_name";
+    static constexpr const char* kBankAngleDegKey = "bank_angle_deg";
+    static constexpr const char* kScheduleMachNumberKey =
+        "schedule_mach_number";
+    static constexpr const char* kScheduleAngleOfAttackDegKey =
+        "schedule_angle_of_attack_deg";
+
+    static std::string configFieldPath(const std::string& config_path,
+                                       const char* key) {
+        if (config_path.empty()) {
+            return key;
         }
-        if (altitude_m <= schedule_.front().first) {
-            return schedule_.front().second;
+        return config_path + "." + key;
+    }
+
+    static std::vector<AngleOfAttackScheduleNode> makeAngleOfAttackSchedule(
+        const std::vector<double>& mach_numbers,
+        const std::vector<double>& angle_of_attack_deg,
+        const std::string& config_path) {
+        if (mach_numbers.empty()) {
+            throw std::runtime_error(
+                configFieldPath(config_path, kScheduleMachNumberKey) +
+                " must not be empty.");
         }
-        if (altitude_m >= schedule_.back().first) {
-            return schedule_.back().second;
+        if (mach_numbers.size() != angle_of_attack_deg.size()) {
+            throw std::runtime_error(
+                configFieldPath(config_path, kScheduleMachNumberKey) +
+                " and " +
+                configFieldPath(config_path, kScheduleAngleOfAttackDegKey) +
+                " must have the same length.");
         }
 
-        for (size_t i = 1; i < schedule_.size(); ++i) {
-            if (altitude_m <= schedule_[i].first) {
-                const auto& lower = schedule_[i - 1];
-                const auto& upper = schedule_[i];
-                const double ratio =
-                    (altitude_m - lower.first) / (upper.first - lower.first);
-                return lower.second + ratio * (upper.second - lower.second);
+        std::vector<AngleOfAttackScheduleNode> schedule;
+        schedule.reserve(mach_numbers.size());
+        for (size_t i = 0; i < mach_numbers.size(); ++i) {
+            schedule.push_back({mach_numbers[i], angle_of_attack_deg[i]});
+        }
+
+        std::sort(schedule.begin(),
+                  schedule.end(),
+                  [](const auto& lhs, const auto& rhs) {
+                      return lhs.mach_number < rhs.mach_number;
+                  });
+        for (size_t i = 1; i < schedule.size(); ++i) {
+            if (schedule[i - 1].mach_number == schedule[i].mach_number) {
+                throw std::runtime_error(
+                    configFieldPath(config_path, kScheduleMachNumberKey) +
+                    " must not contain duplicate nodes.");
             }
         }
-        return schedule_.back().second;
+        return schedule;
+    }
+
+    double interpolateAngleOfAttackDeg(double mach_number) const {
+        if (angle_of_attack_schedule_.size() == 1) {
+            return angle_of_attack_schedule_.front().angle_of_attack_deg;
+        }
+        if (mach_number <= angle_of_attack_schedule_.front().mach_number) {
+            return angle_of_attack_schedule_.front().angle_of_attack_deg;
+        }
+        if (mach_number >= angle_of_attack_schedule_.back().mach_number) {
+            return angle_of_attack_schedule_.back().angle_of_attack_deg;
+        }
+
+        for (size_t i = 1; i < angle_of_attack_schedule_.size(); ++i) {
+            if (mach_number <= angle_of_attack_schedule_[i].mach_number) {
+                const auto& lower = angle_of_attack_schedule_[i - 1];
+                const auto& upper = angle_of_attack_schedule_[i];
+                const double ratio =
+                    (mach_number - lower.mach_number) /
+                    (upper.mach_number - lower.mach_number);
+                return lower.angle_of_attack_deg +
+                       ratio * (upper.angle_of_attack_deg -
+                                lower.angle_of_attack_deg);
+            }
+        }
+        return angle_of_attack_schedule_.back().angle_of_attack_deg;
     }
 
     gnc::vehicle::process::INavigation3Dof* navigation_ = nullptr;
     std::string navigation_lookup_name_ = "navigation";
-    std::vector<std::pair<double, double>> schedule_;
+    std::vector<AngleOfAttackScheduleNode> angle_of_attack_schedule_;
     gnc::vehicle::process::GuidanceCommand3Dof command_{};
     double bank_angle_rad_ = 0.0;
-    double altitude_m_ = 0.0;
+    double mach_number_ = 0.0;
 };
 
 } // namespace cavh::components

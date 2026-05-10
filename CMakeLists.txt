@@ -401,6 +401,7 @@ if(BUILD_TESTS)
     add_gnc_test(test_ideal_6dof_components tests/test_ideal_6dof_components.cpp)
     add_gnc_test(test_ideal_6dof_process tests/test_ideal_6dof_process.cpp)
     add_gnc_test(test_ideal_6dof_mission tests/test_ideal_6dof_mission.cpp)
+    add_gnc_test(test_cavh_programmed_aoa_guidance tests/test_cavh_programmed_aoa_guidance.cpp)
 
     list(LENGTH TEST_PROJECT_COMPONENT_FILES TEST_PROJECT_COMPONENT_COUNT)
     message(STATUS

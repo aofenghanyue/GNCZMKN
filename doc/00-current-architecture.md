@@ -4,7 +4,7 @@ GNCZMKN 当前是显式装配的固定步长仿真框架。mission 使用顶层 
 
 单次仿真直接运行 mission。批量或参数化仿真通过 SimFlow 先生成每个 case 的 `effective_mission.json`，再把每个 effective mission 当作普通 mission 运行。因此 SimFlow 是仿真前置物化和调度层，不改变 `Simulator` 对单次 mission 的运行语义。
 
-旧式 `entities[]`、根级 `components/services`、根级 `form/vehicle/interaction` 会被运行时拒绝。想先理解概念边界，先读 [02-core-concepts.md](02-core-concepts.md)；想看源码细节，再读 [05-architecture.md](05-architecture.md)。
+想先理解概念边界，先读 [02-core-concepts.md](02-core-concepts.md)；想看源码细节，再读 [05-architecture.md](05-architecture.md)。
 
 ## 架构地图
 
@@ -40,16 +40,16 @@ flowchart TB
 
 ## 职责边界
 
-| 概念 | 职责 |
-| --- | --- |
-| `Form` | 连续状态、导数方程、truth view、form input 和 form-local math |
-| `Environment` | 地球、大气、重力等只读环境查询 |
-| `Vehicle` | 飞行器侧资产、传感器、制导控制、气动、质量和推进能力 |
-| `Perturbation` | 飞行器级拉偏状态源，把 SimFlow 或单次配置中的数值输入解析成 number/string/vector 状态 |
-| `Interaction` | form-specific closure，把 truth、环境、命令和 output 能力组合成 form input |
-| `Service` | 稳定基础设施能力，例如 vehicle-scoped 坐标树 |
-| `Output` | CSV、debug snapshot、summary 等仿真结果持久化 |
-| `SimFlow` | 仿真前置物化和调度；每个 case 最终仍进入普通 mission build/run 链路 |
+| 概念             | 职责                                                           |
+| -------------- | ------------------------------------------------------------ |
+| `Form`         | 连续状态、导数方程、truth view、form input 和 form-local math            |
+| `Environment`  | 地球、大气、重力等只读环境查询                                              |
+| `Vehicle`      | 飞行器侧资产、传感器、制导控制、气动、质量和推进能力                                   |
+| `Perturbation` | 飞行器级拉偏状态源，把 SimFlow 或单次配置中的数值输入解析成 number/string/vector 状态   |
+| `Interaction`  | form-specific closure，把 truth、环境、命令和 output 能力组合成 form input |
+| `Service`      | 稳定基础设施能力，例如 vehicle-scoped 坐标树                               |
+| `Output`       | CSV、debug snapshot、summary 等仿真结果持久化                          |
+| `SimFlow`      | 仿真前置物化和调度；每个 case 最终仍进入普通 mission build/run 链路               |
 
 `vehicle.common` 是非调度的资产/profile 层。运行时物理能力放在 `vehicle.output`，不要放回 `common`。任务流程、制导控制和模式切换属于 `vehicle.process`，不要放进 service。拉偏状态由 `vehicles[].perturbation` 集中提供；其它组件通过接口读取，不直接解析 SimFlow 配置。
 

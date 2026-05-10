@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "memory": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "random": "cpp",
+        "complex": "cpp",
+        "sstream": "cpp",
+        "vector": "cpp"
     }
 }
